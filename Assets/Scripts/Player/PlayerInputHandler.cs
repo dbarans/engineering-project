@@ -4,20 +4,30 @@ using UnityEngine.InputSystem;
 /// <summary>
 /// Handles player input and forwards it to movement and aiming systems.
 /// Decouples input from gameplay logic to allow modularity and testability.
+/// Respects game state and blocks input during pause.
 /// </summary>
 public class PlayerInputHandler : MonoBehaviour
 {
     [Header("Player Systems")]
-    [SerializeField] private PlayerMovement playerMovement; // Legs/nodes movement
-    [SerializeField] private PlayerAim playerAim;           // Torso aiming
+    [SerializeField] private PlayerMovement playerMovement;
+    [SerializeField] private PlayerAim playerAim;
 
-    private PlayerControls controls;   // Generated input actions
-    private Vector2 moveInput;         // Current movement vector
+    private IGameStateManager gameStateManager;
+    private PlayerControls controls;
+    private Vector2 moveInput;
 
     private void Awake()
     {
-        // Create instance of generated input actions class
         controls = new PlayerControls();
+    }
+
+    /// <summary>
+    /// Sets the game state manager dependency. Called by GameManager during initialization.
+    /// </summary>
+    /// <param name="manager">The game state manager instance.</param>
+    public void SetGameStateManager(IGameStateManager manager)
+    {
+        gameStateManager = manager;
     }
 
     private void OnEnable()
@@ -42,17 +52,25 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // Forward movement input to movement system
+        if (gameStateManager != null && gameStateManager.IsPaused())
+        {
+            return;
+        }
+
         playerMovement.Move(moveInput);
     }
-
-    #region Input Callbacks
 
     /// <summary>
     /// Triggered when movement input is performed.
     /// </summary>
     private void OnMovePerformed(InputAction.CallbackContext context)
     {
+        if (gameStateManager != null && gameStateManager.IsPaused())
+        {
+            moveInput = Vector2.zero;
+            return;
+        }
+
         moveInput = context.ReadValue<Vector2>();
     }
 
@@ -69,9 +87,12 @@ public class PlayerInputHandler : MonoBehaviour
     /// </summary>
     private void OnAimPerformed(InputAction.CallbackContext context)
     {
+        if (gameStateManager != null && gameStateManager.IsPaused())
+        {
+            return;
+        }
+
         Vector2 aimPosition = context.ReadValue<Vector2>();
         playerAim.SetAimPosition(aimPosition);
     }
-
-    #endregion
 }

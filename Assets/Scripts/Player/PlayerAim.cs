@@ -1,12 +1,31 @@
 using UnityEngine;
 
+/// <summary>
+/// Handles player aiming by rotating the torso towards the target position.
+/// Respects game state and does not update during pause.
+/// </summary>
 public class PlayerAim : MonoBehaviour
 {
+    [Header("References")]
     [SerializeField] private Transform torsoTransform;
     [SerializeField] private Camera mainCamera;
 
+    private IGameStateManager gameStateManager;
     private Vector2 aimPosition;
 
+    /// <summary>
+    /// Sets the game state manager dependency. Called by GameManager during initialization.
+    /// </summary>
+    /// <param name="manager">The game state manager instance.</param>
+    public void SetGameStateManager(IGameStateManager manager)
+    {
+        gameStateManager = manager;
+    }
+
+    /// <summary>
+    /// Sets the target aim position in screen coordinates.
+    /// </summary>
+    /// <param name="position">Screen position to aim at.</param>
     public void SetAimPosition(Vector2 position)
     {
         aimPosition = position;
@@ -14,6 +33,11 @@ public class PlayerAim : MonoBehaviour
 
     private void Update()
     {
+        if (gameStateManager != null && gameStateManager.IsPaused())
+        {
+            return;
+        }
+
         Vector3 worldPos = mainCamera.ScreenToWorldPoint(aimPosition);
         worldPos.z = 0f;
 

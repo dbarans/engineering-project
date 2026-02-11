@@ -9,6 +9,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerMovement
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        rb.constraints = RigidbodyConstraints2D.FreezeRotation;
     }
 
     public void Move(Vector2 direction)

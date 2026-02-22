@@ -9,6 +9,7 @@ public class PlayerAim : MonoBehaviour
     [Header("References")]
     [SerializeField] private Transform torsoTransform;
     [SerializeField] private Camera mainCamera;
+    [SerializeField] private float rotationSpeed = 450f;
 
     private IGameStateManager gameStateManager;
     private Vector2 aimPosition;
@@ -43,6 +44,12 @@ public class PlayerAim : MonoBehaviour
 
         Vector3 direction = worldPos - torsoTransform.position;
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-        torsoTransform.rotation = Quaternion.Euler(0f, 0f, angle);
+        Quaternion targetRotation = Quaternion.Euler(0f, 0f, angle);
+        
+        torsoTransform.rotation = Quaternion.RotateTowards(
+            torsoTransform.rotation,
+            targetRotation,
+            rotationSpeed * Time.deltaTime
+        );
     }
 }

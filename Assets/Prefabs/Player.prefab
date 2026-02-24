@@ -423,6 +423,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   torsoTransform: {fileID: 2038790236695264251}
   mainCamera: {fileID: 6372006118229231268}
+  rotationSpeed: 450
 --- !u!1 &6548805452745224477
 GameObject:
   m_ObjectHideFlags: 0
@@ -475,6 +476,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerMovement: {fileID: 9122762186951067124}
   playerAim: {fileID: 3560448657770277445}
+  playerLegs: {fileID: 0}
 --- !u!50 &397985806577126160
 Rigidbody2D:
   serializedVersion: 5

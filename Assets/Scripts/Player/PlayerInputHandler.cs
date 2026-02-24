@@ -11,6 +11,7 @@ public class PlayerInputHandler : MonoBehaviour
     [Header("Player Systems")]
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private PlayerAim playerAim;
+    [SerializeField] private PlayerLegs playerLegs;
 
     private IGameStateManager gameStateManager;
     private PlayerControls controls;
@@ -72,6 +73,7 @@ public class PlayerInputHandler : MonoBehaviour
         }
 
         moveInput = context.ReadValue<Vector2>();
+        playerLegs.SetLegsPosition(moveInput);
     }
 
     /// <summary>

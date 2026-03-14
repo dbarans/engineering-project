@@ -21,6 +21,7 @@ public class GameManager : MonoBehaviour, IGameStateManager
     private IPlayerMovement playerMovement;
     private PlayerInputHandler playerInputHandler;
     private PlayerAim playerAim;
+    private PlayerHealthSystem playerHealth;
 
     /// <summary>
     /// Current state of the game.
@@ -230,7 +231,8 @@ public class GameManager : MonoBehaviour, IGameStateManager
         playerInputHandler = currentPlayer.GetComponent<PlayerInputHandler>();
         playerMovement = currentPlayer.GetComponent<IPlayerMovement>();
         playerAim = currentPlayer.GetComponent<PlayerAim>();
-
+        playerHealth = currentPlayer.GetComponent<PlayerHealthSystem>();
+        
         InjectDependencies();
     }
 

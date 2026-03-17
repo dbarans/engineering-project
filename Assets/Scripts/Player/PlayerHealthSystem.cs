@@ -1,0 +1,50 @@
+using System;
+using UnityEngine;
+
+/// <summary>
+/// Handles player health status
+/// Respects game state and does not update during pause.
+/// </summary>
+public class PlayerHealthSystem : MonoBehaviour
+{
+    [SerializeField]
+    private int currentHealth;
+    [SerializeField]
+    private int maxHealth = 100;
+    [SerializeField]
+    private HealthBar healthBar;
+    
+    void Start()
+    {
+        currentHealth = maxHealth;
+        healthBar.SetMaxHealth(maxHealth);
+    }
+
+    /// <summary>
+    /// Method responsible for taking damage by the player.
+    /// </summary>
+    /// <param name="damage"> Value of the damage depending of the attack type</param>
+    public void TakeDamage(int damage)
+    {
+        currentHealth -= damage;
+        healthBar.SetHealth(currentHealth);
+    }
+    
+    /// <summary>
+    /// Method responsible for healing the player.
+    /// </summary>
+    /// <param name="heal"> Value of the healing depending of the healing type</param>
+    public void Heal(int heal)
+    {
+        currentHealth += heal;
+        healthBar.SetHealth(currentHealth);
+    }
+    
+    /// <summary>
+    /// Returning current health status.
+    /// </summary>
+    public int GetCurrentHealth()
+    {
+        return currentHealth;
+    }
+}

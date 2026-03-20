@@ -9,8 +9,8 @@ public enum EnemyState
     Idle,
     /// <summary>Actively follows the player while in detection range.</summary>
     FollowPlayer,
-    /// <summary>Waits briefly after losing the player before returning to patrol.</summary>
-    LostPause,
+    /// <summary>Moves to the last known player position after losing sight.</summary>
+    InvestigateLastKnown,
     /// <summary>Returns to the patrol route (closest waypoint).</summary>
     ReturnToPatrol
 }
@@ -26,11 +26,14 @@ public abstract class EnemyBase : MonoBehaviour
     [Header("Stats")]
     [SerializeField] protected float maxHealth = 100f;
     [SerializeField] protected float moveSpeed = 3f;
+    [SerializeField] private float chaseSpeedMultiplier = 1.5f;
 
     [Header("State machine")]
     [SerializeField] private Transform player;
-    [SerializeField] private float detectionRadius = 5f;
-    [SerializeField] private float lostPauseDuration = 1.5f;
+    [SerializeField] private float visionDistance = 5f;
+    [SerializeField] private LayerMask visionBlockerMask;
+    [SerializeField] private float investigateOvershootDistance = 1f;
+    [SerializeField] private float investigateArrivalThreshold = 0.35f;
     [SerializeField] private Transform[] waypoints;
     [Tooltip("Must be >= movement strategy stopping distance (e.g. SimpleDirectMovement uses 1).")]
     [SerializeField] private float waypointReachedThreshold = 1.2f;
@@ -42,14 +45,16 @@ public abstract class EnemyBase : MonoBehaviour
 
     private EnemyState currentState = EnemyState.Idle;
     private int currentWaypointIndex;
-    private float lostPauseTimer;
     private bool isWaitingAtWaypoint;
     private float waypointPauseTimer;
     private float nextUnreachableWaypointRetryTime;
     private int unreachableWaypointAttempts;
+    private Vector2 lastKnownPlayerPosition;
+    private Vector2 investigateTargetPosition;
+    private bool hasLastKnownPlayerPosition;
 
     /// <summary>
-    /// Current AI state (Idle, FollowPlayer, LostPause, ReturnToPatrol).
+    /// Current AI state (Idle, FollowPlayer, InvestigateLastKnown, ReturnToPatrol).
     /// </summary>
     public EnemyState CurrentState => currentState;
 
@@ -114,11 +119,16 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     /// <summary>
-    /// Handles transitions between Idle, FollowPlayer, LostPause, and ReturnToPatrol.
+    /// Handles transitions between Idle, FollowPlayer, InvestigateLastKnown, and ReturnToPatrol.
     /// </summary>
     private void UpdateStateMachine()
     {
-        bool playerInRange = player != null && Vector2.Distance(transform.position, player.position) <= detectionRadius;
+        bool playerInRange = IsPlayerDetected();
+        if (playerInRange && player != null)
+        {
+            lastKnownPlayerPosition = player.position;
+            hasLastKnownPlayerPosition = true;
+        }
 
         switch (currentState)
         {
@@ -135,24 +145,28 @@ public abstract class EnemyBase : MonoBehaviour
                 if (!playerInRange)
                 {
                     isWaitingAtWaypoint = false;
-                    lostPauseTimer = lostPauseDuration;
-                    currentState = EnemyState.LostPause;
+                    if (hasLastKnownPlayerPosition)
+                    {
+                        investigateTargetPosition = GetInvestigateTargetPosition();
+                        currentState = EnemyState.InvestigateLastKnown;
+                    }
+                    else
+                    {
+                        SelectClosestWaypoint();
+                        currentState = EnemyState.ReturnToPatrol;
+                    }
                 }
                 break;
-            case EnemyState.LostPause:
+            case EnemyState.InvestigateLastKnown:
                 if (playerInRange)
                 {
                     currentState = EnemyState.FollowPlayer;
                 }
-                else
+                else if (Vector2.Distance(transform.position, investigateTargetPosition) <= investigateArrivalThreshold)
                 {
-                    lostPauseTimer -= Time.deltaTime;
-                    if (lostPauseTimer <= 0f)
-                    {
-                        isWaitingAtWaypoint = false;
-                        SelectClosestWaypoint();
-                        currentState = EnemyState.ReturnToPatrol;
-                    }
+                    hasLastKnownPlayerPosition = false;
+                    SelectClosestWaypoint();
+                    currentState = EnemyState.ReturnToPatrol;
                 }
                 break;
             case EnemyState.ReturnToPatrol:
@@ -162,6 +176,36 @@ public abstract class EnemyBase : MonoBehaviour
                     currentState = EnemyState.Idle;
                 break;
         }
+    }
+
+    /// <summary>
+    /// Builds an investigate target slightly beyond the last seen player position.
+    /// Helps avoid stopping exactly at doors/corners.
+    /// </summary>
+    private Vector2 GetInvestigateTargetPosition()
+    {
+        Vector2 fromEnemyToLastSeen = (lastKnownPlayerPosition - (Vector2)transform.position).normalized;
+        if (fromEnemyToLastSeen == Vector2.zero)
+            return lastKnownPlayerPosition;
+        return lastKnownPlayerPosition + fromEnemyToLastSeen * Mathf.Max(0f, investigateOvershootDistance);
+    }
+
+    /// <summary>
+    /// Detects player using distance and line-of-sight check.
+    /// Player is not detected when an object from visionBlockerMask is between enemy and player.
+    /// </summary>
+    private bool IsPlayerDetected()
+    {
+        if (player == null) return false;
+
+        Vector2 enemyPos = transform.position;
+        Vector2 playerPos = player.position;
+
+        if (Vector2.Distance(enemyPos, playerPos) > visionDistance)
+            return false;
+
+        RaycastHit2D hit = Physics2D.Linecast(enemyPos, playerPos, visionBlockerMask);
+        return hit.collider == null;
     }
 
     /// <summary>
@@ -288,6 +332,8 @@ public abstract class EnemyBase : MonoBehaviour
         {
             case EnemyState.FollowPlayer:
                 return player != null ? player.position : transform.position;
+            case EnemyState.InvestigateLastKnown:
+                return hasLastKnownPlayerPosition ? (Vector3)investigateTargetPosition : transform.position;
             case EnemyState.ReturnToPatrol:
             case EnemyState.Idle:
             default:
@@ -302,7 +348,18 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     protected virtual void Move()
     {
-        movementStrategy?.Move(transform, GetTargetPosition(), moveSpeed);
+        movementStrategy?.Move(transform, GetTargetPosition(), GetCurrentMoveSpeed());
+    }
+
+    /// <summary>
+    /// Returns movement speed for current AI state.
+    /// </summary>
+    private float GetCurrentMoveSpeed()
+    {
+        if (currentState == EnemyState.FollowPlayer || currentState == EnemyState.InvestigateLastKnown)
+            return moveSpeed * Mathf.Max(0f, chaseSpeedMultiplier);
+
+        return moveSpeed;
     }
 
     /// <summary>
@@ -310,11 +367,8 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     private bool ShouldMove()
     {
-        if (currentState == EnemyState.FollowPlayer)
+        if (currentState == EnemyState.FollowPlayer || currentState == EnemyState.InvestigateLastKnown)
             return true;
-
-        if (currentState == EnemyState.LostPause)
-            return false;
 
         if (!HasValidWaypoint())
             return false;

@@ -11,6 +11,8 @@ public class PathfindingGrid : MonoBehaviour
     [SerializeField] private int width = 20;
     [SerializeField] private int height = 20;
     [SerializeField] private LayerMask obstacleMask = ~0;
+    [Tooltip("Extra clearance radius for moving agents. Increase when enemy collider is larger than a grid cell center sample.")]
+    [SerializeField] private float agentRadius = 0f;
 
     [Header("Visualization (Scene view only)")]
     [SerializeField] private bool showGizmos = true;
@@ -24,12 +26,16 @@ public class PathfindingGrid : MonoBehaviour
     public int Width => width;
     public int Height => height;
     public Vector2 Origin => origin;
+    public float AgentRadius => agentRadius;
 
     private void Awake()
     {
         BuildGrid();
     }
 
+    /// <summary>
+    /// Builds or rebuilds the full walkability grid.
+    /// </summary>
     public void BuildGrid()
     {
         _nodes = new Node[width, height];
@@ -39,18 +45,25 @@ public class PathfindingGrid : MonoBehaviour
             for (int y = 0; y < height; y++)
             {
                 Vector2 center = CellToWorld(x, y);
-                bool walkable = !Physics2D.OverlapCircle(center, cellSize * 0.45f, obstacleMask);
+                bool walkable = !Physics2D.OverlapCircle(center, GetObstacleCheckRadius(), obstacleMask);
 
                 _nodes[x, y] = new Node(x, y, walkable, center);
             }
         }
     }
 
+    /// <summary>
+    /// Converts cell coordinates to world-space center position.
+    /// </summary>
     public Vector2 CellToWorld(int x, int y)
     {
         return origin + new Vector2((x + 0.5f) * cellSize, (y + 0.5f) * cellSize);
     }
 
+    /// <summary>
+    /// Converts world position to cell coordinates.
+    /// Returns false when outside grid bounds.
+    /// </summary>
     public bool WorldToCell(Vector2 world, out int x, out int y)
     {
         x = Mathf.FloorToInt((world.x - origin.x) / cellSize);
@@ -58,12 +71,18 @@ public class PathfindingGrid : MonoBehaviour
         return x >= 0 && x < width && y >= 0 && y < height;
     }
 
+    /// <summary>
+    /// Returns node by cell coordinates, or null when out of bounds.
+    /// </summary>
     public Node GetNode(int x, int y)
     {
         if (x < 0 || x >= width || y < 0 || y >= height) return null;
         return _nodes[x, y];
     }
 
+    /// <summary>
+    /// Returns node for world position, or null when outside grid.
+    /// </summary>
     public Node GetNodeAtWorld(Vector2 world)
     {
         if (!WorldToCell(world, out int x, out int y)) return null;
@@ -105,14 +124,22 @@ public class PathfindingGrid : MonoBehaviour
             for (int y = 0; y < height; y++)
             {
                 Vector2 center = origin + new Vector2((x + 0.5f) * cellSize, (y + 0.5f) * cellSize);
-                bool walkable = !Physics2D.OverlapCircle(center, cellSize * 0.45f, obstacleMask);
+                bool walkable = !Physics2D.OverlapCircle(center, GetObstacleCheckRadius(), obstacleMask);
                 preview[x, y] = new Node(x, y, walkable, center);
             }
         }
         return preview;
     }
+
+    private float GetObstacleCheckRadius()
+    {
+        return (cellSize * 0.45f) + Mathf.Max(0f, agentRadius);
+    }
 }
 
+/// <summary>
+/// Immutable grid node used by pathfinding.
+/// </summary>
 public class Node
 {
     public int X { get; }

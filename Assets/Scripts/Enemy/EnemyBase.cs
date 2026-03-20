@@ -1,13 +1,17 @@
 using UnityEngine;
 
 /// <summary>
-/// Enemy behaviour states: idle (patrol), following player, or returning to patrol route.
+/// Enemy behaviour states used by the base state machine.
 /// </summary>
 public enum EnemyState
 {
+    /// <summary>Patrols waypoints or holds position when no waypoint is available.</summary>
     Idle,
+    /// <summary>Actively follows the player while in detection range.</summary>
     FollowPlayer,
+    /// <summary>Waits briefly after losing the player before returning to patrol.</summary>
     LostPause,
+    /// <summary>Returns to the patrol route (closest waypoint).</summary>
     ReturnToPatrol
 }
 
@@ -31,6 +35,7 @@ public abstract class EnemyBase : MonoBehaviour
     [Tooltip("Must be >= movement strategy stopping distance (e.g. SimpleDirectMovement uses 1).")]
     [SerializeField] private float waypointReachedThreshold = 1.2f;
     [SerializeField] private float waypointPauseDuration = 0f;
+    [SerializeField] private float unreachableWaypointRetryInterval = 0.6f;
 
     protected float currentHealth;
     private IMovementStrategy movementStrategy;
@@ -40,6 +45,8 @@ public abstract class EnemyBase : MonoBehaviour
     private float lostPauseTimer;
     private bool isWaitingAtWaypoint;
     private float waypointPauseTimer;
+    private float nextUnreachableWaypointRetryTime;
+    private int unreachableWaypointAttempts;
 
     /// <summary>
     /// Current AI state (Idle, FollowPlayer, LostPause, ReturnToPatrol).
@@ -75,10 +82,40 @@ public abstract class EnemyBase : MonoBehaviour
         if (IsDead) return;
 
         UpdateStateMachine();
+        ResolveUnreachablePatrolWaypoint();
         if (movementStrategy != null && ShouldMove())
             Move();
     }
 
+    /// <summary>
+    /// Switches to another waypoint when the current patrol waypoint is unreachable.
+    /// Applies a retry cooldown to avoid constant path recalculation.
+    /// </summary>
+    private void ResolveUnreachablePatrolWaypoint()
+    {
+        if (currentState != EnemyState.Idle && currentState != EnemyState.ReturnToPatrol) return;
+        if (waypoints == null || waypoints.Length <= 1 || !HasValidWaypoint()) return;
+        if (Time.time < nextUnreachableWaypointRetryTime) return;
+        if (movementStrategy is not IPathStatusProvider pathStatus) return;
+        if (pathStatus.HasReachablePath) return;
+
+        currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Length;
+        isWaitingAtWaypoint = false;
+        waypointPauseTimer = 0f;
+        nextUnreachableWaypointRetryTime = Time.time + unreachableWaypointRetryInterval;
+
+        unreachableWaypointAttempts++;
+        if (unreachableWaypointAttempts >= waypoints.Length)
+        {
+            // No reachable patrol waypoint right now. Pause retries briefly.
+            nextUnreachableWaypointRetryTime = Time.time + Mathf.Max(unreachableWaypointRetryInterval, 1.5f);
+            unreachableWaypointAttempts = 0;
+        }
+    }
+
+    /// <summary>
+    /// Handles transitions between Idle, FollowPlayer, LostPause, and ReturnToPatrol.
+    /// </summary>
     private void UpdateStateMachine()
     {
         bool playerInRange = player != null && Vector2.Distance(transform.position, player.position) <= detectionRadius;
@@ -127,6 +164,10 @@ public abstract class EnemyBase : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Advances patrol waypoint index after reaching the current waypoint.
+    /// Supports optional per-waypoint pause.
+    /// </summary>
     private void AdvanceWaypointIfReached()
     {
         if (waypoints == null || waypoints.Length == 0) return;
@@ -159,19 +200,27 @@ public abstract class EnemyBase : MonoBehaviour
             {
                 isWaitingAtWaypoint = false;
                 currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Length;
+                unreachableWaypointAttempts = 0;
             }
         }
         else
         {
             isWaitingAtWaypoint = false;
+            unreachableWaypointAttempts = 0;
         }
     }
 
+    /// <summary>
+    /// Checks whether the current waypoint index points to a valid transform.
+    /// </summary>
     private bool HasValidWaypoint()
     {
         return waypoints != null && waypoints.Length > 0 && waypoints[currentWaypointIndex] != null;
     }
 
+    /// <summary>
+    /// Picks the closest valid waypoint to resume patrol from current position.
+    /// </summary>
     private void SelectClosestWaypoint()
     {
         if (waypoints == null || waypoints.Length == 0) return;
@@ -256,6 +305,9 @@ public abstract class EnemyBase : MonoBehaviour
         movementStrategy?.Move(transform, GetTargetPosition(), moveSpeed);
     }
 
+    /// <summary>
+    /// Decides whether movement should be executed in the current frame/state.
+    /// </summary>
     private bool ShouldMove()
     {
         if (currentState == EnemyState.FollowPlayer)

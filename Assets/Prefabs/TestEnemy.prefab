@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 6789780786709879319}
   - component: {fileID: 3444988359249153256}
   - component: {fileID: 2305504736038580317}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: EnemyModel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -61,6 +61,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -82,9 +84,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &7423423773025333378
 GameObject:
@@ -96,8 +100,10 @@ GameObject:
   m_Component:
   - component: {fileID: 3467030597704002716}
   - component: {fileID: 7827869466043124152}
+  - component: {fileID: 570698690213097878}
   - component: {fileID: 7892708207933928237}
-  m_Layer: 0
+  - component: {fileID: 2876300555410741934}
+  m_Layer: 7
   m_Name: TestEnemy
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -155,7 +161,25 @@ CircleCollider2D:
   m_CompositeOperation: 0
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
-  m_Radius: 0.5
+  m_Radius: 0.23
+--- !u!114 &570698690213097878
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7423423773025333378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 376477df67dfca5459cf33aa0b7e1b05, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PathfindingMovement
+  grid: {fileID: 0}
+  repathInterval: 0.25
+  waypointReachDistance: 0.1
+  targetRepathDistance: 0.5
+  drawPathGizmos: 1
+  pathColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!114 &7892708207933928237
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -170,4 +194,46 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 100
   moveSpeed: 1.8
-  target: {fileID: 0}
+  chaseSpeedMultiplier: 2
+  player: {fileID: 0}
+  visionDistance: 10
+  visionBlockerMask:
+    serializedVersion: 2
+    m_Bits: 768
+  investigateOvershootDistance: 1
+  investigateArrivalThreshold: 0.35
+  waypoints:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  waypointReachedThreshold: 1.05
+  waypointPauseDuration: 0.1
+  unreachableWaypointRetryInterval: 0.6
+--- !u!50 &2876300555410741934
+Rigidbody2D:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7423423773025333378}
+  m_BodyType: 0
+  m_Simulated: 1
+  m_UseFullKinematicContacts: 0
+  m_UseAutoMass: 0
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_GravityScale: 0
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_Interpolate: 0
+  m_SleepingMode: 1
+  m_CollisionDetection: 0
+  m_Constraints: 0

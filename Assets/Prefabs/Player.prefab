@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2843743172634405287}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: PlayerModel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -42,7 +42,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5800833030491888917}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: CameraPivot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -77,7 +77,7 @@ GameObject:
   - component: {fileID: 6372006118229231268}
   - component: {fileID: 1922328038501889017}
   - component: {fileID: 3727011404493025173}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Main Camera
   m_TagString: MainCamera
   m_Icon: {fileID: 0}
@@ -212,7 +212,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2087783065649852858}
   - component: {fileID: 3950755658025154621}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Direction
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -302,7 +302,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6176497605238378684}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: WeaponHolder
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -335,7 +335,7 @@ GameObject:
   - component: {fileID: 2038790236695264251}
   - component: {fileID: 866537850374489919}
   - component: {fileID: 3560448657770277445}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Torso
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -445,7 +445,9 @@ GameObject:
   - component: {fileID: 397985806577126160}
   - component: {fileID: 9122762186951067124}
   - component: {fileID: 5284207013399126457}
-  m_Layer: 0
+  - component: {fileID: 9182569620700923780}
+  - component: {fileID: 6474835813843381217}
+  m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -561,6 +563,38 @@ CircleCollider2D:
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
   m_Radius: 0.5
+--- !u!114 &9182569620700923780
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc864f9cf0bbe174a8f3d43ebac2da70, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerInteractor
+  interactRadius: 2.5
+  interactableLayerMask:
+    serializedVersion: 2
+    m_Bits: 1024
+  obstacleLayerMask:
+    serializedVersion: 2
+    m_Bits: 768
+--- !u!114 &6474835813843381217
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebb02df8bff4d2249816cfd12b94aead, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerInventory
+  items: []
 --- !u!1 &8744829407756253201
 GameObject:
   m_ObjectHideFlags: 0
@@ -572,7 +606,7 @@ GameObject:
   - component: {fileID: 4130320205669602059}
   - component: {fileID: 6733918838049286094}
   - component: {fileID: 1762284998157175653}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Legs
   m_TagString: Untagged
   m_Icon: {fileID: 0}

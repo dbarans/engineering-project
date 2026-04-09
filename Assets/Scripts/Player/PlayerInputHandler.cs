@@ -16,6 +16,8 @@ public class PlayerInputHandler : MonoBehaviour
     private IGameStateManager gameStateManager;
     private PlayerControls controls;
     private Vector2 moveInput;
+    private enum MovementState { Walk, Sneaking, Sprinting }
+    private MovementState movementState = MovementState.Walk;
 
     private void Awake()
     {
@@ -39,6 +41,10 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Move.performed += OnMovePerformed;
         controls.Player.Move.canceled += OnMoveCanceled;
         controls.Player.Aim.performed += OnAimPerformed;
+        controls.Player.Sprint.performed += OnSprintPerformed;
+        controls.Player.Sprint.canceled += OnMovementModifierCanceled;
+        controls.Player.Sneak.performed += OnSneakPerformed;
+        controls.Player.Sneak.canceled += OnMovementModifierCanceled;
     }
 
     private void OnDisable()
@@ -47,9 +53,14 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Move.performed -= OnMovePerformed;
         controls.Player.Move.canceled -= OnMoveCanceled;
         controls.Player.Aim.performed -= OnAimPerformed;
+        controls.Player.Sprint.performed -= OnSprintPerformed;
+        controls.Player.Sprint.canceled -= OnMovementModifierCanceled;
+        controls.Player.Sneak.performed -= OnSneakPerformed;
+        controls.Player.Sneak.canceled -= OnMovementModifierCanceled;
 
         controls.Player.Disable();
     }
+    
 
     private void FixedUpdate()
     {
@@ -59,7 +70,7 @@ public class PlayerInputHandler : MonoBehaviour
         }
 
         playerMovement.Move(moveInput);
-    }
+    }    
 
     /// <summary>
     /// Triggered when movement input is performed.
@@ -76,6 +87,42 @@ public class PlayerInputHandler : MonoBehaviour
         playerLegs.SetLegsPosition(moveInput);
     }
 
+    private void OnSprintPerformed(InputAction.CallbackContext context)
+    {
+        if(movementState == MovementState.Walk)
+        {
+            movementState = MovementState.Sprinting;
+            playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sprint);
+        }
+    }
+
+    private void OnSneakPerformed(InputAction.CallbackContext context)
+    {
+        if(movementState == MovementState.Walk)
+        {
+            movementState = MovementState.Sneaking;
+            playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sneak);
+        }
+    }
+
+private void OnMovementModifierCanceled(InputAction.CallbackContext context)
+{
+    if (controls.Player.Sprint.IsPressed())
+    {
+        movementState = MovementState.Sprinting;
+        playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sprint);
+    }
+    else if (controls.Player.Sneak.IsPressed())
+    {
+        movementState = MovementState.Sneaking;
+        playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sneak);
+    }
+    else
+    {
+        movementState = MovementState.Walk;
+        playerMovement.SetMovementMode(PlayerMovement.MovementMode.Walk);
+    }
+}
     /// <summary>
     /// Triggered when movement input is canceled.
     /// </summary>

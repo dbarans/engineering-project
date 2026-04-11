@@ -119,6 +119,29 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &137987470 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8744829407756253201, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+  m_PrefabInstance: {fileID: 6599777390179191659}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &137987471 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4130320205669602059, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+  m_PrefabInstance: {fileID: 6599777390179191659}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &137987473
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 137987470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4cd54e803b3f4518b94f004324842d67, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerLegs
+  legsTransform: {fileID: 137987471}
 --- !u!1 &867344291
 GameObject:
   m_ObjectHideFlags: 0
@@ -211,6 +234,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -232,9 +257,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!33 &898375627
 MeshFilter:
@@ -379,13 +406,20 @@ PrefabInstance:
       value: Player
       objectReference: {fileID: 0}
     - target: {fileID: 7058186275050618879, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+      propertyPath: playerLegs
+      value: 
+      objectReference: {fileID: 137987473}
+    - target: {fileID: 7058186275050618879, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
       propertyPath: gameStateManager
       value: 
       objectReference: {fileID: 1537275604}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8744829407756253201, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 137987473}
   m_SourcePrefab: {fileID: 100100000, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

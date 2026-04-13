@@ -526,7 +526,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc7bc46464d5d6a4eb6757a64b574b6b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
+  sneakSpeed: 2
+  walkSpeed: 5
+  sprintSpeed: 8
 --- !u!58 &5284207013399126457
 CircleCollider2D:
   m_ObjectHideFlags: 0
@@ -594,7 +596,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ebb02df8bff4d2249816cfd12b94aead, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerInventory
-  items: []
+  items:
+  - item: {fileID: 11400000, guid: 7f35028135d90c14db09efad3d98a896, type: 2}
+    count: 67
+  - item: {fileID: 11400000, guid: e952bbe517f8a344faa3dba5eb76f7c0, type: 2}
+    count: 69
 --- !u!1 &8744829407756253201
 GameObject:
   m_ObjectHideFlags: 0

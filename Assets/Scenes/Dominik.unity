@@ -2257,30 +2257,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 830621902823450777, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 1190884458438333393, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 1263869902556360065, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 1669606323305772735, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 5163295886725150518, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 6276286142702985053, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
     - target: {fileID: 6450794427654183250, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -2321,41 +2297,9 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 6474835813843381217, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: items.Array.size
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 6474835813843381217, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: items.Array.data[0].item
-      value: 
-      objectReference: {fileID: 11400000, guid: 7f35028135d90c14db09efad3d98a896, type: 2}
-    - target: {fileID: 6474835813843381217, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: items.Array.data[1].item
-      value: 
-      objectReference: {fileID: 11400000, guid: e952bbe517f8a344faa3dba5eb76f7c0, type: 2}
-    - target: {fileID: 6474835813843381217, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: items.Array.data[0].count
-      value: 67
-      objectReference: {fileID: 0}
-    - target: {fileID: 6474835813843381217, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: items.Array.data[1].count
-      value: 69
-      objectReference: {fileID: 0}
     - target: {fileID: 6548805452745224477, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
       propertyPath: m_Name
       value: Player
-      objectReference: {fileID: 0}
-    - target: {fileID: 6548805452745224477, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 7058186275050618879, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: gameStateManager
-      value: 
-      objectReference: {fileID: 1537275604}
-    - target: {fileID: 8744829407756253201, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      propertyPath: m_Layer
-      value: 6
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

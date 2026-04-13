@@ -10,10 +10,10 @@ public class InventoryUI : MonoBehaviour
     [SerializeField] private GameObject panelRoot;
     [SerializeField] private Transform content;
     [SerializeField] private GameObject slotPrefab;
-    [SerializeField] private float refreshInterval = 0.15f;
 
     private IInventory _inventory;
-    private float _nextRefresh;
+    private PlayerInventory _playerInventorySource;
+    private bool _refreshPending;
     private readonly List<GameObject> _spawnedSlots = new List<GameObject>();
 
     private void Awake()
@@ -21,17 +21,28 @@ public class InventoryUI : MonoBehaviour
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
-    private void Update()
+    private void OnDestroy()
     {
-        if (_inventory == null) return;
-        if (Time.time < _nextRefresh) return;
-        _nextRefresh = Time.time + refreshInterval;
-        Refresh();
+        UnsubscribeInventoryEvents();
     }
 
-    private void OnEnable()
+    private void UnsubscribeInventoryEvents()
     {
-        _nextRefresh = 0f;
+        if (_playerInventorySource == null) return;
+        _playerInventorySource.ContentsChanged -= OnBoundInventoryContentsChanged;
+        _playerInventorySource = null;
+    }
+
+    private void OnBoundInventoryContentsChanged()
+    {
+        _refreshPending = true;
+    }
+
+    private void LateUpdate()
+    {
+        if (!_refreshPending || _inventory == null) return;
+        _refreshPending = false;
+        Refresh();
     }
 
     private void ClearSlots()
@@ -79,8 +90,11 @@ public class InventoryUI : MonoBehaviour
     /// </summary>
     public void Bind(IInventory inventory)
     {
+        UnsubscribeInventoryEvents();
         _inventory = inventory;
-        _nextRefresh = 0f;
+        _playerInventorySource = inventory as PlayerInventory;
+        if (_playerInventorySource != null)
+            _playerInventorySource.ContentsChanged += OnBoundInventoryContentsChanged;
         Refresh();
     }
 
@@ -105,4 +119,20 @@ public class InventoryUI : MonoBehaviour
     /// Hides the UI panel.
     /// </summary>
     public void Hide() { if (panelRoot != null) panelRoot.SetActive(false); }
+
+    /// <summary>
+    /// Whether the inventory panel is currently visible.
+    /// </summary>
+    public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
+
+    /// <summary>
+    /// Opens with bound data if closed, or closes if open.
+    /// </summary>
+    public void Toggle(IInventory inventory)
+    {
+        if (panelRoot == null) return;
+        if (IsOpen) Hide();
+        else if (inventory != null) Show(inventory);
+        else Show();
+    }
 }

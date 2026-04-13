@@ -487,6 +487,8 @@ MonoBehaviour:
   playerMovement: {fileID: 9122762186951067124}
   playerAim: {fileID: 3560448657770277445}
   playerLegs: {fileID: 1762284998157175653}
+  inventoryUI: {fileID: 0}
+  playerInventory: {fileID: 6474835813843381217}
 --- !u!50 &397985806577126160
 Rigidbody2D:
   serializedVersion: 5
@@ -513,7 +515,7 @@ Rigidbody2D:
   m_Interpolate: 0
   m_SleepingMode: 1
   m_CollisionDetection: 0
-  m_Constraints: 0
+  m_Constraints: 4
 --- !u!114 &9122762186951067124
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -599,8 +601,12 @@ MonoBehaviour:
   items:
   - item: {fileID: 11400000, guid: 7f35028135d90c14db09efad3d98a896, type: 2}
     count: 67
-  - item: {fileID: 11400000, guid: e952bbe517f8a344faa3dba5eb76f7c0, type: 2}
+  - item: {fileID: 11400000, guid: 342370816acd5fb4aade388eea68ae19, type: 2}
     count: 69
+  - item: {fileID: 11400000, guid: ece63bae93017df4aabc0637a9b9949d, type: 2}
+    count: 999
+  - item: {fileID: 11400000, guid: 99bd35dfd88ae3c498c24b9564bb1113, type: 2}
+    count: 3
 --- !u!1 &8744829407756253201
 GameObject:
   m_ObjectHideFlags: 0

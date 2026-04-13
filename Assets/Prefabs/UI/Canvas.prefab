@@ -936,7 +936,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Ekwipunek
+  m_text: 'Inventory
 
 '
   m_isRightToLeft: 0
@@ -1298,7 +1298,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Receptury
+  m_text: 'Ingrediens
+
+'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1569,6 +1571,10 @@ PrefabInstance:
     - target: {fileID: 5719753869948339687, guid: 655a996f620ba0c4eaac57b961928e7c, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: -61.300003
+      objectReference: {fileID: 0}
+    - target: {fileID: 5906064955593550511, guid: 655a996f620ba0c4eaac57b961928e7c, type: 3}
+      propertyPath: m_text
+      value: 'Value:'
       objectReference: {fileID: 0}
     - target: {fileID: 5906064955593550511, guid: 655a996f620ba0c4eaac57b961928e7c, type: 3}
       propertyPath: m_fontAsset

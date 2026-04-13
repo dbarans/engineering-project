@@ -10,8 +10,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
-  m_Name: testITEM 2
+  m_Name: Coins
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: a332f9cc2040f6042a04c65fa9e4a000, type: 3}
-  itemName: sword
-  value: 300
+  icon: {fileID: 21300000, guid: 215af4b4c17fb9f4199284fb7ebb386d, type: 3}
+  itemName: Coins
+  value: 1

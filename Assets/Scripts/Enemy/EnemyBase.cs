@@ -40,6 +40,9 @@ public abstract class EnemyBase : MonoBehaviour
     [SerializeField] private float waypointPauseDuration = 0f;
     [SerializeField] private float unreachableWaypointRetryInterval = 0.6f;
 
+    [Tooltip("If true, losing sight of the player sends the enemy straight to the nearest patrol waypoint. If false, it visits the last known position first.")]
+    [SerializeField] private bool skipInvestigateWhenLostPlayer = true;
+
     protected float currentHealth;
     private IMovementStrategy movementStrategy;
 
@@ -48,7 +51,6 @@ public abstract class EnemyBase : MonoBehaviour
     private bool isWaitingAtWaypoint;
     private float waypointPauseTimer;
     private float nextUnreachableWaypointRetryTime;
-    private int unreachableWaypointAttempts;
     private Vector2 lastKnownPlayerPosition;
     private Vector2 investigateTargetPosition;
     private bool hasLastKnownPlayerPosition;
@@ -94,7 +96,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     /// <summary>
     /// Switches to another waypoint when the current patrol waypoint is unreachable.
-    /// Applies a retry cooldown to avoid constant path recalculation.
+    /// Uses a short cooldown between switches to limit path recalculation cost.
     /// </summary>
     private void ResolveUnreachablePatrolWaypoint()
     {
@@ -108,14 +110,6 @@ public abstract class EnemyBase : MonoBehaviour
         isWaitingAtWaypoint = false;
         waypointPauseTimer = 0f;
         nextUnreachableWaypointRetryTime = Time.time + unreachableWaypointRetryInterval;
-
-        unreachableWaypointAttempts++;
-        if (unreachableWaypointAttempts >= waypoints.Length)
-        {
-            // No reachable patrol waypoint right now. Pause retries briefly.
-            nextUnreachableWaypointRetryTime = Time.time + Mathf.Max(unreachableWaypointRetryInterval, 1.5f);
-            unreachableWaypointAttempts = 0;
-        }
     }
 
     /// <summary>
@@ -145,7 +139,7 @@ public abstract class EnemyBase : MonoBehaviour
                 if (!playerInRange)
                 {
                     isWaitingAtWaypoint = false;
-                    if (hasLastKnownPlayerPosition)
+                    if (!skipInvestigateWhenLostPlayer && hasLastKnownPlayerPosition)
                     {
                         investigateTargetPosition = GetInvestigateTargetPosition();
                         currentState = EnemyState.InvestigateLastKnown;
@@ -172,7 +166,7 @@ public abstract class EnemyBase : MonoBehaviour
             case EnemyState.ReturnToPatrol:
                 if (playerInRange)
                     currentState = EnemyState.FollowPlayer;
-                else if (!HasValidWaypoint() || Vector2.Distance(transform.position, waypoints[currentWaypointIndex].position) <= waypointReachedThreshold)
+                else if (!HasValidWaypoint() || Vector2.Distance(transform.position, waypoints[currentWaypointIndex].position) <= EffectiveWaypointReachedThreshold())
                     currentState = EnemyState.Idle;
                 break;
         }
@@ -222,7 +216,7 @@ public abstract class EnemyBase : MonoBehaviour
             currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Length;
             return;
         }
-        if (Vector2.Distance(transform.position, current.position) <= waypointReachedThreshold)
+        if (Vector2.Distance(transform.position, current.position) <= EffectiveWaypointReachedThreshold())
         {
             if (waypoints.Length == 1) return;
 
@@ -244,13 +238,11 @@ public abstract class EnemyBase : MonoBehaviour
             {
                 isWaitingAtWaypoint = false;
                 currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Length;
-                unreachableWaypointAttempts = 0;
             }
         }
         else
         {
             isWaitingAtWaypoint = false;
-            unreachableWaypointAttempts = 0;
         }
     }
 
@@ -260,6 +252,16 @@ public abstract class EnemyBase : MonoBehaviour
     private bool HasValidWaypoint()
     {
         return waypoints != null && waypoints.Length > 0 && waypoints[currentWaypointIndex] != null;
+    }
+
+    /// <summary>
+    /// Patrol arrival distance: at least inspector threshold and at least the movement strategy's stop distance.
+    /// </summary>
+    private float EffectiveWaypointReachedThreshold()
+    {
+        if (movementStrategy is IMovementArrivalTolerance tol)
+            return Mathf.Max(waypointReachedThreshold, tol.StopDistanceFromTarget);
+        return waypointReachedThreshold;
     }
 
     /// <summary>
@@ -375,7 +377,7 @@ public abstract class EnemyBase : MonoBehaviour
 
         // Single waypoint acts as a guard position: move there once, then stay.
         if (waypoints.Length == 1)
-            return Vector2.Distance(transform.position, waypoints[0].position) > waypointReachedThreshold;
+            return Vector2.Distance(transform.position, waypoints[0].position) > EffectiveWaypointReachedThreshold();
 
         return true;
     }

@@ -12,6 +12,8 @@ public class PlayerInputHandler : MonoBehaviour
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private PlayerAim playerAim;
     [SerializeField] private PlayerLegs playerLegs;
+    [SerializeField] private InventoryUI inventoryUI;
+    [SerializeField] private PlayerInventory playerInventory;
 
     private IGameStateManager gameStateManager;
     private PlayerControls controls;
@@ -22,6 +24,7 @@ public class PlayerInputHandler : MonoBehaviour
     private void Awake()
     {
         controls = new PlayerControls();
+        if (playerInventory == null) playerInventory = GetComponent<PlayerInventory>();
     }
 
     /// <summary>
@@ -45,6 +48,7 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Sprint.canceled += OnMovementModifierCanceled;
         controls.Player.Sneak.performed += OnSneakPerformed;
         controls.Player.Sneak.canceled += OnMovementModifierCanceled;
+        controls.Player.Inventory.performed += OnInventoryPerformed;
     }
 
     private void OnDisable()
@@ -57,6 +61,7 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Sprint.canceled -= OnMovementModifierCanceled;
         controls.Player.Sneak.performed -= OnSneakPerformed;
         controls.Player.Sneak.canceled -= OnMovementModifierCanceled;
+        controls.Player.Inventory.performed -= OnInventoryPerformed;
 
         controls.Player.Disable();
     }
@@ -143,5 +148,11 @@ private void OnMovementModifierCanceled(InputAction.CallbackContext context)
 
         Vector2 aimPosition = context.ReadValue<Vector2>();
         playerAim.SetAimPosition(aimPosition);
+    }
+
+    private void OnInventoryPerformed(InputAction.CallbackContext context)
+    {
+        if (inventoryUI == null) return;
+        inventoryUI.Toggle(playerInventory);
     }
 }

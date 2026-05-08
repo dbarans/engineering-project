@@ -210,7 +210,6 @@ MonoBehaviour:
   waypointReachedThreshold: 1.05
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
-  skipInvestigateWhenLostPlayer: 0
 --- !u!50 &2876300555410741934
 Rigidbody2D:
   serializedVersion: 5

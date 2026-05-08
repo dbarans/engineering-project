@@ -5,7 +5,7 @@ using System.Collections.Generic;
 /// Movement strategy using pathfinding algorithm.
 /// Uses A* over PathfindingGrid and follows calculated waypoints.
 /// </summary>
-public class PathfindingMovement : MonoBehaviour, IMovementStrategy, IPathStatusProvider, IMovementArrivalTolerance
+public class PathfindingMovement : MonoBehaviour, IMovementStrategy, IPathStatusProvider
 {
     [SerializeField] private PathfindingGrid grid;
     [SerializeField] private float repathInterval = 0.25f;
@@ -21,9 +21,6 @@ public class PathfindingMovement : MonoBehaviour, IMovementStrategy, IPathStatus
     private Vector2 lastTarget;
     private bool hasLastTarget;
     private bool hasReachablePath = true;
-
-    /// <inheritdoc />
-    public float StopDistanceFromTarget => waypointReachDistance;
 
     /// <summary>
     /// True when the latest pathfinding attempt produced a reachable route.

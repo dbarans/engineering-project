@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: testITEM 2
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: a332f9cc2040f6042a04c65fa9e4a000, type: 3}
-  itemName: sword
-  value: 300
+  icon: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
+  itemName: testItem2
+  value: 2

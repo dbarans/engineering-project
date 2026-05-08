@@ -12,8 +12,7 @@ public class PlayerInputHandler : MonoBehaviour
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private PlayerAim playerAim;
     [SerializeField] private PlayerLegs playerLegs;
-    [SerializeField] private InventoryUI inventoryUI;
-    [SerializeField] private PlayerInventory playerInventory;
+    [SerializeField] private PlayerAttack currentAttack;
 
     private IGameStateManager gameStateManager;
     private PlayerControls controls;
@@ -24,7 +23,6 @@ public class PlayerInputHandler : MonoBehaviour
     private void Awake()
     {
         controls = new PlayerControls();
-        if (playerInventory == null) playerInventory = GetComponent<PlayerInventory>();
     }
 
     /// <summary>
@@ -48,7 +46,9 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Sprint.canceled += OnMovementModifierCanceled;
         controls.Player.Sneak.performed += OnSneakPerformed;
         controls.Player.Sneak.canceled += OnMovementModifierCanceled;
-        controls.Player.Inventory.performed += OnInventoryPerformed;
+        controls.Player.Prepare.started += OnPrepareStarted;
+        controls.Player.Prepare.canceled += OnPrepareCanceled;
+        controls.Player.Attack.performed += OnAttackPerformed;
     }
 
     private void OnDisable()
@@ -61,7 +61,9 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Sprint.canceled -= OnMovementModifierCanceled;
         controls.Player.Sneak.performed -= OnSneakPerformed;
         controls.Player.Sneak.canceled -= OnMovementModifierCanceled;
-        controls.Player.Inventory.performed -= OnInventoryPerformed;
+        controls.Player.Prepare.started -= OnPrepareStarted;
+        controls.Player.Prepare.canceled -= OnPrepareCanceled;
+        controls.Player.Attack.performed -= OnAttackPerformed;
 
         controls.Player.Disable();
     }
@@ -150,9 +152,51 @@ private void OnMovementModifierCanceled(InputAction.CallbackContext context)
         playerAim.SetAimPosition(aimPosition);
     }
 
-    private void OnInventoryPerformed(InputAction.CallbackContext context)
+    /// <summary>
+    /// Triggered when prepare input is performed (mouse or joystick).
+    /// </summary>
+    private void OnPreparePerformed(InputAction.CallbackContext context)
     {
-        if (inventoryUI == null) return;
-        inventoryUI.Toggle(playerInventory);
+        if (gameStateManager != null && gameStateManager.IsPaused())
+        {
+            return;
+        }
+        currentAttack.StartCharging();
+    }
+    
+    /// <summary>
+    /// Triggered when prepare input is started (mouse or joystick).
+    /// </summary>
+    private void OnPrepareStarted(InputAction.CallbackContext context)
+    {
+        if (gameStateManager != null && gameStateManager.IsPaused())
+        {
+            return;
+        }
+        currentAttack.StartCharging();
+    }
+    
+    /// <summary>
+    /// Triggered when prepare input is canceled (mouse or joystick).
+    /// </summary>
+    private void OnPrepareCanceled(InputAction.CallbackContext context)
+    {
+        currentAttack.StopCharging();
+    }
+    
+    /// <summary>
+    /// Triggered when attack input is performed (mouse or joystick).
+    /// </summary>
+    private void OnAttackPerformed(InputAction.CallbackContext context)
+    {
+        currentAttack.Fire();
+    }
+    
+    /// <summary>
+    /// Configuration of current type attack
+    /// </summary>
+    public void SetCurrentAttack(PlayerAttack weapon)
+    {
+        currentAttack = weapon;
     }
 }

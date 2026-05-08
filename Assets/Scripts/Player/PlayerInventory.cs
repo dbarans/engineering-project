@@ -21,9 +21,6 @@ public class PlayerInventory : MonoBehaviour, IInventory
 
     private List<ItemData> _flatCache = new List<ItemData>();
 
-    /// <summary>Fired after <see cref="AddItem"/> or <see cref="RemoveItem"/> mutates storage.</summary>
-    public event Action ContentsChanged;
-
     private static bool IsSameItem(ItemData a, ItemData b)
     {
         if (ReferenceEquals(a, b)) return true;
@@ -80,7 +77,6 @@ public class PlayerInventory : MonoBehaviour, IInventory
             items[i].count--;
             if (items[i].count <= 0)
                 items.RemoveAt(i);
-            ContentsChanged?.Invoke();
             return true;
         }
         return false;
@@ -97,11 +93,9 @@ public class PlayerInventory : MonoBehaviour, IInventory
             if (IsSameItem(s?.item, item))
             {
                 s.count++;
-                ContentsChanged?.Invoke();
                 return;
             }
         }
         items.Add(new ItemStack { item = item, count = 1 });
-        ContentsChanged?.Invoke();
     }
 }

@@ -4,12 +4,9 @@ using UnityEngine;
 /// Simple direct movement towards target (no pathfinding).
 /// Use for testing or enemies that ignore obstacles.
 /// </summary>
-public class SimpleDirectMovement : MonoBehaviour, IMovementStrategy, IMovementArrivalTolerance
+public class SimpleDirectMovement : MonoBehaviour, IMovementStrategy
 {
     [SerializeField] private float stoppingDistance = 1f;
-
-    /// <inheritdoc />
-    public float StopDistanceFromTarget => stoppingDistance;
 
     /// <summary>
     /// Moves the agent directly towards the target.

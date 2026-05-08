@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: testRecipe
   m_EditorClassIdentifier: Assembly-CSharp::RecipeData
   ingredients:
-  - item: {fileID: 11400000, guid: 342370816acd5fb4aade388eea68ae19, type: 2}
-    count: 2
   - item: {fileID: 11400000, guid: 7f35028135d90c14db09efad3d98a896, type: 2}
+    count: 2
+  - item: {fileID: 11400000, guid: e952bbe517f8a344faa3dba5eb76f7c0, type: 2}
     count: 3
-  outputItem: {fileID: 11400000, guid: e952bbe517f8a344faa3dba5eb76f7c0, type: 2}
+  outputItem: {fileID: 11400000, guid: 342370816acd5fb4aade388eea68ae19, type: 2}

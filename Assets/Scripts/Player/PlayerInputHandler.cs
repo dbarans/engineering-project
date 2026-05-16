@@ -210,4 +210,11 @@ private void OnMovementModifierCanceled(InputAction.CallbackContext context)
     {
         currentAttack = weapon;
     }
+    /// <summary>
+    /// Get current type attack
+    /// </summary>
+    public PlayerAttack GetCurrentAttack()
+    {
+        return currentAttack;
+    }
 }

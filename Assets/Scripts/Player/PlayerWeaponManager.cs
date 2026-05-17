@@ -11,7 +11,7 @@ public class PlayerWeaponManager : MonoBehaviour
 
     private void Start()
     {
-        EquipWeapon(meleeWeapon);
+        EquipWeapon(inputHandler.GetCurrentAttack());
     }
 
     private void EquipWeapon(PlayerAttack newWeapon)

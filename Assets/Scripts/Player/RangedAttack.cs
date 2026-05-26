@@ -18,6 +18,22 @@ public class RangedAttack : PlayerAttack
 
     private float currentSpreadAngle;
 
+    public override void StartCharging()
+    {
+        currentSpreadAngle = maxSpreadAngle;
+        base.StartCharging();
+    }
+
+    public override void Fire()
+    {
+        if (isCharging)
+        {
+            ExecuteAttack();
+            isReady = false;
+            isCharging = false;
+        }
+    }
+
     protected override void Update()
     {
         base.Update();

@@ -8,26 +8,27 @@ public class Projectile : MonoBehaviour
 
     [Header("Combat")]
     [SerializeField] private float damage = 25f;
+    [SerializeField] private float knockbackForce = 1f;
 
     private Rigidbody2D rb;
 
     private void Start()
     {
         rb = GetComponent<Rigidbody2D>();
-        
-        rb.linearVelocity = transform.right * speed; 
+
+        rb.linearVelocity = transform.right * speed;
         Destroy(gameObject, lifeTime);
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
+        if (collision.TryGetComponent<EnemyBase>(out EnemyBase enemy))
+        {
+            enemy.TakeDamage(damage);
+            enemy.Knockback(transform.right, knockbackForce);
 
-        // if (collision.TryGetComponent<EnemyHealth>(out EnemyHealth enemy))
-        // {
-        //     enemy.TakeDamage(damage);
-        //
-        //     Destroy(gameObject);
-        // }
+            Destroy(gameObject);
+        }
 
         if (collision.CompareTag("Obstacle"))
         {

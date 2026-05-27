@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -308,6 +309,28 @@ public abstract class EnemyBase : MonoBehaviour
         {
             OnDamageTaken(damage);
         }
+    }
+
+    /// <summary>
+    /// Applies an instant knockback impulse to the enemy.
+    /// </summary>
+    /// <param name="direction">Normalized direction of the push.</param>
+    /// <param name="force">Strength of the impulse.</param>
+    public virtual void Knockback(Vector2 direction, float force)
+    {
+        if (IsDead) return;
+
+        var rb = GetComponent<Rigidbody2D>();
+        if (rb != null)
+            StartCoroutine(ApplyKnockback(rb, direction.normalized * force));
+    }
+
+    private IEnumerator ApplyKnockback(Rigidbody2D rb, Vector2 impulse)
+    {
+        rb.AddForce(impulse, ForceMode2D.Impulse);
+        yield return new WaitForSeconds(0.12f);
+        if (rb != null)
+            rb.linearVelocity = Vector2.zero;
     }
 
     /// <summary>

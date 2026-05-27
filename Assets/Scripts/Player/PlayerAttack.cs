@@ -26,13 +26,13 @@ public abstract class PlayerAttack : MonoBehaviour
         Debug.Log("reset");
     }
 
-    public void Fire()
+    public virtual void Fire()
     {
         if (isReady)
         {
             ExecuteAttack();
             isReady = false;
-            isCharging = false; 
+            isCharging = false;
         }
         else
         {

@@ -26,6 +26,7 @@ public class PlayerInputHandler : MonoBehaviour
     {
         controls = new PlayerControls();
         if (playerInventory == null) playerInventory = GetComponent<PlayerInventory>();
+        if (inventoryUI == null) inventoryUI = FindFirstObjectByType<InventoryUI>();
     }
 
     /// <summary>

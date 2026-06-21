@@ -16,8 +16,12 @@ public class PlayerHealthSystem : MonoBehaviour
     
     void Start()
     {
+        if (healthBar == null)
+            healthBar = FindFirstObjectByType<HealthBar>();
+
         currentHealth = maxHealth;
-        healthBar.SetMaxHealth(maxHealth);
+        if (healthBar != null)
+            healthBar.SetMaxHealth(maxHealth);
     }
 
     /// <summary>
@@ -27,7 +31,7 @@ public class PlayerHealthSystem : MonoBehaviour
     public void TakeDamage(int damage)
     {
         currentHealth -= damage;
-        healthBar.SetHealth(currentHealth);
+        if (healthBar != null) healthBar.SetHealth(currentHealth);
     }
     
     /// <summary>
@@ -37,7 +41,7 @@ public class PlayerHealthSystem : MonoBehaviour
     public void Heal(int heal)
     {
         currentHealth += heal;
-        healthBar.SetHealth(currentHealth);
+        if (healthBar != null) healthBar.SetHealth(currentHealth);
     }
     
     /// <summary>

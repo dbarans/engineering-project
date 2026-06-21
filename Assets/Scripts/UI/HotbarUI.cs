@@ -27,6 +27,9 @@ public class HotbarUI : MonoBehaviour
 
     private void OnEnable()
     {
+        if (inventory == null)
+            inventory = FindFirstObjectByType<PlayerInventory>();
+
         if (inventory != null)
             inventory.ContentsChanged += Refresh;
         Refresh();

@@ -15,6 +15,7 @@ public class PlayerInputHandler : MonoBehaviour
     [SerializeField] private InventoryUI inventoryUI;
     [SerializeField] private PlayerInventory playerInventory;
     [SerializeField] private PlayerAttack currentAttack;
+    [SerializeField] private PlayerStaminaSystem playerStamina;
 
     private IGameStateManager gameStateManager;
     private PlayerControls controls;
@@ -27,6 +28,7 @@ public class PlayerInputHandler : MonoBehaviour
         controls = new PlayerControls();
         if (playerInventory == null) playerInventory = GetComponent<PlayerInventory>();
         if (inventoryUI == null) inventoryUI = FindFirstObjectByType<InventoryUI>();
+        if (playerStamina == null) playerStamina = GetComponent<PlayerStaminaSystem>();
     }
 
     /// <summary>
@@ -38,9 +40,19 @@ public class PlayerInputHandler : MonoBehaviour
         gameStateManager = manager;
     }
 
+    private void ForceStopSprint()
+    {
+        movementState = MovementState.Walk;
+        playerMovement.SetMovementMode(PlayerMovement.MovementMode.Walk);
+        playerStamina?.SetSprinting(false);
+    }
+
     private void OnEnable()
     {
         controls.Player.Enable();
+
+        if (playerStamina != null)
+            playerStamina.OnStaminaDepletedWhileSprinting += ForceStopSprint;
 
         // Subscribe to input events
         controls.Player.Move.performed += OnMovePerformed;
@@ -58,6 +70,9 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void OnDisable()
     {
+        if (playerStamina != null)
+            playerStamina.OnStaminaDepletedWhileSprinting -= ForceStopSprint;
+
         // Unsubscribe to prevent memory leaks
         controls.Player.Move.performed -= OnMovePerformed;
         controls.Player.Move.canceled -= OnMoveCanceled;
@@ -102,10 +117,11 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void OnSprintPerformed(InputAction.CallbackContext context)
     {
-        if(movementState == MovementState.Walk)
+        if (movementState == MovementState.Walk && (playerStamina == null || playerStamina.CanSprint()))
         {
             movementState = MovementState.Sprinting;
             playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sprint);
+            playerStamina?.SetSprinting(true);
         }
     }
 
@@ -118,24 +134,27 @@ public class PlayerInputHandler : MonoBehaviour
         }
     }
 
-private void OnMovementModifierCanceled(InputAction.CallbackContext context)
-{
-    if (controls.Player.Sprint.IsPressed())
+    private void OnMovementModifierCanceled(InputAction.CallbackContext context)
     {
-        movementState = MovementState.Sprinting;
-        playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sprint);
+        if (controls.Player.Sprint.IsPressed() && (playerStamina == null || playerStamina.CanSprint()))
+        {
+            movementState = MovementState.Sprinting;
+            playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sprint);
+            playerStamina?.SetSprinting(true);
+        }
+        else if (controls.Player.Sneak.IsPressed())
+        {
+            movementState = MovementState.Sneaking;
+            playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sneak);
+            playerStamina?.SetSprinting(false);
+        }
+        else
+        {
+            movementState = MovementState.Walk;
+            playerMovement.SetMovementMode(PlayerMovement.MovementMode.Walk);
+            playerStamina?.SetSprinting(false);
+        }
     }
-    else if (controls.Player.Sneak.IsPressed())
-    {
-        movementState = MovementState.Sneaking;
-        playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sneak);
-    }
-    else
-    {
-        movementState = MovementState.Walk;
-        playerMovement.SetMovementMode(PlayerMovement.MovementMode.Walk);
-    }
-}
     /// <summary>
     /// Triggered when movement input is canceled.
     /// </summary>
@@ -201,6 +220,8 @@ private void OnMovementModifierCanceled(InputAction.CallbackContext context)
     /// </summary>
     private void OnAttackPerformed(InputAction.CallbackContext context)
     {
+        if (playerStamina != null && !playerStamina.TryUseAttackStamina())
+            return;
         currentAttack.Fire();
     }
     

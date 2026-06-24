@@ -62,10 +62,29 @@ public class HeldItemController : MonoBehaviour
         int slotCount = stack.count;
         bool slotEmpty = stack.IsEmpty;
 
+        // Ctrl -> take a single unit from the clicked stack onto the cursor (repeatable).
+        if (IsTakeOneModifierHeld())
+        {
+            TakeOne(slot, container, index, slotItem, slotCount, slotEmpty);
+            return;
+        }
+
         if (_heldItem == null)
         {
-            // Empty hand + slot has item -> take the slot's entity onto the cursor.
+            // Empty hand + slot has item -> take it (or half of it with Shift) onto the cursor.
             if (slotEmpty) return;
+
+            if (IsSplitModifierHeld() && slotCount > 1)
+            {
+                int take = (slotCount + 1) / 2;       // ceil half -> cursor
+                int leave = slotCount - take;
+                var half = slot.Detach();
+                container.Set(index, slotItem, leave); // Refresh spawns a fresh entity for the remainder
+                Adopt(half);
+                if (_heldItem != null) _heldItem.SetStack(slotItem, take);
+                return;
+            }
+
             var picked = slot.Detach();
             container.Clear(index);            // Refresh sees empty + detached -> no-op
             Adopt(picked);
@@ -116,6 +135,47 @@ public class HeldItemController : MonoBehaviour
         container.Set(index, heldItem, heldCount);     // Refresh updates the slot's new entity
         Adopt(fromSlot);
         if (_heldItem != null) _heldItem.SetStack(slotItem, slotCount);
+    }
+
+    /// <summary>True while a Shift key is held (used to split a stack in half on pick-up).</summary>
+    private static bool IsSplitModifierHeld()
+    {
+        var k = Keyboard.current;
+        return k != null && (k.leftShiftKey.isPressed || k.rightShiftKey.isPressed);
+    }
+
+    /// <summary>True while a Ctrl key is held (used to take one unit at a time).</summary>
+    private static bool IsTakeOneModifierHeld()
+    {
+        var k = Keyboard.current;
+        return k != null && (k.leftCtrlKey.isPressed || k.rightCtrlKey.isPressed);
+    }
+
+    /// <summary>
+    /// Moves a single unit from the clicked slot onto the cursor. With an empty hand it
+    /// takes the slot's entity (set to 1); while already holding the same item it adds one
+    /// more (up to <see cref="ItemData.maxStack"/>). No-op for an empty slot or a different
+    /// held item.
+    /// </summary>
+    private void TakeOne(SlotView slot, ItemContainer container, int index,
+        ItemData slotItem, int slotCount, bool slotEmpty)
+    {
+        if (slotEmpty) return;
+
+        if (_heldItem == null)
+        {
+            var entity = slot.Detach();
+            container.Set(index, slotItem, slotCount - 1); // 0 -> clears; >0 -> respawns remainder
+            Adopt(entity);
+            if (_heldItem != null) _heldItem.SetStack(slotItem, 1);
+            return;
+        }
+
+        if (!ItemStack.IsSameItem(_heldItem.Item, slotItem)) return;
+        if (_heldItem.Count >= Mathf.Max(1, slotItem.maxStack)) return; // cursor full
+
+        container.Set(index, slotItem, slotCount - 1);
+        _heldItem.SetStack(slotItem, _heldItem.Count + 1);
     }
 
     /// <summary>Re-parents an entity onto the cursor.</summary>

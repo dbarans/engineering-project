@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -86,24 +87,25 @@ public class BackpackUI : MonoBehaviour
             _slots[index].Refresh();
     }
 
+    /// <summary>Raised when the backpack opens (<c>true</c>) or closes (<c>false</c>).</summary>
+    public event Action<bool> OpenStateChanged;
+
     /// <summary>Whether the backpack panel is currently visible.</summary>
     public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
 
     /// <summary>Opens the backpack panel if closed, closes it if open.</summary>
-    public void Toggle()
-    {
-        if (panelRoot != null) panelRoot.SetActive(!panelRoot.activeSelf);
-    }
+    public void Toggle() => SetOpen(!IsOpen);
 
     /// <summary>Shows the backpack panel.</summary>
-    public void Show()
-    {
-        if (panelRoot != null) panelRoot.SetActive(true);
-    }
+    public void Show() => SetOpen(true);
 
     /// <summary>Hides the backpack panel.</summary>
-    public void Hide()
+    public void Hide() => SetOpen(false);
+
+    private void SetOpen(bool open)
     {
-        if (panelRoot != null) panelRoot.SetActive(false);
+        if (panelRoot == null || panelRoot.activeSelf == open) return;
+        panelRoot.SetActive(open);
+        OpenStateChanged?.Invoke(open);
     }
 }

@@ -129,6 +129,12 @@ The backpack opens/closes on **Tab** (configurable via `BackpackUI.toggleKey`) â
 inside `BackpackUI` itself, so no input-asset changes are needed. After running the tool the
 feature works end-to-end; nothing else is required.
 
+While the backpack is open, **player gameplay input is blocked** (movement, shooting, aim,
+sprint, etc.). `BackpackUI` raises `OpenStateChanged`; `PlayerInputHandler` listens and
+disables the `Player` input action map (and stops movement/charge/sprint), re-enabling it on
+close. UI input runs on a separate map, so clicking slots and the Tab toggle still work. The
+world itself keeps running (this does not set `Time.timeScale = 0` like the pause menu).
+
 The manual reference below documents the same wiring if you prefer to do it by hand.
 
 ### Scripts (with GUIDs for prefab wiring)

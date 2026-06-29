@@ -23,6 +23,7 @@ public class PlayerInputHandler : MonoBehaviour
     private Vector2 moveInput;
     private enum MovementState { Walk, Sneaking, Sprinting }
     private MovementState movementState = MovementState.Walk;
+    private bool isAiming;
 
     private void Awake()
     {
@@ -114,7 +115,9 @@ public class PlayerInputHandler : MonoBehaviour
             controls.Player.Disable();
             moveInput = Vector2.zero;
             playerLegs?.SetLegsPosition(Vector2.zero);
+            playerStamina?.SetMoving(false);
             currentAttack?.StopCharging();
+            isAiming = false;
             ForceStopSprint();
         }
         else
@@ -147,10 +150,13 @@ public class PlayerInputHandler : MonoBehaviour
 
         moveInput = context.ReadValue<Vector2>();
         playerLegs.SetLegsPosition(moveInput);
+        playerStamina?.SetMoving(moveInput.sqrMagnitude > 0.01f);
     }
 
     private void OnSprintPerformed(InputAction.CallbackContext context)
     {
+        if (isAiming) return;
+
         if (movementState == MovementState.Walk && (playerStamina == null || playerStamina.CanSprint()))
         {
             movementState = MovementState.Sprinting;
@@ -170,7 +176,7 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void OnMovementModifierCanceled(InputAction.CallbackContext context)
     {
-        if (controls.Player.Sprint.IsPressed() && (playerStamina == null || playerStamina.CanSprint()))
+        if (!isAiming && controls.Player.Sprint.IsPressed() && (playerStamina == null || playerStamina.CanSprint()))
         {
             movementState = MovementState.Sprinting;
             playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sprint);
@@ -195,6 +201,7 @@ public class PlayerInputHandler : MonoBehaviour
     private void OnMoveCanceled(InputAction.CallbackContext context)
     {
         moveInput = Vector2.zero;
+        playerStamina?.SetMoving(false);
     }
 
     /// <summary>
@@ -238,6 +245,11 @@ public class PlayerInputHandler : MonoBehaviour
         {
             return;
         }
+        if (movementState == MovementState.Sprinting)
+        {
+            return;
+        }
+        isAiming = true;
         currentAttack.StartCharging();
     }
     
@@ -246,6 +258,7 @@ public class PlayerInputHandler : MonoBehaviour
     /// </summary>
     private void OnPrepareCanceled(InputAction.CallbackContext context)
     {
+        isAiming = false;
         currentAttack.StopCharging();
     }
     

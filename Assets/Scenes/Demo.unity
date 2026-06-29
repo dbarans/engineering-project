@@ -454,8 +454,57 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6548805452745224477, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1357848115}
+    - targetCorrespondingSourceObject: {fileID: 6548805452745224477, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1357848116}
   m_SourcePrefab: {fileID: 100100000, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+--- !u!1 &1357848114 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6548805452745224477, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+  m_PrefabInstance: {fileID: 1357848113}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1357848115
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357848114}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c67c5cd8f8cc12444a3decfe01a3a663, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotInventory
+  hotbarSize: 5
+  backpackColumns: 4
+  backpackRows: 5
+--- !u!114 &1357848116
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357848114}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b8f3294950611434191a327199223fbd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlotInventoryDebugFill
+  slotInventory: {fileID: 1357848115}
+  entries:
+  - item: {fileID: 11400000, guid: a1b2c3d4e5f60718293a4b5c6d7e8f90, type: 2}
+    count: 1
+    toBackpack: 0
+  - item: {fileID: 11400000, guid: b2c3d4e5f60718293a4b5c6d7e8f90a1, type: 2}
+    count: 12
+    toBackpack: 0
+  - item: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
+    count: 64
+    toBackpack: 1
 --- !u!1 &1537275603
 GameObject:
   m_ObjectHideFlags: 0
@@ -591,6 +640,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Canvas
       objectReference: {fileID: 0}
+    - target: {fileID: 2983984561158072222, guid: da023a5480bbdc74f8ee33ec160def6d, type: 3}
+      propertyPath: slotInventory
+      value: 
+      objectReference: {fileID: 1357848115}
     - target: {fileID: 3100000000000000031, guid: da023a5480bbdc74f8ee33ec160def6d, type: 3}
       propertyPath: m_AnchorMax.x
       value: 0
@@ -599,6 +652,10 @@ PrefabInstance:
       propertyPath: m_AnchorMax.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3100000000000000045, guid: da023a5480bbdc74f8ee33ec160def6d, type: 3}
+      propertyPath: slotInventory
+      value: 
+      objectReference: {fileID: 1357848115}
     - target: {fileID: 3100000000000000081, guid: da023a5480bbdc74f8ee33ec160def6d, type: 3}
       propertyPath: m_AnchorMax.x
       value: 0

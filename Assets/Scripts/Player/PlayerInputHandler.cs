@@ -16,6 +16,7 @@ public class PlayerInputHandler : MonoBehaviour
     [SerializeField] private PlayerInventory playerInventory;
     [SerializeField] private PlayerAttack currentAttack;
     [SerializeField] private PlayerStaminaSystem playerStamina;
+    [SerializeField] private BackpackUI backpackUI;
 
     private IGameStateManager gameStateManager;
     private PlayerControls controls;
@@ -29,6 +30,7 @@ public class PlayerInputHandler : MonoBehaviour
         if (playerInventory == null) playerInventory = GetComponent<PlayerInventory>();
         if (inventoryUI == null) inventoryUI = FindFirstObjectByType<InventoryUI>();
         if (playerStamina == null) playerStamina = GetComponent<PlayerStaminaSystem>();
+        if (backpackUI == null) backpackUI = FindFirstObjectByType<BackpackUI>();
     }
 
     /// <summary>
@@ -66,6 +68,9 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Prepare.started += OnPrepareStarted;
         controls.Player.Prepare.canceled += OnPrepareCanceled;
         controls.Player.Attack.performed += OnAttackPerformed;
+
+        if (backpackUI != null)
+            backpackUI.OpenStateChanged += OnBackpackOpenStateChanged;
     }
 
     private void OnDisable()
@@ -86,7 +91,36 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Prepare.canceled -= OnPrepareCanceled;
         controls.Player.Attack.performed -= OnAttackPerformed;
 
+        if (backpackUI != null)
+            backpackUI.OpenStateChanged -= OnBackpackOpenStateChanged;
+
         controls.Player.Disable();
+    }
+
+    /// <summary>
+    /// Blocks all player gameplay input while the backpack is open and restores it when
+    /// closed. UI input (pointer clicks, the Tab toggle) runs on a separate map and is
+    /// unaffected.
+    /// </summary>
+    private void OnBackpackOpenStateChanged(bool open)
+    {
+        SetPlayerInputBlocked(open);
+    }
+
+    private void SetPlayerInputBlocked(bool blocked)
+    {
+        if (blocked)
+        {
+            controls.Player.Disable();
+            moveInput = Vector2.zero;
+            playerLegs?.SetLegsPosition(Vector2.zero);
+            currentAttack?.StopCharging();
+            ForceStopSprint();
+        }
+        else
+        {
+            controls.Player.Enable();
+        }
     }
     
 

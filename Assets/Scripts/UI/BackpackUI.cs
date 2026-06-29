@@ -1,41 +1,46 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Builds the always-present hotbar slots over <see cref="SlotInventory.Hotbar"/>,
-/// keeps scroll-wheel selection + highlight, and routes clicks through the shared
-/// <see cref="SlotView"/> / <see cref="HeldItemController"/> pipeline.
+/// Builds a fixed grid of <see cref="SlotView"/>s over the backpack container and
+/// toggles its panel (default: the Tab key). Slots are created once and bound to
+/// the container; the container's <see cref="ItemContainer.SlotChanged"/> event
+/// drives per-slot refresh.
 /// </summary>
-public class HotbarUI : MonoBehaviour
+public class BackpackUI : MonoBehaviour
 {
-    [SerializeField] private GameObject slotPrefab;
+    [SerializeField] private GameObject panelRoot;
     [SerializeField] private Transform slotsContainer;
+    [SerializeField] private GameObject slotPrefab;
     [SerializeField] private SlotInventory slotInventory;
     [SerializeField] private HeldItemController heldItem;
 
+    [Header("Input")]
+    [Tooltip("Key that opens/closes the backpack.")]
+    [SerializeField] private Key toggleKey = Key.Tab;
+
     private readonly List<SlotView> _slots = new List<SlotView>();
     private ItemContainer _container;
-    private int _selectedIndex;
 
-    /// <summary>The item in the currently selected hotbar slot, or <c>null</c> if empty.</summary>
-    public ItemData SelectedItem
+    private void Awake()
     {
-        get
-        {
-            var stack = _container?.Get(_selectedIndex);
-            return stack != null && !stack.IsEmpty ? stack.item : null;
-        }
+        if (panelRoot != null) panelRoot.SetActive(false);
     }
-
-    public int SelectedIndex => _selectedIndex;
 
     private void Start()
     {
         if (slotInventory == null) slotInventory = FindFirstObjectByType<SlotInventory>();
         if (heldItem == null) heldItem = FindFirstObjectByType<HeldItemController>();
         BuildSlots();
-        UpdateHighlights();
+    }
+
+    private void Update()
+    {
+        var keyboard = Keyboard.current;
+        if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame)
+            Toggle();
     }
 
     private void OnDestroy()
@@ -49,7 +54,7 @@ public class HotbarUI : MonoBehaviour
         _slots.Clear();
 
         if (slotInventory == null) return;
-        _container = slotInventory.Hotbar;
+        _container = slotInventory.Backpack;
 
         // Prefer slot views already authored under the container (they exist before
         // play); only instantiate to make up any shortfall.
@@ -82,24 +87,25 @@ public class HotbarUI : MonoBehaviour
             _slots[index].Refresh();
     }
 
-    private void Update()
-    {
-        if (Mouse.current == null || _slots.Count == 0) return;
-        float scroll = Mouse.current.scroll.ReadValue().y;
-        if (scroll > 0f) ChangeSelection(-1);
-        else if (scroll < 0f) ChangeSelection(1);
-    }
+    /// <summary>Raised when the backpack opens (<c>true</c>) or closes (<c>false</c>).</summary>
+    public event Action<bool> OpenStateChanged;
 
-    private void ChangeSelection(int delta)
-    {
-        int count = _slots.Count;
-        _selectedIndex = (_selectedIndex + delta + count) % count;
-        UpdateHighlights();
-    }
+    /// <summary>Whether the backpack panel is currently visible.</summary>
+    public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
 
-    private void UpdateHighlights()
+    /// <summary>Opens the backpack panel if closed, closes it if open.</summary>
+    public void Toggle() => SetOpen(!IsOpen);
+
+    /// <summary>Shows the backpack panel.</summary>
+    public void Show() => SetOpen(true);
+
+    /// <summary>Hides the backpack panel.</summary>
+    public void Hide() => SetOpen(false);
+
+    private void SetOpen(bool open)
     {
-        for (int i = 0; i < _slots.Count; i++)
-            _slots[i].SetSelected(i == _selectedIndex);
+        if (panelRoot == null || panelRoot.activeSelf == open) return;
+        panelRoot.SetActive(open);
+        OpenStateChanged?.Invoke(open);
     }
 }

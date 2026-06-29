@@ -4,12 +4,41 @@ using UnityEngine;
 
 [System.Serializable]
 /// <summary>
-/// A single stack entry for the player's inventory.
+/// A single stack entry: an item plus how many of it occupy one slot.
+/// Reusable by both the legacy <see cref="PlayerInventory"/> list and the
+/// slot-based <see cref="ItemContainer"/>.
 /// </summary>
 public class ItemStack
 {
     public ItemData item;
     public int count = 1;
+
+    /// <summary>True when this stack holds no item (or a non-positive count).</summary>
+    public bool IsEmpty => item == null || count <= 0;
+
+    /// <summary>The stack ceiling for the held item (at least 1), or 1 when empty.</summary>
+    public int MaxStack => item != null ? Mathf.Max(1, item.maxStack) : 1;
+
+    /// <summary>How many more units fit in this stack before hitting <see cref="MaxStack"/>.</summary>
+    public int SpaceLeft => IsEmpty ? 0 : Mathf.Max(0, MaxStack - count);
+
+    /// <summary>True when <paramref name="other"/> could merge into this stack (same item, room left).</summary>
+    public bool CanStackWith(ItemData other) => !IsEmpty && IsSameItem(item, other) && SpaceLeft > 0;
+
+    /// <summary>Empties the stack in place.</summary>
+    public void Clear()
+    {
+        item = null;
+        count = 0;
+    }
+
+    /// <summary>Item equality used across the inventory systems: by reference, falling back to item name.</summary>
+    public static bool IsSameItem(ItemData a, ItemData b)
+    {
+        if (ReferenceEquals(a, b)) return true;
+        if (a == null || b == null) return false;
+        return string.Equals(a.itemName, b.itemName, StringComparison.Ordinal);
+    }
 }
 
 /// <summary>
@@ -24,12 +53,7 @@ public class PlayerInventory : MonoBehaviour, IInventory
     /// <summary>Fired after <see cref="AddItem"/> or <see cref="RemoveItem"/> mutates storage.</summary>
     public event Action ContentsChanged;
 
-    private static bool IsSameItem(ItemData a, ItemData b)
-    {
-        if (ReferenceEquals(a, b)) return true;
-        if (a == null || b == null) return false;
-        return string.Equals(a.itemName, b.itemName, StringComparison.Ordinal);
-    }
+    private static bool IsSameItem(ItemData a, ItemData b) => ItemStack.IsSameItem(a, b);
 
     /// <summary>
     /// Returns a flattened view of all items in the inventory (repeated by stack count).

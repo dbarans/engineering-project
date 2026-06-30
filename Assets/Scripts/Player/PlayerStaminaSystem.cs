@@ -16,6 +16,7 @@ public class PlayerStaminaSystem : MonoBehaviour
 
     private float currentStamina;
     private bool isSprinting;
+    private bool isMoving;
     private float lastUseTime = -999f;
 
     private void Start()
@@ -29,7 +30,7 @@ public class PlayerStaminaSystem : MonoBehaviour
 
     private void Update()
     {
-        if (isSprinting)
+        if (isSprinting && isMoving)
         {
             Drain(sprintDrainRate * Time.deltaTime);
             if (currentStamina <= 0f)
@@ -48,6 +49,11 @@ public class PlayerStaminaSystem : MonoBehaviour
     public void SetSprinting(bool sprinting)
     {
         isSprinting = sprinting;
+    }
+
+    public void SetMoving(bool moving)
+    {
+        isMoving = moving;
     }
 
     public bool CanSprint() => currentStamina >= minStaminaToSprint;

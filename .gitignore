@@ -73,3 +73,6 @@ crashlytics-build.properties
 .vscode/
 .vsconfig
 .idea
+
+# Documentation / planning markdown files (kept local, not pushed)
+/docs/

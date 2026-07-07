@@ -42,6 +42,38 @@ public class ItemContainer
     /// <summary>Empties the slot at <paramref name="index"/>.</summary>
     public void Clear(int index) => Set(index, null, 0);
 
+    /// <summary>Total number of <paramref name="item"/> units held across all slots.</summary>
+    public int Count(ItemData item)
+    {
+        if (item == null) return 0;
+        int total = 0;
+        for (int i = 0; i < _slots.Length; i++)
+        {
+            var s = _slots[i];
+            if (!s.IsEmpty && ItemStack.IsSameItem(s.item, item)) total += s.count;
+        }
+        return total;
+    }
+
+    /// <summary>
+    /// Removes up to <paramref name="count"/> units of <paramref name="item"/>, draining
+    /// matching stacks until satisfied. Returns the amount actually removed.
+    /// </summary>
+    public int TryRemove(ItemData item, int count = 1)
+    {
+        if (item == null || count <= 0) return 0;
+        int removed = 0;
+        for (int i = 0; i < _slots.Length && removed < count; i++)
+        {
+            var s = _slots[i];
+            if (s.IsEmpty || !ItemStack.IsSameItem(s.item, item)) continue;
+            int take = Mathf.Min(s.count, count - removed);
+            Set(i, s.item, s.count - take); // 0 -> clears; raises SlotChanged
+            removed += take;
+        }
+        return removed;
+    }
+
     /// <summary>Swaps the contents of two slots, raising a change for each.</summary>
     public void Swap(int a, int b)
     {
@@ -54,6 +86,27 @@ public class ItemContainer
         _slots[b].count = countA;
         SlotChanged?.Invoke(a);
         SlotChanged?.Invoke(b);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="count"/> units of <paramref name="item"/> would fit —
+    /// topping up matching stacks (respecting <see cref="ItemData.maxStack"/>) then
+    /// using empty slots. Does not mutate anything.
+    /// </summary>
+    public bool CanAdd(ItemData item, int count = 1)
+    {
+        if (item == null) return false;
+        if (count <= 0) return true;
+
+        int max = Mathf.Max(1, item.maxStack);
+        int room = 0;
+        for (int i = 0; i < _slots.Length && room < count; i++)
+        {
+            var s = _slots[i];
+            if (s.IsEmpty) room += max;
+            else if (ItemStack.IsSameItem(s.item, item)) room += s.SpaceLeft;
+        }
+        return room >= count;
     }
 
     /// <summary>

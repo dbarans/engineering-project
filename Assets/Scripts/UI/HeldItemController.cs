@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 /// <summary>
@@ -18,6 +19,12 @@ public class HeldItemController : MonoBehaviour
     [Tooltip("Sorting order of the held item's own canvas. Kept high so the carried " +
              "item always draws above the HUD and other UI.")]
     [SerializeField] private int sortingOrder = 1000;
+
+    [Header("Dropping")]
+    [Tooltip("Receives items dropped into the world. A left-click that lands on the world " +
+             "(outside any UI, e.g. beyond the backpack panel) while carrying an item drops it. " +
+             "Auto-resolved at runtime if left unset.")]
+    [SerializeField] private WorldItemPickup dropTarget;
 
     private InventoryItem _heldItem;
 
@@ -46,6 +53,37 @@ public class HeldItemController : MonoBehaviour
     {
         if (followTarget != null && Mouse.current != null)
             followTarget.position = Mouse.current.position.ReadValue();
+
+        // Carrying an item + a left-click that lands on the world (not on a slot or any
+        // other UI, e.g. outside the backpack panel) -> drop it in front of the player.
+        if (_heldItem != null && WasWorldClickThisFrame())
+            DropHeldToWorld();
+    }
+
+    /// <summary>
+    /// True on the frame the left mouse button is pressed while the pointer is over the
+    /// world rather than any UI element. Slot clicks (which sit inside the panel) are
+    /// reported as "over UI" and so are left to <see cref="SlotView.OnPointerClick"/>.
+    /// </summary>
+    private static bool WasWorldClickThisFrame()
+    {
+        var mouse = Mouse.current;
+        if (mouse == null || !mouse.leftButton.wasPressedThisFrame) return false;
+
+        var es = EventSystem.current;
+        return es == null || !es.IsPointerOverGameObject();
+    }
+
+    /// <summary>Hands the carried stack to the world dropper and empties the cursor.</summary>
+    private void DropHeldToWorld()
+    {
+        if (dropTarget == null) dropTarget = FindFirstObjectByType<WorldItemPickup>();
+        if (dropTarget == null) return;
+
+        if (!dropTarget.Drop(_heldItem.Item, _heldItem.Count)) return;
+
+        Destroy(_heldItem.gameObject);
+        _heldItem = null;
     }
 
     /// <summary>Routes a click on <paramref name="slot"/> through the interaction rules.</summary>

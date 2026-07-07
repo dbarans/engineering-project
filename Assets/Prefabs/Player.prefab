@@ -936,8 +936,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 09997e91dc8c9ce41bde8dfdb3428a39, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfView
-  viewRadius: 8
-  viewAngle: 90
+  viewRadius: 10.5
+  viewAngle: 100
   raysPerDegree: 1
   obstacleMask:
     serializedVersion: 2

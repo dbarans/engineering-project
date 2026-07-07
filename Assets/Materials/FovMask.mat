@@ -41,7 +41,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _Darkness: 0.95
+    - _EdgeSoftness: 1
     - _EnableExternalAlpha: 0
+    - _SideSoftness: 0
     - _ZWrite: 0
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}

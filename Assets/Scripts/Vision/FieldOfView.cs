@@ -85,12 +85,18 @@ public class FieldOfView : MonoBehaviour
 
         int vertCount = viewPoints.Count + 1;
         Vector3[] vertices = new Vector3[vertCount];
+        // UV.x encodes normalized distance from the player (0 = center, 1 = view radius).
+        // Used by the FovMaskWriter shader to fade darkness in near the edge.
+        Vector2[] uvs = new Vector2[vertCount];
         int[] triangles = new int[(vertCount - 2) * 3];
 
         vertices[0] = Vector3.zero;
+        uvs[0] = Vector2.zero;
         for (int i = 0; i < viewPoints.Count; i++)
         {
-            vertices[i + 1] = transform.InverseTransformPoint(viewPoints[i]);
+            Vector3 localPoint = transform.InverseTransformPoint(viewPoints[i]);
+            vertices[i + 1] = localPoint;
+            uvs[i + 1] = new Vector2(Mathf.Clamp01(localPoint.magnitude / viewRadius), 0f);
             if (i < viewPoints.Count - 1)
             {
                 int t = i * 3;
@@ -102,6 +108,7 @@ public class FieldOfView : MonoBehaviour
 
         viewMesh.Clear();
         viewMesh.vertices = vertices;
+        viewMesh.uv = uvs;
         viewMesh.triangles = triangles;
         viewMesh.RecalculateNormals();
     }

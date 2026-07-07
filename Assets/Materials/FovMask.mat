@@ -42,8 +42,9 @@ Material:
     m_Ints: []
     m_Floats:
     - _Darkness: 0.95
-    - _EdgeSoftness: 1
+    - _EdgeSoftness: 0.396
     - _EnableExternalAlpha: 0
+    - _NearEdgeSoftness: 0.15
     - _SideSoftness: 0
     - _ZWrite: 0
     m_Colors:

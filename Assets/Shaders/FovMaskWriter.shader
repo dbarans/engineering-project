@@ -9,7 +9,8 @@ Shader "Custom/FovMaskWriter"
     Properties
     {
         _Darkness("Darkness Alpha (match DarknessOverlay)", Range(0, 1)) = 0.97
-        _EdgeSoftness("Edge Softness", Range(0, 1)) = 0.35
+        _EdgeSoftness("Cone Edge Softness", Range(0, 1)) = 0.35
+        _NearEdgeSoftness("Near Circle Edge Softness", Range(0, 1)) = 0.15
     }
 
     SubShader
@@ -45,6 +46,7 @@ Shader "Custom/FovMaskWriter"
             CBUFFER_START(UnityPerMaterial)
                 float _Darkness;
                 float _EdgeSoftness;
+                float _NearEdgeSoftness;
             CBUFFER_END
 
             struct Attributes
@@ -69,8 +71,11 @@ Shader "Custom/FovMaskWriter"
 
             half4 Frag(Varyings IN) : SV_Target
             {
-                // 0 alpha near the player, ramping up to _Darkness at the view radius.
-                float edgeStart = 1.0 - saturate(_EdgeSoftness);
+                // Softness depends on the region (UV.y): the wide cone edge vs the narrow
+                // near-circle edge. A narrow near edge keeps the circle clear so objects
+                // behind the player stay visible instead of being darkened away.
+                float softness = lerp(_EdgeSoftness, _NearEdgeSoftness, saturate(IN.uv.y));
+                float edgeStart = 1.0 - saturate(softness);
                 float falloff = smoothstep(edgeStart, 1.0, saturate(IN.uv.x));
                 return half4(0, 0, 0, falloff * _Darkness);
             }

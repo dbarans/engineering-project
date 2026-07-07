@@ -938,6 +938,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfView
   viewRadius: 10.5
   viewAngle: 100
+  nearVisionRadius: 1
+  lanternEnabled: 0
+  lanternRadius: 2
   raysPerDegree: 1
   obstacleMask:
     serializedVersion: 2

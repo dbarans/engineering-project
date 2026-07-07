@@ -13,6 +13,14 @@ public class FieldOfView : MonoBehaviour
     [SerializeField] private float viewRadius = 8f;
     [Range(1, 360)]
     [SerializeField] private float viewAngle = 360f;
+    [Tooltip("Small 360° visibility radius around the player, in addition to the cone (Darkwood-style). Set to 0 to disable.")]
+    [SerializeField] private float nearVisionRadius = 2f;
+
+    [Header("Lantern")]
+    [Tooltip("When held, the 360° circle around the player grows to Lantern Radius. Toggle here for testing; later driven by an item.")]
+    [SerializeField] private bool lanternEnabled = false;
+    [Tooltip("Radius of the 360° circle while the lantern is held. Keep below View Radius.")]
+    [SerializeField] private float lanternRadius = 5f;
 
     [Header("Ray Settings")]
     [Tooltip("Number of rays per degree. Higher = smoother but slower.")]
@@ -36,6 +44,7 @@ public class FieldOfView : MonoBehaviour
 
     private Mesh viewMesh;
     private MeshFilter meshFilter;
+    private float facingAngle;
 
     private void Awake()
     {
@@ -55,17 +64,23 @@ public class FieldOfView : MonoBehaviour
 
     private void BuildMesh()
     {
-        int stepCount = Mathf.Max(1, Mathf.RoundToInt(viewAngle * raysPerDegree));
-        float stepSize = viewAngle / stepCount;
+        facingAngle = directionSource != null ? directionSource.eulerAngles.z : transform.eulerAngles.z;
+
+        // When the near-vision circle is active on a cone, sweep the full 360°:
+        // inside the cone the reach is viewRadius, elsewhere it drops to the near radius.
+        bool useNearCircle = EffectiveNearRadius() > 0f && viewAngle < 360f;
+        float sweepAngle = useNearCircle ? 360f : viewAngle;
+        float startAngle = useNearCircle ? facingAngle - 180f : facingAngle - viewAngle / 2f;
+
+        int stepCount = Mathf.Max(1, Mathf.RoundToInt(sweepAngle * raysPerDegree));
+        float stepSize = sweepAngle / stepCount;
 
         List<Vector3> viewPoints = new List<Vector3>(stepCount + 16);
         ViewCastInfo prevCast = default;
 
-        float facingAngle = directionSource != null ? directionSource.eulerAngles.z : transform.eulerAngles.z;
-
         for (int i = 0; i <= stepCount; i++)
         {
-            float angle = facingAngle - viewAngle / 2f + stepSize * i;
+            float angle = startAngle + stepSize * i;
             ViewCastInfo cast = Cast(angle);
 
             if (i > 0)
@@ -85,18 +100,29 @@ public class FieldOfView : MonoBehaviour
 
         int vertCount = viewPoints.Count + 1;
         Vector3[] vertices = new Vector3[vertCount];
-        // UV.x encodes normalized distance from the player (0 = center, 1 = view radius).
+        // UV.x encodes normalized distance from the player (0 = center, 1 = that ray's reach).
         // Used by the FovMaskWriter shader to fade darkness in near the edge.
         Vector2[] uvs = new Vector2[vertCount];
         int[] triangles = new int[(vertCount - 2) * 3];
 
+        Vector2 origin = transform.position;
         vertices[0] = Vector3.zero;
         uvs[0] = Vector2.zero;
         for (int i = 0; i < viewPoints.Count; i++)
         {
             Vector3 localPoint = transform.InverseTransformPoint(viewPoints[i]);
             vertices[i + 1] = localPoint;
-            uvs[i + 1] = new Vector2(Mathf.Clamp01(localPoint.magnitude / viewRadius), 0f);
+
+            // UV.x: distance normalized by this direction's reach (so the near circle fades
+            // over its own radius and the cone fades over the full radius).
+            // UV.y: region flag — 1 for the near-vision circle, 0 for the main cone. The shader
+            // keeps the near circle mostly clear so objects behind the player stay visible.
+            Vector2 dir = (Vector2)viewPoints[i] - origin;
+            float pointAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+            bool isNear = useNearCircle && Mathf.Abs(Mathf.DeltaAngle(facingAngle, pointAngle)) > viewAngle * 0.5f;
+            float reach = isNear ? EffectiveNearRadius() : viewRadius;
+            uvs[i + 1] = new Vector2(Mathf.Clamp01(localPoint.magnitude / reach), isNear ? 1f : 0f);
+
             if (i < viewPoints.Count - 1)
             {
                 int t = i * 3;
@@ -113,15 +139,46 @@ public class FieldOfView : MonoBehaviour
         viewMesh.RecalculateNormals();
     }
 
+    /// <summary>
+    /// Current radius of the 360° circle around the player: larger while a lantern is held.
+    /// </summary>
+    private float EffectiveNearRadius()
+    {
+        return lanternEnabled ? Mathf.Max(nearVisionRadius, lanternRadius) : nearVisionRadius;
+    }
+
+    /// <summary>
+    /// Enables or disables the held lantern (grows the 360° circle). Intended to be
+    /// driven later by a light-source item held by the player.
+    /// </summary>
+    public void SetLanternEnabled(bool enabled)
+    {
+        lanternEnabled = enabled;
+    }
+
+    /// <summary>
+    /// Reach for a ray at the given world angle: full viewRadius inside the cone,
+    /// the near/lantern radius outside it (Darkwood-style circle around the player).
+    /// </summary>
+    private float MaxDistanceForAngle(float angleDeg)
+    {
+        if (EffectiveNearRadius() <= 0f || viewAngle >= 360f)
+            return viewRadius;
+
+        float offset = Mathf.Abs(Mathf.DeltaAngle(facingAngle, angleDeg));
+        return offset <= viewAngle / 2f ? viewRadius : EffectiveNearRadius();
+    }
+
     private ViewCastInfo Cast(float angleDeg)
     {
         Vector3 dir = AngleToDirection(angleDeg);
-        RaycastHit2D hit = Physics2D.Raycast(transform.position, dir, viewRadius, obstacleMask);
+        float maxDist = MaxDistanceForAngle(angleDeg);
+        RaycastHit2D hit = Physics2D.Raycast(transform.position, dir, maxDist, obstacleMask);
 
         if (hit.collider != null)
             return new ViewCastInfo(true, hit.point, hit.distance, angleDeg);
 
-        return new ViewCastInfo(false, transform.position + dir * viewRadius, viewRadius, angleDeg);
+        return new ViewCastInfo(false, transform.position + dir * maxDist, maxDist, angleDeg);
     }
 
     private EdgeInfo FindEdge(ViewCastInfo a, ViewCastInfo b)
@@ -159,23 +216,29 @@ public class FieldOfView : MonoBehaviour
     }
 
     /// <summary>
-    /// Returns true if the given world-space point is within the FOV cone and no obstacle is blocking.
+    /// Returns true if the given world-space point is visible: inside the cone within
+    /// viewRadius, or inside the near-vision circle around the player, and not obstructed.
     /// </summary>
     public bool IsVisible(Vector2 worldPoint)
     {
         Vector2 origin = transform.position;
+        float distance = Vector2.Distance(origin, worldPoint);
 
-        if (Vector2.Distance(origin, worldPoint) > viewRadius)
+        if (distance > viewRadius)
             return false;
+
+        float facing = directionSource != null ? directionSource.eulerAngles.z : transform.eulerAngles.z;
 
         if (viewAngle < 360f)
         {
-            float facingAngle = directionSource != null ? directionSource.eulerAngles.z : transform.eulerAngles.z;
-            Vector2 facingDir = new Vector2(Mathf.Cos(facingAngle * Mathf.Deg2Rad), Mathf.Sin(facingAngle * Mathf.Deg2Rad));
+            Vector2 facingDir = new Vector2(Mathf.Cos(facing * Mathf.Deg2Rad), Mathf.Sin(facing * Mathf.Deg2Rad));
             Vector2 toPoint = (worldPoint - origin).normalized;
             float angleToPoint = Vector2.Angle(facingDir, toPoint);
 
-            if (angleToPoint > viewAngle / 2f)
+            // Outside the cone, only the near-vision / lantern circle counts.
+            bool insideCone = angleToPoint <= viewAngle / 2f;
+            bool insideNearCircle = EffectiveNearRadius() > 0f && distance <= EffectiveNearRadius();
+            if (!insideCone && !insideNearCircle)
                 return false;
         }
 

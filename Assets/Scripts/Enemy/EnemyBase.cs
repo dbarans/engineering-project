@@ -62,6 +62,12 @@ public abstract class EnemyBase : MonoBehaviour
     public EnemyState CurrentState => currentState;
 
     /// <summary>
+    /// World position the enemy is currently heading toward for the active state
+    /// (player, last-known position, or patrol waypoint). Used by visuals for facing.
+    /// </summary>
+    public Vector3 CurrentTargetPosition => GetTargetPosition();
+
+    /// <summary>
     /// Current health of the enemy.
     /// </summary>
     public float CurrentHealth => currentHealth;

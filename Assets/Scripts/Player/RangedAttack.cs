@@ -24,16 +24,6 @@ public class RangedAttack : PlayerAttack
         base.StartCharging();
     }
 
-    public override void Fire()
-    {
-        if (isCharging)
-        {
-            ExecuteAttack();
-            isReady = false;
-            isCharging = false;
-        }
-    }
-
     protected override void Update()
     {
         base.Update();
@@ -66,8 +56,6 @@ public class RangedAttack : PlayerAttack
         Quaternion shootRotation = shootPoint.rotation * Quaternion.Euler(0, 0, randomOffset);
 
         Instantiate(projectilePrefab, shootPoint.position, shootRotation);
-
-        ToggleLines(false);
     }
 
     private void UpdateAimLines()

@@ -58,12 +58,11 @@ public class PlayerStaminaSystem : MonoBehaviour
 
     public bool CanSprint() => currentStamina >= minStaminaToSprint;
 
-    public bool TryUseAttackStamina()
+    public bool CanAttack() => currentStamina >= minStaminaToAttack;
+
+    public void UseAttackStamina()
     {
-        if (currentStamina < minStaminaToAttack)
-            return false;
         Drain(attackStaminaCost);
-        return true;
     }
 
     private void Drain(float amount)

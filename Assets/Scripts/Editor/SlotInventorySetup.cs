@@ -24,6 +24,8 @@ public static class SlotInventorySetup
     private const string Item1Path = "Assets/Items/Item 1 - Sword.asset";
     private const string Item2Path = "Assets/Items/Item 2 - Mana Potion.asset";
     private const string Item3Path = "Assets/Items/Item 3 - Wood.asset";
+    private const string Item4Path = "Assets/Items/Item 4 - Axe.asset";
+    private const string Item5Path = "Assets/Items/Item 5 - Pistol.asset";
 
     [MenuItem("Tools/Slot Inventory/Build UI & Wire Scene")]
     public static void BuildAndWire()
@@ -312,7 +314,9 @@ public static class SlotInventorySetup
         var sword = AssetDatabase.LoadAssetAtPath<ItemData>(Item1Path);
         var mana = AssetDatabase.LoadAssetAtPath<ItemData>(Item2Path);
         var wood = AssetDatabase.LoadAssetAtPath<ItemData>(Item3Path);
-        if (sword == null && mana == null && wood == null) return;
+        var axe = AssetDatabase.LoadAssetAtPath<ItemData>(Item4Path);
+        var pistol = AssetDatabase.LoadAssetAtPath<ItemData>(Item5Path);
+        if (sword == null && mana == null && wood == null && axe == null && pistol == null) return;
 
         var fill = owner.GetComponent<SlotInventoryDebugFill>() ?? Undo.AddComponent<SlotInventoryDebugFill>(owner);
         var so = new SerializedObject(fill);
@@ -321,6 +325,8 @@ public static class SlotInventorySetup
         entries.ClearArray();
         AddEntry(entries, sword, 1, false);
         AddEntry(entries, mana, 12, false);
+        AddEntry(entries, axe, 1, false);
+        AddEntry(entries, pistol, 1, false);
         AddEntry(entries, wood, 64, true);
         so.ApplyModifiedPropertiesWithoutUndo();
     }

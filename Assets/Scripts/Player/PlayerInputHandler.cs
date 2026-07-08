@@ -233,9 +233,9 @@ public class PlayerInputHandler : MonoBehaviour
         {
             return;
         }
-        currentAttack.StartCharging();
+        currentAttack?.StartCharging();
     }
-    
+
     /// <summary>
     /// Triggered when prepare input is started (mouse or joystick).
     /// </summary>
@@ -249,27 +249,34 @@ public class PlayerInputHandler : MonoBehaviour
         {
             return;
         }
+        if (currentAttack == null)
+        {
+            return;
+        }
         isAiming = true;
         currentAttack.StartCharging();
     }
-    
+
     /// <summary>
     /// Triggered when prepare input is canceled (mouse or joystick).
     /// </summary>
     private void OnPrepareCanceled(InputAction.CallbackContext context)
     {
         isAiming = false;
-        currentAttack.StopCharging();
+        currentAttack?.StopCharging();
     }
-    
+
     /// <summary>
     /// Triggered when attack input is performed (mouse or joystick).
     /// </summary>
     private void OnAttackPerformed(InputAction.CallbackContext context)
     {
-        if (playerStamina != null && !playerStamina.TryUseAttackStamina())
+        if (currentAttack == null)
             return;
-        currentAttack.Fire();
+        if (playerStamina != null && !playerStamina.CanAttack())
+            return;
+        if (currentAttack.Fire())
+            playerStamina?.UseAttackStamina();
     }
     
     /// <summary>

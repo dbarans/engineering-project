@@ -76,3 +76,7 @@ crashlytics-build.properties
 
 # Documentation / planning markdown files (kept local, not pushed)
 /docs/
+
+# High-res source frames for SkullGuy (originals). Kept local only; game uses
+# the downscaled copies in Art/SKULL-GUY-optimized. Trailing ~ also makes Unity skip it.
+/[Aa]ssets/[Aa]rt/SKULL-GUY-ORIGINALS~/

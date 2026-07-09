@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -30,12 +31,19 @@ public class HotbarUI : MonoBehaviour
 
     public int SelectedIndex => _selectedIndex;
 
+    /// <summary>
+    /// Raised whenever the item under the selection highlight may have changed:
+    /// scrolling to another slot, or the selected slot's content changing.
+    /// </summary>
+    public event Action SelectedItemChanged;
+
     private void Start()
     {
         if (slotInventory == null) slotInventory = FindFirstObjectByType<SlotInventory>();
         if (heldItem == null) heldItem = FindFirstObjectByType<HeldItemController>();
         BuildSlots();
         UpdateHighlights();
+        SelectedItemChanged?.Invoke();
     }
 
     private void OnDestroy()
@@ -80,6 +88,8 @@ public class HotbarUI : MonoBehaviour
     {
         if (index >= 0 && index < _slots.Count)
             _slots[index].Refresh();
+        if (index == _selectedIndex)
+            SelectedItemChanged?.Invoke();
     }
 
     private void Update()
@@ -95,6 +105,7 @@ public class HotbarUI : MonoBehaviour
         int count = _slots.Count;
         _selectedIndex = (_selectedIndex + delta + count) % count;
         UpdateHighlights();
+        SelectedItemChanged?.Invoke();
     }
 
     private void UpdateHighlights()

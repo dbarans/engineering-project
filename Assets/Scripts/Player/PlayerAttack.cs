@@ -26,17 +26,26 @@ public abstract class PlayerAttack : MonoBehaviour
         Debug.Log("reset");
     }
 
-    public virtual void Fire()
+    public virtual bool Fire()
     {
-        if (isReady)
+        if (!isCharging)
+            return false;
+
+        ExecuteAttack();
+        RestartCharge();
+        return true;
+    }
+
+    /// <summary>
+    /// Resets charge progress after a shot. Charging continues from the start
+    /// as long as the prepare button is still held, so aiming is not interrupted.
+    /// </summary>
+    protected void RestartCharge()
+    {
+        isReady = false;
+        if (isCharging)
         {
-            ExecuteAttack();
-            isReady = false;
-            isCharging = false;
-        }
-        else
-        {
-            Debug.Log("not ready");
+            chargeStartTime = Time.time;
         }
     }
 

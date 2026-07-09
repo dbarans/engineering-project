@@ -529,37 +529,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: -90, y: 0, z: 0}
---- !u!1 &1215447103 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1263869902556360065, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-  m_PrefabInstance: {fileID: 6599777390179191659}
-  m_PrefabAsset: {fileID: 0}
---- !u!20 &1215447107 stripped
-Camera:
-  m_CorrespondingSourceObject: {fileID: 6372006118229231268, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-  m_PrefabInstance: {fileID: 6599777390179191659}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1215447108
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1215447103}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0f9e78a23d796e64aac933b8ae3aed64, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CameraParallax
-  playerTransform: {fileID: 1550077370}
-  mainCamera: {fileID: 1215447107}
-  inputHandler: {fileID: 0}
-  smoothSpeed: 5
-  cameraOffset: {x: 0, y: 0, z: -10}
-  maxExplorationOffset: 0.5
-  explorationInfluence: 0.05
-  maxAimOffset: 4.5
-  aimInfluence: 0.4
 --- !u!1 &1252451280
 GameObject:
   m_ObjectHideFlags: 0
@@ -2977,10 +2946,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 1263869902556360065, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1215447108}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

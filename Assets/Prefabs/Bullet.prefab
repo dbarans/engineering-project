@@ -180,9 +180,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 820606f8abe12804fa8ce78dd8850b3a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Projectile
-  speed: 30
+  speed: 90
   lifeTime: 3
   damage: 25
+  knockbackForce: 8
+  hitMask:
+    serializedVersion: 2
+    m_Bits: 896
 --- !u!1 &7605344003963357997
 GameObject:
   m_ObjectHideFlags: 0

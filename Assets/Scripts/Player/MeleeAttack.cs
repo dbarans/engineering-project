@@ -1,32 +1,139 @@
-using System;
+using System.Collections;
 using UnityEngine;
 
 public class MeleeAttack : PlayerAttack
 {
-    [SerializeField] private float attackRadius = 3f;
+    [Header("Melee Settings")]
     [SerializeField] private Transform attackPoint;
+    [SerializeField] private float minAttackRadius = 1f;
+    [SerializeField] private float maxAttackRadius = 3f;
+    [SerializeField] private float minDamage = 10f;
+    [SerializeField] private float maxDamage = 40f;
+    [SerializeField] private float knockbackForce = 1f;
+    [Tooltip("How far the attack area is pushed in front of the attack point, along the aim direction (world units).")]
+    [SerializeField] private float forwardOffset = 0.3f;
+
+    [Header("Attack Area Flash")]
+    [SerializeField] private float flashDuration = 0.15f;
+    [SerializeField] private Color flashColor = new Color(1f, 0.4f, 0.2f, 0.8f);
+    [SerializeField] private int circleSegments = 40;
+    [SerializeField] private float lineWidth = 0.05f;
+
+    private LineRenderer areaIndicator;
+    private Coroutine flashRoutine;
+
+    private void Awake()
+    {
+        CreateAreaIndicator();
+    }
+
+    private void OnDisable()
+    {
+        // Coroutines stop when the weapon is deactivated (unequipped); make sure a
+        // mid-fade circle does not reappear on re-equip.
+        flashRoutine = null;
+        if (areaIndicator != null) areaIndicator.enabled = false;
+    }
 
     protected override void ExecuteAttack()
     {
-        Debug.Log("melee.");
+        float progress = GetChargeProgress();
+        float radius = Mathf.Lerp(minAttackRadius, maxAttackRadius, progress);
+        float damage = Mathf.Lerp(minDamage, maxDamage, progress);
+        Vector3 center = AttackCenter();
 
         Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(
-            attackPoint.position,
-            attackRadius,
+            center,
+            radius,
             enemyLayer
         );
 
-        foreach (Collider2D enemy in hitEnemies)
+        foreach (Collider2D hit in hitEnemies)
         {
-            Debug.Log("hitted: " + enemy.name);
-            // enemy.GetComponent<Health>().TakeDamage(100);
+            if (hit.TryGetComponent<EnemyBase>(out EnemyBase enemy))
+            {
+                enemy.TakeDamage(damage);
+                Vector2 direction = (enemy.transform.position - center).normalized;
+                enemy.Knockback(direction, knockbackForce);
+            }
         }
+
+        FlashAttackArea(center, radius);
+    }
+
+    /// <summary>Attack circle center: the attack point pushed forward along the aim direction.</summary>
+    private Vector3 AttackCenter()
+    {
+        return attackPoint.position + attackPoint.right * forwardOffset;
+    }
+
+    /// <summary>
+    /// Briefly shows the hit area as a fading circle outline around the attack point.
+    /// </summary>
+    private void FlashAttackArea(Vector3 center, float radius)
+    {
+        if (areaIndicator == null) return;
+
+        DrawCircle(center, radius);
+        if (flashRoutine != null) StopCoroutine(flashRoutine);
+        flashRoutine = StartCoroutine(FadeOutFlash());
+    }
+
+    private IEnumerator FadeOutFlash()
+    {
+        areaIndicator.enabled = true;
+        float elapsed = 0f;
+        while (elapsed < flashDuration)
+        {
+            float alpha = Mathf.Lerp(flashColor.a, 0f, elapsed / flashDuration);
+            SetIndicatorColor(new Color(flashColor.r, flashColor.g, flashColor.b, alpha));
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+        areaIndicator.enabled = false;
+        flashRoutine = null;
+    }
+
+    private void CreateAreaIndicator()
+    {
+        var go = new GameObject("AttackAreaIndicator");
+        go.transform.SetParent(transform, false);
+
+        areaIndicator = go.AddComponent<LineRenderer>();
+        areaIndicator.material = new Material(Shader.Find("Sprites/Default"));
+        areaIndicator.loop = true;
+        areaIndicator.useWorldSpace = true;
+        areaIndicator.startWidth = lineWidth;
+        areaIndicator.endWidth = lineWidth;
+        areaIndicator.positionCount = circleSegments;
+        areaIndicator.sortingOrder = 10;
+        areaIndicator.enabled = false;
+    }
+
+    private void DrawCircle(Vector3 center, float radius)
+    {
+        for (int i = 0; i < circleSegments; i++)
+        {
+            float angle = i * Mathf.PI * 2f / circleSegments;
+            Vector3 point = center + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+            areaIndicator.SetPosition(i, point);
+        }
+        SetIndicatorColor(flashColor);
+    }
+
+    private void SetIndicatorColor(Color color)
+    {
+        areaIndicator.startColor = color;
+        areaIndicator.endColor = color;
     }
 
     private void OnDrawGizmosSelected()
     {
         if (attackPoint == null) return;
+        Vector3 center = AttackCenter();
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(center, minAttackRadius);
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
+        Gizmos.DrawWireSphere(center, maxAttackRadius);
     }
 }

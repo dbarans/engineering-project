@@ -718,8 +718,6 @@ MonoBehaviour:
   playerMovement: {fileID: 9122762186951067124}
   playerAim: {fileID: 3560448657770277445}
   playerLegs: {fileID: 3214693079691589210}
-  inventoryUI: {fileID: 0}
-  playerInventory: {fileID: 6474835813843381217}
   currentAttack: {fileID: 3513556798588415593}
   playerStamina: {fileID: 4763037826514429300}
   backpackUI: {fileID: 0}

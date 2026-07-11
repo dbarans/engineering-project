@@ -559,17 +559,26 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player
       objectReference: {fileID: 0}
+    - target: {fileID: 7058186275050618879, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+      propertyPath: backpackUI
+      value: 
+      objectReference: {fileID: 1999594662}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+--- !u!1 &1357848114 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6548805452745224477, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
+  m_PrefabInstance: {fileID: 1357848113}
+  m_PrefabAsset: {fileID: 0}
 --- !u!114 &1357848115 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 157545601758896288, guid: 8e9558191f050824ab6b394f2dd9b2de, type: 3}
   m_PrefabInstance: {fileID: 1357848113}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1357848114}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c67c5cd8f8cc12444a3decfe01a3a663, type: 3}
@@ -628,7 +637,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startGameOnAwake: 1
   allowPause: 1
-  player: {fileID: 0}
+  player: {fileID: 1357848114}
   playerSpawnPoint: {fileID: 867344292}
 --- !u!4 &1537275605
 Transform:
@@ -658,6 +667,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   gameStateManagerObject: {fileID: 1537275604}
+--- !u!114 &1999594662 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2983984561158072222, guid: da023a5480bbdc74f8ee33ec160def6d, type: 3}
+  m_PrefabInstance: {fileID: 4100000000000000001}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e2c8ef36e10fa314f93de9f84aabffa7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BackpackUI
 --- !u!1001 &2036622761
 PrefabInstance:
   m_ObjectHideFlags: 0

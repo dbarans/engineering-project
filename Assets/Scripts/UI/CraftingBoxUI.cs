@@ -6,10 +6,8 @@ using UnityEngine;
 /// backpack. Each slot shows a recipe's output, dims while its ingredients are missing,
 /// and on click crafts the output (consuming the ingredients from the backpack and
 /// putting the result back into the backpack). Opens and closes together with the
-/// <see cref="BackpackUI"/>.
-///
-/// Fully independent from the legacy <see cref="CraftStation"/> crafting: it reads from
-/// and writes to the slot-based <see cref="SlotInventory.Backpack"/>.
+/// <see cref="BackpackUI"/>. Reads from and writes to the slot-based
+/// <see cref="SlotInventory.Backpack"/>.
 /// </summary>
 public class CraftingBoxUI : MonoBehaviour
 {

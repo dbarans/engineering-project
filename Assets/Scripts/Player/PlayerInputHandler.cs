@@ -12,8 +12,6 @@ public class PlayerInputHandler : MonoBehaviour
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private PlayerAim playerAim;
     [SerializeField] private PlayerLegs playerLegs;
-    [SerializeField] private InventoryUI inventoryUI;
-    [SerializeField] private PlayerInventory playerInventory;
     [SerializeField] private PlayerAttack currentAttack;
     [SerializeField] private PlayerStaminaSystem playerStamina;
     [SerializeField] private BackpackUI backpackUI;
@@ -28,8 +26,6 @@ public class PlayerInputHandler : MonoBehaviour
     private void Awake()
     {
         controls = new PlayerControls();
-        if (playerInventory == null) playerInventory = GetComponent<PlayerInventory>();
-        if (inventoryUI == null) inventoryUI = FindFirstObjectByType<InventoryUI>();
         if (playerStamina == null) playerStamina = GetComponent<PlayerStaminaSystem>();
         if (backpackUI == null) backpackUI = FindFirstObjectByType<BackpackUI>();
     }
@@ -65,7 +61,6 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Sprint.canceled += OnMovementModifierCanceled;
         controls.Player.Sneak.performed += OnSneakPerformed;
         controls.Player.Sneak.canceled += OnMovementModifierCanceled;
-        controls.Player.Inventory.performed += OnInventoryPerformed;
         controls.Player.Prepare.started += OnPrepareStarted;
         controls.Player.Prepare.canceled += OnPrepareCanceled;
         controls.Player.Attack.performed += OnAttackPerformed;
@@ -87,7 +82,6 @@ public class PlayerInputHandler : MonoBehaviour
         controls.Player.Sprint.canceled -= OnMovementModifierCanceled;
         controls.Player.Sneak.performed -= OnSneakPerformed;
         controls.Player.Sneak.canceled -= OnMovementModifierCanceled;
-        controls.Player.Inventory.performed -= OnInventoryPerformed;
         controls.Player.Prepare.started -= OnPrepareStarted;
         controls.Player.Prepare.canceled -= OnPrepareCanceled;
         controls.Player.Attack.performed -= OnAttackPerformed;
@@ -218,12 +212,6 @@ public class PlayerInputHandler : MonoBehaviour
         playerAim.SetAimPosition(aimPosition);
     }
 
-    private void OnInventoryPerformed(InputAction.CallbackContext context)
-    {
-        if (inventoryUI == null) return;
-        inventoryUI.Toggle(playerInventory);
-    }
-    
     /// <summary>
     /// Triggered when prepare input is performed (mouse or joystick).
     /// </summary>

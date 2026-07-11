@@ -1,9 +1,8 @@
 /// <summary>
 /// Crafting rules for the slot-based backpack. Operates directly on an
 /// <see cref="ItemContainer"/> (the player's backpack) instead of the legacy
-/// <see cref="IInventory"/>, so it is fully independent from the existing
-/// <see cref="CraftingManager"/> / <see cref="CraftStation"/> flow. Recipes are the
-/// same <see cref="RecipeData"/> assets, used here purely as data.
+/// <see cref="IInventory"/>. Recipes are the same <see cref="RecipeData"/> assets,
+/// used here purely as data.
 /// </summary>
 public static class SlotCrafting
 {

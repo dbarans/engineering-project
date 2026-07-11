@@ -2,8 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Source of truth for the slot-based inventory: owns a hotbar container and a
-/// backpack container. Independent from the legacy <see cref="PlayerInventory"/>
-/// (which still backs crafting). Containers are created lazily so they are ready
+/// backpack container. Containers are created lazily so they are ready
 /// regardless of script execution order.
 /// </summary>
 public class SlotInventory : MonoBehaviour

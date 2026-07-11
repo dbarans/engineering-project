@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Item 2 - Mana Potion
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   icon: {fileID: 21300000, guid: 6592b916f86b19e428db6f6847c7b6dd, type: 3}
-  itemName: Item 2
+  id: a622953b36db42d2bb548dea09eeeca8
+  itemName: Mana Potion
   value: 40
   maxStack: 16

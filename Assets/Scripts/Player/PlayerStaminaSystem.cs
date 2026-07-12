@@ -19,6 +19,9 @@ public class PlayerStaminaSystem : MonoBehaviour
     private bool isMoving;
     private float lastUseTime = -999f;
 
+    /// <summary>Current stamina value, exposed for the save system.</summary>
+    public float CurrentStamina => currentStamina;
+    
     private void Start()
     {
         if (staminaBar == null)
@@ -44,6 +47,16 @@ public class PlayerStaminaSystem : MonoBehaviour
             currentStamina = Mathf.Min(maxStamina, currentStamina + regenRate * Time.deltaTime);
             staminaBar?.SetStamina(currentStamina);
         }
+    }
+
+    /// <summary>
+    /// Overwrites current stamina, clamped to [0, maxStamina], and updates the bar.
+    /// Used by the save system on restore — runs after Start() reset stamina to max.
+    /// </summary>
+    public void SetStamina(float stamina)
+    {
+        currentStamina = Mathf.Clamp(stamina, 0f, maxStamina);
+        staminaBar?.SetStamina(currentStamina);
     }
 
     public void SetSprinting(bool sprinting)

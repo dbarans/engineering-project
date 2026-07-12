@@ -32,6 +32,23 @@ public class HotbarUI : MonoBehaviour
     public int SelectedIndex => _selectedIndex;
 
     /// <summary>
+    /// Selects the given slot directly (save restore). Clamps to the built slot range
+    /// and goes through the same highlight + <see cref="SelectedItemChanged"/> path as
+    /// scrolling, so the active weapon follows the restored selection.
+    /// </summary>
+    public void SetSelectedIndex(int index)
+    {
+        if (_slots.Count == 0)
+        {
+            _selectedIndex = Mathf.Max(0, index);
+            return;
+        }
+        _selectedIndex = Mathf.Clamp(index, 0, _slots.Count - 1);
+        UpdateHighlights();
+        SelectedItemChanged?.Invoke();
+    }
+
+    /// <summary>
     /// Raised whenever the item under the selection highlight may have changed:
     /// scrolling to another slot, or the selected slot's content changing.
     /// </summary>

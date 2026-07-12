@@ -45,6 +45,16 @@ public class PlayerHealthSystem : MonoBehaviour
     }
     
     /// <summary>
+    /// Overwrites current health, clamped to [0, maxHealth], and updates the bar.
+    /// Used by the save system on restore — runs after Start() reset health to max.
+    /// </summary>
+    public void SetHealth(int health)
+    {
+        currentHealth = Mathf.Clamp(health, 0, maxHealth);
+        if (healthBar != null) healthBar.SetHealth(currentHealth);
+    }
+
+    /// <summary>
     /// Returning current health status.
     /// </summary>
     public int GetCurrentHealth()

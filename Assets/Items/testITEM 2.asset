@@ -13,5 +13,6 @@ MonoBehaviour:
   m_Name: testITEM 2
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   icon: {fileID: 21300000, guid: a332f9cc2040f6042a04c65fa9e4a000, type: 3}
+  id: 39542eb78ce247f6add12bd4f301ed6c
   itemName: sword
   value: 300

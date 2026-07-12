@@ -183,9 +183,7 @@ public static class SlotInventorySetup
         var existing = Object.FindFirstObjectByType<SlotInventory>();
         if (existing != null) { owner = existing.gameObject; return existing; }
 
-        var player = Object.FindFirstObjectByType<PlayerInventory>();
-        owner = player != null ? player.gameObject
-                               : Object.FindFirstObjectByType<PlayerInputHandler>()?.gameObject;
+        owner = Object.FindFirstObjectByType<PlayerInputHandler>()?.gameObject;
         if (owner == null)
         {
             owner = new GameObject("SlotInventory");

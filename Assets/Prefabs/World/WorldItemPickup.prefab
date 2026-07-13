@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 29592663133384731}
   - component: {fileID: 1502529384440281795}
+  - component: {fileID: 1502529384440281796}
   m_Layer: 0
   m_Name: WorldItemPickup
   m_TagString: Untagged
@@ -58,3 +59,15 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   cycleKey: 19
+--- !u!114 &1502529384440281796
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6597829231939274421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90a9d325348f4c8598ad4fa56e3f4e83, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WorldItemsSaveable

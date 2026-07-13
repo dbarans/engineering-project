@@ -73,12 +73,28 @@ public class WorldItemPickup : MonoBehaviour
     /// </summary>
     public bool Drop(ItemData item, int count)
     {
-        if (item == null || count <= 0 || worldItemPrefab == null) return false;
+        var drop = SpawnAt(item, count, ComputeDropPosition());
+        if (drop == null) return false;
 
-        var drop = Instantiate(worldItemPrefab, ComputeDropPosition(), Quaternion.identity);
-        drop.SetStack(item, count);
         drop.ArmPickupDelay(pickupDelay);
         return true;
+    }
+
+    /// <summary>
+    /// Spawns a drop of <paramref name="count"/> × <paramref name="item"/> at the given
+    /// world position, without a pickup delay. Used by <see cref="Drop"/> (which arms
+    /// the delay on top) and by <see cref="WorldItemsSaveable"/> when restoring ground
+    /// items from a save. Returns null when it could not spawn (no prefab, no item or
+    /// nothing to drop).
+    /// </summary>
+    public WorldItem SpawnAt(ItemData item, int count, Vector2 position)
+    {
+        if (item == null || count <= 0 || worldItemPrefab == null) return null;
+
+        var drop = Instantiate(
+            worldItemPrefab, new Vector3(position.x, position.y, 0f), Quaternion.identity);
+        drop.SetStack(item, count);
+        return drop;
     }
 
     private Vector3 ComputeDropPosition()

@@ -2007,6 +2007,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 7423423773025333001, guid: 6f91d7172de861c40867cade40fd66c4, type: 3}
+      propertyPath: guid
+      value: 848739a8974b49af8638144a226f061e
+      objectReference: {fileID: 0}
     - target: {fileID: 570698690213097878, guid: 6f91d7172de861c40867cade40fd66c4, type: 3}
       propertyPath: grid
       value: 

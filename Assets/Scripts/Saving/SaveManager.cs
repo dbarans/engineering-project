@@ -175,7 +175,12 @@ public class SaveManager : MonoBehaviour
             foreach (var pair in _session.scenes)
                 data.scenes[pair.Key] = pair.Value;
         }
-        data.GetOrCreateScene(sceneName); // current scene is recaptured from live state
+        // The current scene is recaptured from live state: its entity bucket is
+        // replaced wholesale so objects destroyed since the last save don't linger
+        // as stale entries (same replace-not-append rule as droppedItems).
+        data.GetOrCreateScene(sceneName).entities = new Dictionary<string, EntityState>();
+        foreach (var entity in SaveableEntity.All)
+            data.GetOrCreateScene(entity.gameObject.scene.name).entities[entity.Guid] = entity.Capture();
 
         foreach (var saveable in FindSaveables())
             saveable.Capture(data);
@@ -226,11 +231,52 @@ public class SaveManager : MonoBehaviour
             }
         }
 
+        RestoreEntities(data);
+
         _session = data;
 
         // Load can be triggered from the pause menu (timeScale 0) — the pipeline must
         // end unfrozen even when StartGame early-returned because state was Playing.
         Time.timeScale = 1f;
+    }
+
+    /// <summary>
+    /// Overlays saved entity states (enemies, chests…) onto the freshly loaded scene:
+    /// entities present in the scene but absent from the save keep their authored
+    /// state (restore never undoes — decision D5); a saved state without a live
+    /// entity would need the prefab registry, which is deferred until something
+    /// actually spawns entities at runtime (plan §3b).
+    /// </summary>
+    private void RestoreEntities(GameSaveData data)
+    {
+        string sceneName = SceneManager.GetActiveScene().name;
+        if (data.scenes == null ||
+            !data.scenes.TryGetValue(sceneName, out var scene) ||
+            scene.entities == null)
+            return; // save predates entity data — leave the authored scene alone
+
+        foreach (var pair in scene.entities)
+        {
+            var entity = SaveableEntity.Find(pair.Key);
+            if (entity == null)
+            {
+                Debug.LogWarning(
+                    $"[SaveManager] No entity with guid '{pair.Key}' in scene '{sceneName}' — " +
+                    "respawning from a prefab registry is not implemented yet (plan §3b); " +
+                    "state skipped.", this);
+                continue;
+            }
+
+            try
+            {
+                entity.Restore(pair.Value);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(
+                    $"[SaveManager] Restore failed on entity '{entity.name}': {e}", this);
+            }
+        }
     }
 
     /// <summary>Scene systems implementing <see cref="ISaveable"/>, inactive objects included.</summary>

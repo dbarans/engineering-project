@@ -42,6 +42,58 @@ public class SaveableEntity : MonoBehaviour
     }
 
     /// <summary>
+    /// Snapshots this entity: common fields plus the type-specific payload from the
+    /// <see cref="ISaveableComponent"/> on the object (when present).
+    /// </summary>
+    public EntityState Capture()
+    {
+        var state = new EntityState
+        {
+            position = new[] { transform.position.x, transform.position.y },
+            alive = gameObject.activeSelf
+        };
+
+        var provider = GetComponent<ISaveableComponent>();
+        if (provider != null)
+        {
+            state.typeTag = provider.TypeTag;
+            state.payload = provider.CapturePayload();
+        }
+        return state;
+    }
+
+    /// <summary>
+    /// Applies a saved snapshot: position, type-specific payload, then the active
+    /// state last — a permanently dead entity (alive=false, plan §5.4) is deactivated
+    /// only after its state landed.
+    /// </summary>
+    public void Restore(EntityState state)
+    {
+        if (state == null) return;
+
+        if (state.position != null && state.position.Length >= 2)
+        {
+            transform.position = new Vector3(
+                state.position[0], state.position[1], transform.position.z);
+            var body = GetComponent<Rigidbody2D>();
+            if (body != null) body.linearVelocity = Vector2.zero;
+        }
+
+        var provider = GetComponent<ISaveableComponent>();
+        if (provider != null && !string.IsNullOrEmpty(state.payload))
+        {
+            if (state.typeTag == provider.TypeTag)
+                provider.RestorePayload(state.payload);
+            else
+                Debug.LogWarning(
+                    $"[SaveableEntity] '{name}' expects payload '{provider.TypeTag}' but the " +
+                    $"save carries '{state.typeTag}' — payload skipped.", this);
+        }
+
+        gameObject.SetActive(state.alive);
+    }
+
+    /// <summary>
     /// Overrides the guid of a runtime-spawned instance. Call right after Instantiate;
     /// re-registers the entity under the new guid.
     /// </summary>

@@ -498,6 +498,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7423423773025333001, guid: 6f91d7172de861c40867cade40fd66c4, type: 3}
+      propertyPath: guid
+      value: 92f86c80d88b4ffb9af137efcd7a4cef
+      objectReference: {fileID: 0}
     - target: {fileID: 7423423773025333378, guid: 6f91d7172de861c40867cade40fd66c4, type: 3}
       propertyPath: m_Name
       value: TestEnemy
@@ -725,6 +729,10 @@ PrefabInstance:
     - target: {fileID: 3467030597704002716, guid: 6f91d7172de861c40867cade40fd66c4, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7423423773025333001, guid: 6f91d7172de861c40867cade40fd66c4, type: 3}
+      propertyPath: guid
+      value: d899b9227a7f491e9e1d2bfa961778b8
       objectReference: {fileID: 0}
     - target: {fileID: 7423423773025333378, guid: 6f91d7172de861c40867cade40fd66c4, type: 3}
       propertyPath: m_Name

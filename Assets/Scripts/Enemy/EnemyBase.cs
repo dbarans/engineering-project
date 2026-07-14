@@ -410,4 +410,51 @@ public abstract class EnemyBase : MonoBehaviour
 
         return true;
     }
+
+    /// <summary>
+    /// Save hook (plan §5.4): snapshots the mutable AI state for <see cref="EnemySaveable"/>.
+    /// Waypoints travel as an index, never as Transform references.
+    /// </summary>
+    public EnemySaveState CaptureSaveState()
+    {
+        return new EnemySaveState
+        {
+            health = currentHealth,
+            aiState = (int)currentState,
+            waypointIndex = currentWaypointIndex,
+            lastKnownPlayerPos = hasLastKnownPlayerPosition
+                ? new[] { lastKnownPlayerPosition.x, lastKnownPlayerPosition.y }
+                : null
+        };
+    }
+
+    /// <summary>
+    /// Save hook (plan §5.4): applies a snapshot from <see cref="CaptureSaveState"/>.
+    /// InvestigateLastKnown maps to ReturnToPatrol — its private target fields are not
+    /// saved and restoring the raw state would leave the enemy stuck at a stale target;
+    /// heading for the nearest waypoint instead is indistinguishable to the player.
+    /// </summary>
+    public void RestoreSaveState(EnemySaveState state)
+    {
+        currentHealth = Mathf.Clamp(state.health, 0f, maxHealth);
+
+        if (waypoints != null && waypoints.Length > 0)
+            currentWaypointIndex = Mathf.Clamp(state.waypointIndex, 0, waypoints.Length - 1);
+
+        hasLastKnownPlayerPosition =
+            state.lastKnownPlayerPos != null && state.lastKnownPlayerPos.Length >= 2;
+        lastKnownPlayerPosition = hasLastKnownPlayerPosition
+            ? new Vector2(state.lastKnownPlayerPos[0], state.lastKnownPlayerPos[1])
+            : Vector2.zero;
+
+        var restoredState = (EnemyState)state.aiState;
+        if (restoredState < EnemyState.Idle || restoredState > EnemyState.ReturnToPatrol)
+            restoredState = EnemyState.Idle; // unknown value from a foreign/edited save
+        if (restoredState == EnemyState.InvestigateLastKnown)
+        {
+            SelectClosestWaypoint();
+            restoredState = EnemyState.ReturnToPatrol;
+        }
+        currentState = restoredState;
+    }
 }

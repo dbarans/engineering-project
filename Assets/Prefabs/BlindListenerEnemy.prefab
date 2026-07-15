@@ -566,7 +566,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9ff8be997c0d361448203e802d91e14c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SoundPlayerDetector
-  hearingRange: 6
+  hearingRange: 8
   hearingBlockerMask:
     serializedVersion: 2
     m_Bits: 768
@@ -583,9 +583,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BlindListenerEnemy
   maxHealth: 100
-  moveSpeed: 1.8
+  moveSpeed: 3
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
+  alwaysDetectRange: 1.5
   visionDistance: 0
   visionBlockerMask:
     serializedVersion: 2

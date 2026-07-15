@@ -135,7 +135,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 5
+  orthographic size: 9
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -763,6 +763,7 @@ MonoBehaviour:
   sneakSpeed: 2
   walkSpeed: 5
   sprintSpeed: 8
+  movingSpeedThreshold: 0.05
 --- !u!58 &5284207013399126457
 CircleCollider2D:
   m_ObjectHideFlags: 0
@@ -938,7 +939,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 09997e91dc8c9ce41bde8dfdb3428a39, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfView
-  viewRadius: 10.5
+  viewRadius: 16.7
   viewAngle: 100
   nearVisionRadius: 1
   lanternEnabled: 0
@@ -996,6 +997,18 @@ MonoBehaviour:
   - item: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
     count: 64
     toBackpack: 1
+--- !u!114 &5570424979841258391
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66cb6cc5ed3741c991a1f733667839b7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerSaveable
 --- !u!1 &6661940005107315833
 GameObject:
   m_ObjectHideFlags: 0
@@ -1316,15 +1329,3 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerLegs
   legsTransform: {fileID: 4130320205669602059}
---- !u!114 &5570424979841258391
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6548805452745224477}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 66cb6cc5ed3741c991a1f733667839b7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerSaveable

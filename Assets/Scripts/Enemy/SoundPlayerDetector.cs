@@ -1,8 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Detects the player by hearing instead of sight. The player is heard only while
-/// moving in Walk or Sprint mode and within range; Sneak mode is silent and never detected.
+/// Detects the player by hearing instead of sight. The player is heard only while actually
+/// moving in Walk or Sprint mode and within range; standing still or Sneak mode is silent.
 /// Optionally blocked by obstacles (e.g. walls muffle sound the same way they block vision).
 /// </summary>
 public class SoundPlayerDetector : MonoBehaviour, IPlayerDetector
@@ -16,8 +16,9 @@ public class SoundPlayerDetector : MonoBehaviour, IPlayerDetector
         if (player == null) return false;
 
         PlayerMovement playerMovement = player.GetComponent<PlayerMovement>();
-        if (playerMovement == null || playerMovement.CurrentMode == PlayerMovement.MovementMode.Sneak)
-            return false;
+        if (playerMovement == null) return false;
+        if (playerMovement.CurrentMode == PlayerMovement.MovementMode.Sneak) return false;
+        if (!playerMovement.IsMoving) return false;
 
         float distance = Vector3.Distance(transform.position, player.position);
         if (distance > hearingRange) return false;
@@ -28,5 +29,11 @@ public class SoundPlayerDetector : MonoBehaviour, IPlayerDetector
             return false;
 
         return true;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, hearingRange);
     }
 }

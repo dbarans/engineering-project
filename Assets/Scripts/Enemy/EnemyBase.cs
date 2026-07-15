@@ -31,6 +31,8 @@ public abstract class EnemyBase : MonoBehaviour
 
     [Header("State machine")]
     [SerializeField] private Transform player;
+    [Tooltip("Player is always detected within this distance, regardless of vision/hearing checks. Guards against line-of-sight raycasts producing false negatives when the player is right next to the enemy.")]
+    [SerializeField] private float alwaysDetectRange = 0.5f;
     [SerializeField] private float visionDistance = 5f;
     [SerializeField] private LayerMask visionBlockerMask;
     [SerializeField] private float investigateOvershootDistance = 1f;
@@ -197,11 +199,13 @@ public abstract class EnemyBase : MonoBehaviour
     /// Detects the player using the built-in vision check (distance and line-of-sight, set to
     /// visionDistance &lt;= 0 to disable for blind enemy types) combined with any additional
     /// <see cref="IPlayerDetector"/> components on the enemy (e.g. <see cref="SoundPlayerDetector"/>).
-    /// Player is detected if any check succeeds.
+    /// Player is detected if any check succeeds, or unconditionally within alwaysDetectRange.
     /// </summary>
     private bool IsPlayerDetected()
     {
         if (player == null) return false;
+
+        if (Vector2.Distance(transform.position, player.position) <= alwaysDetectRange) return true;
 
         if (HasVisionOfPlayer()) return true;
 
@@ -481,5 +485,17 @@ public abstract class EnemyBase : MonoBehaviour
             restoredState = EnemyState.ReturnToPatrol;
         }
         currentState = restoredState;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, alwaysDetectRange);
+
+        if (visionDistance > 0f)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(transform.position, visionDistance);
+        }
     }
 }

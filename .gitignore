@@ -80,3 +80,6 @@ crashlytics-build.properties
 # High-res source frames for SkullGuy (originals). Kept local only; game uses
 # the downscaled copies in Art/SKULL-GUY-optimized. Trailing ~ also makes Unity skip it.
 /[Aa]ssets/[Aa]rt/SKULL-GUY-ORIGINALS~/
+# Local one-off editor tools (untracked)
+Assets/Scripts/Editor/BlindListenerEnemySetup.cs
+Assets/Scripts/Editor/BlindListenerEnemySetup.cs.meta

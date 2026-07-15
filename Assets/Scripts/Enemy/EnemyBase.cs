@@ -46,6 +46,7 @@ public abstract class EnemyBase : MonoBehaviour
 
     protected float currentHealth;
     private IMovementStrategy movementStrategy;
+    private IPlayerDetector[] additionalDetectors;
 
     private EnemyState currentState = EnemyState.Idle;
     private int currentWaypointIndex;
@@ -86,6 +87,7 @@ public abstract class EnemyBase : MonoBehaviour
     {
         currentHealth = maxHealth;
         movementStrategy = GetComponent<IMovementStrategy>();
+        additionalDetectors = GetComponents<IPlayerDetector>();
 
         var rb = GetComponent<Rigidbody2D>();
         if (rb != null) rb.constraints = RigidbodyConstraints2D.FreezeRotation;
@@ -192,12 +194,35 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     /// <summary>
-    /// Detects player using distance and line-of-sight check.
-    /// Player is not detected when an object from visionBlockerMask is between enemy and player.
+    /// Detects the player using the built-in vision check (distance and line-of-sight, set to
+    /// visionDistance &lt;= 0 to disable for blind enemy types) combined with any additional
+    /// <see cref="IPlayerDetector"/> components on the enemy (e.g. <see cref="SoundPlayerDetector"/>).
+    /// Player is detected if any check succeeds.
     /// </summary>
     private bool IsPlayerDetected()
     {
         if (player == null) return false;
+
+        if (HasVisionOfPlayer()) return true;
+
+        if (additionalDetectors != null)
+        {
+            foreach (IPlayerDetector detector in additionalDetectors)
+            {
+                if (detector.IsPlayerDetected(player)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Built-in vision check: player must be within visionDistance and not blocked
+    /// by an object on visionBlockerMask. Disabled when visionDistance is 0 or less.
+    /// </summary>
+    private bool HasVisionOfPlayer()
+    {
+        if (visionDistance <= 0f) return false;
 
         Vector2 enemyPos = transform.position;
         Vector2 playerPos = player.position;

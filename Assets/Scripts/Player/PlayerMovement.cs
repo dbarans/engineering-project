@@ -1,9 +1,13 @@
 using UnityEngine;
 
+/// <summary>
+/// Handles player movement and movement mode (walk / sprint / sneak).
+/// Sneak is intentionally silent for enemies with hearing-based detection; see <see cref="SoundPlayerDetector"/>.
+/// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerMovement : MonoBehaviour, IPlayerMovement
 {
-    
+
     [Header("Movement Speed")]
     [SerializeField] private float sneakSpeed = 2f;
     [SerializeField] private float walkSpeed = 5f;
@@ -13,6 +17,12 @@ public class PlayerMovement : MonoBehaviour, IPlayerMovement
     private float currentSpeed;
     private MovementMode currentMode = MovementMode.Walk;
     private Rigidbody2D rb;
+
+    /// <summary>
+    /// Current movement mode. Used by hearing-based enemy detection to decide whether
+    /// the player is currently making noise (Sneak is silent).
+    /// </summary>
+    public MovementMode CurrentMode => currentMode;
 
     private void ApplyModeSettings()
     {

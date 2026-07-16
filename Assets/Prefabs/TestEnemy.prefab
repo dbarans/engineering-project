@@ -199,6 +199,8 @@ MonoBehaviour:
   moveSpeed: 1.8
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
+  alwaysDetectRange: 0.5
+  detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
   investigateArrivalThreshold: 0.35
   waypoints:

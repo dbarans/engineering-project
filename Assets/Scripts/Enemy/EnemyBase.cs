@@ -13,7 +13,9 @@ public enum EnemyState
     /// <summary>Moves to the last known player position after losing sight.</summary>
     InvestigateLastKnown,
     /// <summary>Returns to the patrol route (closest waypoint).</summary>
-    ReturnToPatrol
+    ReturnToPatrol,
+    /// <summary>Moves toward the position of a heard noise to check it out.</summary>
+    InvestigateNoise
 }
 
 /// <summary>
@@ -33,8 +35,8 @@ public abstract class EnemyBase : MonoBehaviour
     [SerializeField] private Transform player;
     [Tooltip("Player is always detected within this distance, regardless of vision/hearing checks. Guards against line-of-sight raycasts producing false negatives when the player is right next to the enemy.")]
     [SerializeField] private float alwaysDetectRange = 0.5f;
-    [SerializeField] private float visionDistance = 5f;
-    [SerializeField] private LayerMask visionBlockerMask;
+    [Tooltip("How long (seconds) the enemy keeps treating the player as detected after all detectors lose them. Prevents instantly dropping the chase when the player stops making noise or breaks line of sight for a moment.")]
+    [SerializeField] private float detectionMemoryDuration = 1.5f;
     [SerializeField] private float investigateOvershootDistance = 1f;
     [SerializeField] private float investigateArrivalThreshold = 0.35f;
     [SerializeField] private Transform[] waypoints;
@@ -48,7 +50,11 @@ public abstract class EnemyBase : MonoBehaviour
 
     protected float currentHealth;
     private IMovementStrategy movementStrategy;
-    private IPlayerDetector[] additionalDetectors;
+    private IPlayerDetector[] detectors;
+    private INoiseSensor noiseSensor;
+    private Rigidbody2D rb;
+    private float lastDetectionTime = float.NegativeInfinity;
+    private Vector2 noiseTargetPosition;
 
     private EnemyState currentState = EnemyState.Idle;
     private int currentWaypointIndex;
@@ -85,13 +91,19 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     public bool IsDead => currentHealth <= 0f;
 
+    /// <summary>
+    /// Player transform assigned in the inspector. Available to derived types (e.g. for attacks).
+    /// </summary>
+    protected Transform Player => player;
+
     protected virtual void Awake()
     {
         currentHealth = maxHealth;
         movementStrategy = GetComponent<IMovementStrategy>();
-        additionalDetectors = GetComponents<IPlayerDetector>();
+        detectors = GetComponents<IPlayerDetector>();
+        noiseSensor = GetComponent<INoiseSensor>();
 
-        var rb = GetComponent<Rigidbody2D>();
+        rb = GetComponent<Rigidbody2D>();
         if (rb != null) rb.constraints = RigidbodyConstraints2D.FreezeRotation;
     }
 
@@ -124,16 +136,25 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     /// <summary>
-    /// Handles transitions between Idle, FollowPlayer, InvestigateLastKnown, and ReturnToPatrol.
+    /// Handles transitions between Idle, FollowPlayer, InvestigateLastKnown, InvestigateNoise,
+    /// and ReturnToPatrol. A detection lingers for detectionMemoryDuration after all detectors
+    /// lose the player, so the chase is not dropped the moment the player goes quiet or breaks
+    /// line of sight. A heard noise is weaker than a detection: it sends the enemy to
+    /// investigate the noise position instead of straight into a chase.
     /// </summary>
     private void UpdateStateMachine()
     {
-        bool playerInRange = IsPlayerDetected();
+        if (IsPlayerDetected())
+            lastDetectionTime = Time.time;
+
+        bool playerInRange = Time.time - lastDetectionTime <= detectionMemoryDuration;
         if (playerInRange && player != null)
         {
             lastKnownPlayerPosition = player.position;
             hasLastKnownPlayerPosition = true;
         }
+
+        bool heardNoise = noiseSensor != null && noiseSensor.HasFreshNoise;
 
         switch (currentState)
         {
@@ -142,6 +163,12 @@ public abstract class EnemyBase : MonoBehaviour
                 {
                     isWaitingAtWaypoint = false;
                     currentState = EnemyState.FollowPlayer;
+                }
+                else if (heardNoise)
+                {
+                    isWaitingAtWaypoint = false;
+                    noiseTargetPosition = noiseSensor.LastNoisePosition;
+                    currentState = EnemyState.InvestigateNoise;
                 }
                 else
                     AdvanceWaypointIfReached();
@@ -167,6 +194,11 @@ public abstract class EnemyBase : MonoBehaviour
                 {
                     currentState = EnemyState.FollowPlayer;
                 }
+                else if (heardNoise)
+                {
+                    noiseTargetPosition = noiseSensor.LastNoisePosition;
+                    currentState = EnemyState.InvestigateNoise;
+                }
                 else if (Vector2.Distance(transform.position, investigateTargetPosition) <= investigateArrivalThreshold)
                 {
                     hasLastKnownPlayerPosition = false;
@@ -174,9 +206,32 @@ public abstract class EnemyBase : MonoBehaviour
                     currentState = EnemyState.ReturnToPatrol;
                 }
                 break;
+            case EnemyState.InvestigateNoise:
+                if (playerInRange)
+                {
+                    currentState = EnemyState.FollowPlayer;
+                }
+                else
+                {
+                    // Keep following the trail: each fresh noise moves the target.
+                    if (heardNoise)
+                        noiseTargetPosition = noiseSensor.LastNoisePosition;
+
+                    if (Vector2.Distance(transform.position, noiseTargetPosition) <= investigateArrivalThreshold)
+                    {
+                        SelectClosestWaypoint();
+                        currentState = EnemyState.ReturnToPatrol;
+                    }
+                }
+                break;
             case EnemyState.ReturnToPatrol:
                 if (playerInRange)
                     currentState = EnemyState.FollowPlayer;
+                else if (heardNoise)
+                {
+                    noiseTargetPosition = noiseSensor.LastNoisePosition;
+                    currentState = EnemyState.InvestigateNoise;
+                }
                 else if (!HasValidWaypoint() || Vector2.Distance(transform.position, waypoints[currentWaypointIndex].position) <= EffectiveWaypointReachedThreshold())
                     currentState = EnemyState.Idle;
                 break;
@@ -196,10 +251,9 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     /// <summary>
-    /// Detects the player using the built-in vision check (distance and line-of-sight, set to
-    /// visionDistance &lt;= 0 to disable for blind enemy types) combined with any additional
-    /// <see cref="IPlayerDetector"/> components on the enemy (e.g. <see cref="SoundPlayerDetector"/>).
-    /// Player is detected if any check succeeds, or unconditionally within alwaysDetectRange.
+    /// Detects the player by querying every <see cref="IPlayerDetector"/> component on the enemy
+    /// (e.g. <see cref="VisionPlayerDetector"/>, <see cref="SoundPlayerDetector"/>). Player is
+    /// detected if any detector succeeds, or unconditionally within alwaysDetectRange.
     /// </summary>
     private bool IsPlayerDetected()
     {
@@ -207,35 +261,15 @@ public abstract class EnemyBase : MonoBehaviour
 
         if (Vector2.Distance(transform.position, player.position) <= alwaysDetectRange) return true;
 
-        if (HasVisionOfPlayer()) return true;
-
-        if (additionalDetectors != null)
+        if (detectors != null)
         {
-            foreach (IPlayerDetector detector in additionalDetectors)
+            foreach (IPlayerDetector detector in detectors)
             {
                 if (detector.IsPlayerDetected(player)) return true;
             }
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// Built-in vision check: player must be within visionDistance and not blocked
-    /// by an object on visionBlockerMask. Disabled when visionDistance is 0 or less.
-    /// </summary>
-    private bool HasVisionOfPlayer()
-    {
-        if (visionDistance <= 0f) return false;
-
-        Vector2 enemyPos = transform.position;
-        Vector2 playerPos = player.position;
-
-        if (Vector2.Distance(enemyPos, playerPos) > visionDistance)
-            return false;
-
-        RaycastHit2D hit = Physics2D.Linecast(enemyPos, playerPos, visionBlockerMask);
-        return hit.collider == null;
     }
 
     /// <summary>
@@ -355,12 +389,11 @@ public abstract class EnemyBase : MonoBehaviour
     {
         if (IsDead) return;
 
-        var rb = GetComponent<Rigidbody2D>();
         if (rb != null)
-            StartCoroutine(ApplyKnockback(rb, direction.normalized * force));
+            StartCoroutine(ApplyKnockback(direction.normalized * force));
     }
 
-    private IEnumerator ApplyKnockback(Rigidbody2D rb, Vector2 impulse)
+    private IEnumerator ApplyKnockback(Vector2 impulse)
     {
         rb.AddForce(impulse, ForceMode2D.Impulse);
         yield return new WaitForSeconds(0.12f);
@@ -394,6 +427,8 @@ public abstract class EnemyBase : MonoBehaviour
                 return player != null ? player.position : transform.position;
             case EnemyState.InvestigateLastKnown:
                 return hasLastKnownPlayerPosition ? (Vector3)investigateTargetPosition : transform.position;
+            case EnemyState.InvestigateNoise:
+                return noiseTargetPosition;
             case EnemyState.ReturnToPatrol:
             case EnemyState.Idle:
             default:
@@ -416,7 +451,9 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     private float GetCurrentMoveSpeed()
     {
-        if (currentState == EnemyState.FollowPlayer || currentState == EnemyState.InvestigateLastKnown)
+        if (currentState == EnemyState.FollowPlayer
+            || currentState == EnemyState.InvestigateLastKnown
+            || currentState == EnemyState.InvestigateNoise)
             return moveSpeed * Mathf.Max(0f, chaseSpeedMultiplier);
 
         return moveSpeed;
@@ -427,7 +464,9 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     private bool ShouldMove()
     {
-        if (currentState == EnemyState.FollowPlayer || currentState == EnemyState.InvestigateLastKnown)
+        if (currentState == EnemyState.FollowPlayer
+            || currentState == EnemyState.InvestigateLastKnown
+            || currentState == EnemyState.InvestigateNoise)
             return true;
 
         if (!HasValidWaypoint())
@@ -477,9 +516,9 @@ public abstract class EnemyBase : MonoBehaviour
             : Vector2.zero;
 
         var restoredState = (EnemyState)state.aiState;
-        if (restoredState < EnemyState.Idle || restoredState > EnemyState.ReturnToPatrol)
+        if (restoredState < EnemyState.Idle || restoredState > EnemyState.InvestigateNoise)
             restoredState = EnemyState.Idle; // unknown value from a foreign/edited save
-        if (restoredState == EnemyState.InvestigateLastKnown)
+        if (restoredState == EnemyState.InvestigateLastKnown || restoredState == EnemyState.InvestigateNoise)
         {
             SelectClosestWaypoint();
             restoredState = EnemyState.ReturnToPatrol;
@@ -491,11 +530,5 @@ public abstract class EnemyBase : MonoBehaviour
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, alwaysDetectRange);
-
-        if (visionDistance > 0f)
-        {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(transform.position, visionDistance);
-        }
     }
 }

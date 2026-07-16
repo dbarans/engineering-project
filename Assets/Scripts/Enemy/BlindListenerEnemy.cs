@@ -1,9 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// Enemy type with no vision, relying only on hearing to detect the player.
-/// Requires a <see cref="SoundPlayerDetector"/> component and visionDistance set to 0
-/// in the inspector (inherited from <see cref="EnemyBase"/>) so the built-in vision check is disabled.
+/// Enemy type with no vision, relying only on hearing. Heard noises send it to investigate
+/// their position (InvestigateNoise); it confirms the player only at point-blank range
+/// (alwaysDetectRange). Requires a <see cref="SoundPlayerDetector"/> component; being blind
+/// simply means having no <see cref="VisionPlayerDetector"/> attached.
 /// </summary>
 [RequireComponent(typeof(SoundPlayerDetector))]
 public class BlindListenerEnemy : EnemyBase

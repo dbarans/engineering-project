@@ -5,12 +5,19 @@ Working reference for the Enemy system, maintained for branch `GU-0032-enemy-sou
 ## Sound tracking implementation status
 
 Done:
-- `SoundPlayerDetector : IPlayerDetector` — hears the player within `hearingRange`, only while `PlayerMovement.CurrentMode != Sneak` (sneaking is silent), optionally muffled by `hearingBlockerMask`.
-- `PlayerMovement.CurrentMode` — public getter, source of truth for whether the player is currently making noise.
-- `PlayerMovement.IsMoving` — checks actual Rigidbody2D velocity against `movingSpeedThreshold`. Needed because `CurrentMode` alone isn't enough: releasing the sneak key while standing still switches the mode to Walk without the player actually moving, which was making `SoundPlayerDetector` falsely trigger. `SoundPlayerDetector` now requires both `CurrentMode != Sneak` and `IsMoving`.
-- `EnemyBase.IsPlayerDetected()` refactored: built-in vision (`HasVisionOfPlayer`, disabled when `visionDistance <= 0`) OR any number of additional `IPlayerDetector` components on the object (cached in `Awake` via `GetComponents<IPlayerDetector>()`).
-- `BlindListenerEnemy : EnemyBase` — first enemy type with no vision, `[RequireComponent(SoundPlayerDetector)]`, `visionDistance = 0`.
+- **Noise emission system** (`Sound/NoiseEvents.cs`) — global static event bus: anything noisy calls `NoiseEvents.Emit(position, radius)`; listeners subscribe to `NoiseEvents.NoiseEmitted`. Radius = how far the noise carries. Subscribers are cleared on play-mode start (`RuntimeInitializeOnLoadMethod`) in case domain reload is disabled. Extension point for thrown objects, doors, gunfire, distractions.
+- `PlayerNoiseEmitter` (on the Player prefab) — emits movement noise every `emitInterval` (0.2 s): silent when standing still or sneaking, `walkNoiseRadius` (4) when walking, `sprintNoiseRadius` (8) when sprinting. Uses `PlayerMovement.CurrentMode` + `IsMoving`.
+- `SoundPlayerDetector : IPlayerDetector` — event-driven: listens to `NoiseEvents`, registers a noise when within both the noise radius and its own `hearingRange` cap and not blocked by `hearingBlockerMask`; a heard noise counts as detection for `heardNoiseRetention` (0.35 s) to bridge emission intervals. Since only the player emits noise, any heard noise = player detected.
+- `PlayerMovement.CurrentMode` — public getter for the current movement mode.
+- `PlayerMovement.IsMoving` — checks actual Rigidbody2D velocity against `movingSpeedThreshold`. Needed because `CurrentMode` alone isn't enough: releasing the sneak key while standing still switches the mode to Walk without the player actually moving.
+- `EnemyBase.IsPlayerDetected()` refactored: detection is fully component-based — the enemy queries every `IPlayerDetector` on the object (cached in `Awake` via `GetComponents<IPlayerDetector>()`). There is no built-in vision in `EnemyBase` anymore; sight lives in `VisionPlayerDetector`, hearing in `SoundPlayerDetector`. A blind enemy simply has no `VisionPlayerDetector` attached.
+- `BlindListenerEnemy : EnemyBase` — first enemy type with no vision, `[RequireComponent(SoundPlayerDetector)]`, no `VisionPlayerDetector` on the prefab.
 - `EnemyBase.alwaysDetectRange` (default 0.5) — player is always detected within this distance regardless of vision/hearing, added after observing that very-close-range detection could fail (line-of-sight raycasts giving false negatives right next to the enemy). Checked first in `IsPlayerDetected()`, before any detector runs.
+- `EnemyBase.detectionMemoryDuration` (default 1.5 s) — after all detectors lose the player, the enemy keeps treating them as detected for this long. Prevents the blind enemy from instantly dropping the chase the moment the player stops moving or starts sneaking (and the sighted enemy from forgetting on a momentary line-of-sight break).
+- Perf cleanups: `EnemyBase` caches its `Rigidbody2D` (used by `Knockback`).
+- **`InvestigateNoise` state + `INoiseSensor`** — hearing is now suspicion, not confirmed detection. `SoundPlayerDetector` implements `INoiseSensor` (`HasFreshNoise`, `LastNoisePosition`) instead of `IPlayerDetector`; a heard noise sends the enemy to investigate the noise position (`InvestigateNoise`, chase speed, updates target as new noises arrive — follows the trail), while `FollowPlayer` requires a real detection (`VisionPlayerDetector` or `alwaysDetectRange`). Blind enemy now confirms the player only at point-blank range. Enum value appended last so saved `aiState` ints stay valid; restore maps it to `ReturnToPatrol` like `InvestigateLastKnown`.
+- **Throwable distraction** — `Player/PlayerThrow.cs` (on the Player prefab) throws a "rock" toward the mouse cursor (temporary direct key binding, default G — to be replaced with a proper PlayerControls action in the editor). The projectile (`Sound/NoiseProjectile.cs`) is built entirely in code (runtime-generated circle sprite, Rigidbody2D, collider ignoring the player's own colliders) and emits `NoiseEvents.Emit(landingNoiseRadius = 10)` on first collision or after `maxFlightTime` — luring hearing-based enemies to the landing spot via `InvestigateNoise`.
+- **SkullGuy melee attack deals damage** — attack decision moved out of `SkullGuyAnimationDriver` (now pure visualization; its `attackRange`/`attackCooldown` fields removed) into `SkullGuyEnemy`: fields `attackRange` (1.2), `attackCooldown` (1.5), `attackDamage` (20), `attackHitDelay` (0.4). When chasing, in range, off cooldown → plays ATAK via `TriggerAttack()` and lands the hit after `attackHitDelay` if the player is still in range (`PlayerHealthSystem.TakeDamage`). `EnemyBase` exposes `protected Transform Player` for this.
 - Prefab `Assets/Prefabs/BlindListenerEnemy.prefab` (cloned from SkullGuyEnemy — visuals/animation are a placeholder, to be replaced).
 - Editor tool `Editor/BlindListenerEnemySetup.cs` (**untracked, local-only**) — `Tools > BlindListenerEnemy > Create Prefab From SkullGuy`, clones the prefab, swaps the enemy component, adds `SoundPlayerDetector`. Historical note: the first version destroyed `SkullGuyEnemy` before adding `BlindListenerEnemy`, which Unity silently blocked (because `SkullGuyAnimationDriver` has `[RequireComponent(EnemyBase)]`) and left both components attached at once. Fixed: now `AddComponent<BlindListenerEnemy>` first, then `DestroyImmediate(oldEnemy)`.
 
@@ -36,15 +43,14 @@ The core of the system is `EnemyBase` (abstract MonoBehaviour) — a self-contai
 
 **Fields (inspector):**
 - Stats: `maxHealth`, `moveSpeed`, `chaseSpeedMultiplier`
-- Detection: `player`, `visionDistance`, `visionBlockerMask`, `investigateOvershootDistance`, `investigateArrivalThreshold`
+- Detection: `player`, `alwaysDetectRange`, `detectionMemoryDuration`, `investigateOvershootDistance`, `investigateArrivalThreshold` (sight/hearing ranges live on the detector components)
 - Patrol: `waypoints[]`, `waypointReachedThreshold`, `waypointPauseDuration`, `unreachableWaypointRetryInterval`, `skipInvestigateWhenLostPlayer`
 
 **Key methods:**
 - `Awake()` — caches `currentHealth`, `GetComponent<IMovementStrategy>`, `GetComponents<IPlayerDetector>()` (additional detectors), freezes Rigidbody2D rotation.
 - `Update()` — if dead: skip; otherwise `UpdateStateMachine()` → `ResolveUnreachablePatrolWaypoint()` → `Move()` if `ShouldMove()`.
-- **`IsPlayerDetected()`** — `HasVisionOfPlayer()` (built-in vision, disabled when `visionDistance <= 0`) OR any of `additionalDetectors` (`IPlayerDetector.IsPlayerDetected`, e.g. `SoundPlayerDetector`). Detected if any check succeeds.
-- `HasVisionOfPlayer()` — distance check (`visionDistance`) + `Physics2D.Linecast(enemyPos, playerPos, visionBlockerMask)`.
-- `UpdateStateMachine()` — transition table (below). Updates `lastKnownPlayerPosition`/`hasLastKnownPlayerPosition` whenever `playerInRange == true`, regardless of state and regardless of which detector triggered it.
+- **`IsPlayerDetected()`** — unconditional within `alwaysDetectRange`, otherwise any of the cached `IPlayerDetector` components (`VisionPlayerDetector`, `SoundPlayerDetector`, ...). Detected if any check succeeds.
+- `UpdateStateMachine()` — transition table (below). A successful detection stamps `lastDetectionTime`; `playerInRange` stays true until `detectionMemoryDuration` elapses since the last real detection. Updates `lastKnownPlayerPosition`/`hasLastKnownPlayerPosition` whenever `playerInRange == true`, regardless of state and regardless of which detector triggered it.
 - `GetInvestigateTargetPosition()` — overshoots the last known position along the enemy→player vector.
 - Patrol: `AdvanceWaypointIfReached()`, `HasValidWaypoint()`, `SelectClosestWaypoint()`, `EffectiveWaypointReachedThreshold()` (accounts for `IMovementArrivalTolerance`), `ResolveUnreachablePatrolWaypoint()` (switches waypoint when `IPathStatusProvider.HasReachablePath == false`).
 - `TakeDamage(float)` — clamps hp, calls `OnDamageTaken` (virtual) or `OnDeath` (abstract) at 0 hp.
@@ -55,10 +61,11 @@ The core of the system is `EnemyBase` (abstract MonoBehaviour) — a self-contai
 **Public API:** `CurrentState`, `CurrentTargetPosition`, `CurrentHealth`, `MaxHealth`, `IsDead`.
 
 ### State machine (`UpdateStateMachine`)
-- **Idle** → `FollowPlayer` if `playerInRange`; otherwise `AdvanceWaypointIfReached()`.
+- **Idle** → `FollowPlayer` if `playerInRange`; else → `InvestigateNoise` if a fresh noise was heard; otherwise `AdvanceWaypointIfReached()`.
 - **FollowPlayer** → on losing the player: if `!skipInvestigateWhenLostPlayer && hasLastKnownPlayerPosition` → `InvestigateLastKnown` (computes overshoot target); otherwise → `SelectClosestWaypoint()` + `ReturnToPatrol`.
-- **InvestigateLastKnown** → back to `FollowPlayer` if the player is detected again; once within `investigateArrivalThreshold` → clears the flag, `SelectClosestWaypoint()`, → `ReturnToPatrol`.
-- **ReturnToPatrol** → `FollowPlayer` if detected; otherwise → `Idle` once within `EffectiveWaypointReachedThreshold()` of the waypoint (or no valid waypoint).
+- **InvestigateLastKnown** → back to `FollowPlayer` if the player is detected again; → `InvestigateNoise` on a fresh noise; once within `investigateArrivalThreshold` → clears the flag, `SelectClosestWaypoint()`, → `ReturnToPatrol`.
+- **InvestigateNoise** → `FollowPlayer` if the player is detected; otherwise keeps updating the target to the newest heard noise (trail following); on arrival within `investigateArrivalThreshold` → `SelectClosestWaypoint()`, → `ReturnToPatrol`.
+- **ReturnToPatrol** → `FollowPlayer` if detected; → `InvestigateNoise` on a fresh noise; otherwise → `Idle` once within `EffectiveWaypointReachedThreshold()` of the waypoint (or no valid waypoint).
 
 **Note:** `IsPlayerDetected()` is evaluated once per frame at the top of `UpdateStateMachine` and reused by every state — any new `IPlayerDetector` affects all transitions uniformly.
 
@@ -67,7 +74,7 @@ The core of the system is `EnemyBase` (abstract MonoBehaviour) — a self-contai
 ## Concrete enemy types
 
 - **`Enemy/SkullGuyEnemy.cs`** — vision-based, caches `SkullGuyAnimationDriver` in `Awake`. `Attack()` plays the attack animation (hit logic not implemented yet). `OnDeath()` = `SetActive(false)` (placeholder).
-- **`Enemy/BlindListenerEnemy.cs`** — blind, hearing only (`SoundPlayerDetector`, required). `visionDistance` must be `0` in the Inspector. `OnDeath()` = `SetActive(false)`.
+- **`Enemy/BlindListenerEnemy.cs`** — blind, hearing only (`SoundPlayerDetector`, required; no `VisionPlayerDetector` attached). `OnDeath()` = `SetActive(false)`.
 - **`Enemy/TestEnemy.cs`** — minimal subclass for testing, `OnDeath()` just deactivates the object.
 
 ---
@@ -83,10 +90,13 @@ public interface IPlayerDetector {
 Common interface for every way of detecting the player. `EnemyBase` combines built-in vision with any number of components implementing this interface (OR).
 
 ### `Enemy/VisionPlayerDetector.cs`
-`MonoBehaviour, IPlayerDetector`. Fields: `range`, `obstacleLayers`. Duplicates the built-in vision logic in `EnemyBase` — leftover scaffolding from before the refactor, **still not wired up/used by any prefab** (SkullGuy's vision goes through the built-in `EnemyBase` fields, not this component). Worth considering: either remove as dead code, or eventually rewrite `EnemyBase` so vision also goes through this class (unify the two paths).
+`MonoBehaviour, IPlayerDetector`. Fields: `range`, `obstacleLayers`. The single source of sight-based detection: distance check + `Physics2D.Linecast` against `obstacleLayers`. Attached to `SkullGuyEnemy` and `TestEnemy` prefabs (range 10, mask = ObstacleStatic/ObstacleDynamic, migrated from the old built-in `EnemyBase` vision fields). Draws a yellow range gizmo when selected.
 
 ### `Enemy/SoundPlayerDetector.cs`
-`MonoBehaviour, IPlayerDetector`. Fields: `hearingRange`, `hearingBlockerMask`. `IsPlayerDetected`: gets `PlayerMovement` via `player.GetComponent<PlayerMovement>()`, returns `false` when the component is missing or `CurrentMode == Sneak`, then does the standard distance + linecast check.
+`MonoBehaviour, INoiseSensor`. Fields: `hearingRange` (cap on how far this enemy hears anything), `hearingBlockerMask`, `heardNoiseRetention`. Subscribes to `NoiseEvents.NoiseEmitted` (OnEnable/OnDisable); a noise registers when `distance <= min(noiseRadius, hearingRange)` and the linecast against `hearingBlockerMask` is clear. Exposes `HasFreshNoise` (last noise younger than `heardNoiseRetention`) and `LastNoisePosition` — consumed by the `InvestigateNoise` state, not by the detection loop. Draws a cyan range gizmo when selected.
+
+### `Sound/NoiseEvents.cs` + `Player/PlayerNoiseEmitter.cs`
+The emission side: static event bus + the player's movement-noise emitter (see status section above for parameters).
 
 ---
 
@@ -128,7 +138,9 @@ DTO: `health`, `aiState` (int cast of `EnemyState`), `waypointIndex`, `lastKnown
 
 ## Open topics / TODO
 
-1. A real sound-emission system (footsteps, other sources) instead of relying purely on `MovementMode`.
+1. More noise sources on the bus: doors, gunfire (thrown-rock distraction is done). Replace PlayerThrow's direct key read with a PlayerControls action and integrate with the inventory (limited rocks).
 2. Dedicated visuals/animations for `BlindListenerEnemy` (currently a SkullGuy placeholder).
-3. `VisionPlayerDetector.cs` — dead/unwired code, consider removing or unifying SkullGuy's vision through it.
-4. A possible "heard something" animation cue analogous to `RYK`.
+3. A possible "heard something" animation cue analogous to `RYK`.
+4. Player death — `PlayerHealthSystem` has no death handling; enemy attacks now deal damage, so health can reach zero with no consequence.
+5. Attack for `BlindListenerEnemy` — only SkullGuy attacks; the blind enemy currently just bumps into the player.
+6. Death handling — `OnDeath()` is `SetActive(false)`; needs a death animation and a persisted "dead" flag in the save state.

@@ -678,6 +678,8 @@ GameObject:
   - component: {fileID: 157545601758896288}
   - component: {fileID: 1391362041904047824}
   - component: {fileID: 5570424979841258391}
+  - component: {fileID: 5570424979841258392}
+  - component: {fileID: 5570424979841258393}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -1329,3 +1331,36 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerLegs
   legsTransform: {fileID: 4130320205669602059}
+--- !u!114 &5570424979841258392
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69b6229e17de8c14b6e90081752c281b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerNoiseEmitter
+  emitInterval: 0.2
+  walkNoiseRadius: 4
+  sprintNoiseRadius: 8
+--- !u!114 &5570424979841258393
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 23994ccf17550ff8adcbcceb1660d905, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerThrow
+  throwKey: 21
+  throwSpeed: 12
+  landingNoiseRadius: 10
+  maxFlightTime: 1.5
+  throwCooldown: 1
+  spawnOffset: 0.6

@@ -1,34 +1,52 @@
 using UnityEngine;
 
 /// <summary>
-/// Detects the player by hearing instead of sight. The player is heard only while actually
-/// moving in Walk or Sprint mode and within range; standing still or Sneak mode is silent.
-/// Optionally blocked by obstacles (e.g. walls muffle sound the same way they block vision).
+/// Hearing sensor for enemies. Listens to <see cref="NoiseEvents"/> and registers any noise
+/// that is within both its radius and this enemy's hearingRange, optionally blocked by obstacles
+/// (walls muffle sound the same way they block vision). Exposes the result as
+/// <see cref="INoiseSensor"/>: hearing a noise is a suspicion that sends the enemy to
+/// investigate the noise position, not a confirmed player detection.
 /// </summary>
-public class SoundPlayerDetector : MonoBehaviour, IPlayerDetector
+public class SoundPlayerDetector : MonoBehaviour, INoiseSensor
 {
-    [SerializeField] private float hearingRange = 4f;
+    [Tooltip("Maximum distance at which this enemy can hear anything, no matter how loud. Cap on the noise radius.")]
+    [SerializeField] private float hearingRange = 10f;
     [Tooltip("Layers that block sound (e.g. walls). Leave empty to hear through everything within range.")]
     [SerializeField] private LayerMask hearingBlockerMask;
+    [Tooltip("How long (seconds) a heard noise stays fresh. Should exceed the emitter's interval so continuous movement reads as a continuous trail.")]
+    [SerializeField] private float heardNoiseRetention = 0.35f;
 
-    public bool IsPlayerDetected(Transform player)
+    private float lastHeardTime = float.NegativeInfinity;
+    private Vector2 lastNoisePosition;
+
+    public bool HasFreshNoise => Time.time - lastHeardTime <= heardNoiseRetention;
+
+    public Vector2 LastNoisePosition => lastNoisePosition;
+
+    private void OnEnable()
     {
-        if (player == null) return false;
+        NoiseEvents.NoiseEmitted += OnNoiseEmitted;
+    }
 
-        PlayerMovement playerMovement = player.GetComponent<PlayerMovement>();
-        if (playerMovement == null) return false;
-        if (playerMovement.CurrentMode == PlayerMovement.MovementMode.Sneak) return false;
-        if (!playerMovement.IsMoving) return false;
+    private void OnDisable()
+    {
+        NoiseEvents.NoiseEmitted -= OnNoiseEmitted;
+    }
 
-        float distance = Vector3.Distance(transform.position, player.position);
-        if (distance > hearingRange) return false;
+    /// <summary>
+    /// Registers a noise if it is audible from this enemy's position: within the noise radius,
+    /// within hearingRange, and not blocked by hearingBlockerMask.
+    /// </summary>
+    private void OnNoiseEmitted(Vector2 position, float radius)
+    {
+        float distance = Vector2.Distance(transform.position, position);
+        if (distance > Mathf.Min(radius, hearingRange)) return;
 
-        Vector2 origin = transform.position;
-        Vector2 target = player.position;
-        if (Physics2D.Linecast(origin, target, hearingBlockerMask))
-            return false;
+        if (Physics2D.Linecast(transform.position, position, hearingBlockerMask))
+            return;
 
-        return true;
+        lastHeardTime = Time.time;
+        lastNoisePosition = position;
     }
 
     private void OnDrawGizmosSelected()

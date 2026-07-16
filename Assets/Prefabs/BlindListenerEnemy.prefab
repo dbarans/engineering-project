@@ -587,10 +587,6 @@ MonoBehaviour:
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
   alwaysDetectRange: 1.5
-  visionDistance: 0
-  visionBlockerMask:
-    serializedVersion: 2
-    m_Bits: 768
   investigateOvershootDistance: 1
   investigateArrivalThreshold: 0.35
   waypoints: []

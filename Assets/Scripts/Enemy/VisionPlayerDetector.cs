@@ -1,8 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Detects player when in range and in line of sight (no walls in between).
-/// Assign obstacle layer mask so walls block vision.
+/// Detects the player by sight: within range and in line of sight (no walls in between).
+/// Assign obstacle layer mask so walls block vision. Vision-based enemies (e.g. SkullGuy)
+/// use this component; blind enemy types simply omit it and rely on other detectors.
 /// </summary>
 public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
 {
@@ -23,5 +24,11 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
             return false;
 
         return true;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, range);
     }
 }

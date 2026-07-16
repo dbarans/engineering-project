@@ -6,11 +6,11 @@ using UnityEngine;
 /// requests the matching animation clip, and rotates the sprite to face its target.
 ///
 /// Mapping:
-///   Idle / ReturnToPatrol, not moving -> SPOCZYNEK
-///   moving                            -> CHOD_POCZATEK -> CHOD_LOOP -> CHOD_KONIEC (auto-chained)
-///   InvestigateLastKnown              -> ROZGLADANIE
-///   just detected the player          -> RYK (one-shot)
-///   player within attack range        -> ATAK (one-shot, on cooldown)
+///   Idle / ReturnToPatrol, not moving  -> SPOCZYNEK
+///   moving                             -> CHOD_POCZATEK -> CHOD_LOOP -> CHOD_KONIEC (auto-chained)
+///   InvestigateLastKnown / -Noise, standing -> ROZGLADANIE
+///   just detected the player           -> RYK (one-shot)
+///   attack (triggered by combat code)  -> ATAK (one-shot, via TriggerAttack)
 /// </summary>
 [RequireComponent(typeof(EnemyBase))]
 public class SkullGuyAnimationDriver : MonoBehaviour
@@ -36,10 +36,6 @@ public class SkullGuyAnimationDriver : MonoBehaviour
     [Tooltip("Turn speed in degrees/second.")]
     [SerializeField] private float turnSpeedDeg = 540f;
 
-    [Header("Attack")]
-    [SerializeField] private float attackRange = 1.2f;
-    [SerializeField] private float attackCooldown = 1.5f;
-
     [Header("Walk sync")]
     [Tooltip("Movement speed at which the walk animation plays at its authored fps. Lower this if the feet slide forward, raise it if they slide backward.")]
     [SerializeField] private float walkSyncReferenceSpeed = 3f;
@@ -52,7 +48,6 @@ public class SkullGuyAnimationDriver : MonoBehaviour
     private Vector3 lastPosition;
     private Vector3 velocity;
     private float smoothedSpeed;
-    private float nextAttackTime;
 
     private void Awake()
     {
@@ -69,11 +64,10 @@ public class SkullGuyAnimationDriver : MonoBehaviour
         animator?.Play(Idle);
     }
 
-    /// <summary>Plays the attack animation on demand (e.g. from combat code).</summary>
+    /// <summary>Plays the attack animation on demand (called by SkullGuyEnemy combat code).</summary>
     public void TriggerAttack()
     {
         animator?.Play(Attack, true);
-        nextAttackTime = Time.time + attackCooldown;
     }
 
     private void Update()
@@ -105,20 +99,13 @@ public class SkullGuyAnimationDriver : MonoBehaviour
         {
             animator.Play(Roar);
         }
-        else if (state == EnemyState.FollowPlayer &&
-                 Time.time >= nextAttackTime &&
-                 Vector2.Distance(transform.position, enemy.CurrentTargetPosition) <= attackRange)
-        {
-            animator.Play(Attack, true);
-            nextAttackTime = Time.time + attackCooldown;
-        }
         else if (moving)
         {
             // Whatever non-walk clip we were on (idle, look-around, roar/attack end), start walking.
             if (clip != WalkStart && clip != WalkLoop)
                 animator.Play(WalkStart); // chains to WalkLoop
         }
-        else if (state == EnemyState.InvestigateLastKnown)
+        else if (state == EnemyState.InvestigateLastKnown || state == EnemyState.InvestigateNoise)
         {
             // Standing while investigating -> look around.
             if (clip != LookAround)
@@ -174,7 +161,9 @@ public class SkullGuyAnimationDriver : MonoBehaviour
             return;
 
         Vector2 dir;
-        if (state == EnemyState.FollowPlayer || state == EnemyState.InvestigateLastKnown)
+        if (state == EnemyState.FollowPlayer
+            || state == EnemyState.InvestigateLastKnown
+            || state == EnemyState.InvestigateNoise)
             dir = enemy.CurrentTargetPosition - transform.position;
         else if (moving)
             dir = velocity;

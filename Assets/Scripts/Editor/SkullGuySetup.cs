@@ -62,7 +62,7 @@ public static class SkullGuySetup
         // --- Hidden outside the player's field of view (Darkwood vision) ---
         Ensure<HideableObject>(go);
 
-        // --- Assign player + vision mask on EnemyBase ---
+        // --- Assign player on EnemyBase ---
         var enemySo = new SerializedObject(enemy);
         var playerProp = enemySo.FindProperty("player");
         if (playerProp.objectReferenceValue == null)
@@ -71,10 +71,17 @@ public static class SkullGuySetup
             if (playerMovement != null)
                 playerProp.objectReferenceValue = playerMovement.transform;
         }
+        enemySo.ApplyModifiedProperties();
+
+        // --- Vision detector (sight range + line-of-sight blockers) ---
+        var vision = Ensure<VisionPlayerDetector>(go);
         int mask = LayerMask.GetMask("ObstacleStatic", "ObstacleDynamic");
         if (mask != 0)
-            enemySo.FindProperty("visionBlockerMask").intValue = mask;
-        enemySo.ApplyModifiedProperties();
+        {
+            var visionSo = new SerializedObject(vision);
+            visionSo.FindProperty("obstacleLayers").intValue = mask;
+            visionSo.ApplyModifiedProperties();
+        }
 
         // --- Load frames + preview idle sprite ---
         int clips = SkullGuyFrameLoader.LoadInto(animator, out string report, out int totalFrames);

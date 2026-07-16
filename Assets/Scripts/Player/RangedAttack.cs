@@ -52,9 +52,7 @@ public class RangedAttack : PlayerAttack
     protected override void ExecuteAttack()
     {
         float randomOffset = UnityEngine.Random.Range(-currentSpreadAngle / 2f, currentSpreadAngle / 2f);
-        
         Quaternion shootRotation = shootPoint.rotation * Quaternion.Euler(0, 0, randomOffset);
-
         Instantiate(projectilePrefab, shootPoint.position, shootRotation);
     }
 

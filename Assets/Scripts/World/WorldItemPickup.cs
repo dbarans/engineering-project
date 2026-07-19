@@ -26,6 +26,8 @@ public class WorldItemPickup : MonoBehaviour
     [SerializeField] private Camera worldCamera;
     [Tooltip("Cursor that displays the hovered item's name. Auto-resolved if left unset.")]
     [SerializeField] private CursorController cursor;
+    [Tooltip("Used to suspend pick-up while the game is paused (e.g. the save screen is open). Auto-resolved if left unset.")]
+    [SerializeField] private GameManager gameManager;
 
     [Header("Drop placement")]
     [Tooltip("Transform the drop is measured from (the player).")]
@@ -61,6 +63,7 @@ public class WorldItemPickup : MonoBehaviour
         if (worldCamera == null) worldCamera = Camera.main;
         if (slotInventory == null) slotInventory = FindFirstObjectByType<SlotInventory>();
         if (cursor == null) cursor = FindFirstObjectByType<CursorController>();
+        if (gameManager == null) gameManager = FindFirstObjectByType<GameManager>();
 
         _filter = new ContactFilter2D { useTriggers = true, useLayerMask = true };
         _filter.SetLayerMask(itemLayerMask);
@@ -114,6 +117,10 @@ public class WorldItemPickup : MonoBehaviour
 
     private void Update()
     {
+        // No hovering or picking up while paused — otherwise clicks on the full-screen
+        // save UI would grab items hidden behind it (physics queries ignore UI raycasts).
+        if (gameManager != null && !gameManager.IsPlaying()) return;
+
         RefreshUnderCursor();
         UpdateSelection();
         ShowSelectedName();

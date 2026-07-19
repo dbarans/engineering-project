@@ -43,6 +43,7 @@ public class SkullGuyAnimationDriver : MonoBehaviour
     [SerializeField] private float maxWalkSpeedMultiplier = 3f;
 
     private EnemyBase enemy;
+    private EnemyMeleeAttack meleeAttack;
     private Transform visual;
     private EnemyState prevState;
     private Vector3 lastPosition;
@@ -52,9 +53,22 @@ public class SkullGuyAnimationDriver : MonoBehaviour
     private void Awake()
     {
         enemy = GetComponent<EnemyBase>();
+        meleeAttack = GetComponent<EnemyMeleeAttack>();
         if (animator == null)
             animator = GetComponentInChildren<EnemySpriteAnimator>();
         visual = animator != null ? animator.transform : transform;
+    }
+
+    private void OnEnable()
+    {
+        if (meleeAttack != null)
+            meleeAttack.AttackStarted += TriggerAttack;
+    }
+
+    private void OnDisable()
+    {
+        if (meleeAttack != null)
+            meleeAttack.AttackStarted -= TriggerAttack;
     }
 
     private void Start()
@@ -64,7 +78,7 @@ public class SkullGuyAnimationDriver : MonoBehaviour
         animator?.Play(Idle);
     }
 
-    /// <summary>Plays the attack animation on demand (called by SkullGuyEnemy combat code).</summary>
+    /// <summary>Plays the attack animation. Subscribed to <see cref="EnemyMeleeAttack.AttackStarted"/>.</summary>
     public void TriggerAttack()
     {
         animator?.Play(Attack, true);

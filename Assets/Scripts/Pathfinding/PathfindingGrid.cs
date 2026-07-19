@@ -15,7 +15,9 @@ public class PathfindingGrid : MonoBehaviour
     [SerializeField] private float agentRadius = 0f;
 
     [Header("Visualization (Scene view only)")]
-    [SerializeField] private bool showGizmos = true;
+    [Tooltip("Overall opacity of the grid gizmo. 0 = fully hidden, 1 = colors below at full strength.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float gizmoOpacity = 1f;
     [SerializeField] private Color walkableColor = new Color(0f, 1f, 0f, 0.3f);
     [SerializeField] private Color blockedColor = new Color(1f, 0f, 0f, 0.5f);
 
@@ -91,7 +93,7 @@ public class PathfindingGrid : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        if (!showGizmos) return;
+        if (gizmoOpacity <= 0f) return;
 
         Node[,] toDraw = _nodes;
         if (toDraw == null && Application.isPlaying == false)
@@ -108,7 +110,8 @@ public class PathfindingGrid : MonoBehaviour
                 Node n = toDraw[x, y];
                 if (n == null) continue;
 
-                Gizmos.color = n.Walkable ? walkableColor : blockedColor;
+                Color baseColor = n.Walkable ? walkableColor : blockedColor;
+                Gizmos.color = new Color(baseColor.r, baseColor.g, baseColor.b, baseColor.a * gizmoOpacity);
                 Vector3 center = new Vector3(n.WorldPos.x, n.WorldPos.y, 0f);
                 Gizmos.DrawCube(center, new Vector3(cellSize * 0.9f, cellSize * 0.9f, 0.01f));
             }

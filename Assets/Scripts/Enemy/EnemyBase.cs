@@ -49,6 +49,7 @@ public abstract class EnemyBase : MonoBehaviour
     [SerializeField] private Transform player;
     [Tooltip("Player is always detected within this distance, regardless of vision/hearing checks. Guards against line-of-sight raycasts producing false negatives when the player is right next to the enemy.")]
     [SerializeField] private float alwaysDetectRange = 0.5f;
+    [SerializeField] private GizmoDebugSettings gizmoDebugSettings;
     [Tooltip("How long (seconds) the enemy keeps treating the player as detected after all detectors lose them. Prevents instantly dropping the chase when the player stops making noise or breaks line of sight for a moment.")]
     [SerializeField] private float detectionMemoryDuration = 1.5f;
     [SerializeField] private float investigateOvershootDistance = 1f;
@@ -616,10 +617,13 @@ public abstract class EnemyBase : MonoBehaviour
         currentState = restoredState;
     }
 
-    private void OnDrawGizmosSelected()
+    private void OnDrawGizmos()
     {
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, alwaysDetectRange);
+        if (gizmoDebugSettings == null || gizmoDebugSettings.IsVisible(GizmoRanges.EnemyAlwaysDetect))
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(transform.position, alwaysDetectRange);
+        }
 
         if (postInvestigateBehavior == PostInvestigateBehavior.WanderNearLastPosition)
         {

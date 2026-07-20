@@ -93,19 +93,6 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!114 &4938097524118985200
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4938097524118985193}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d581566ac545da842886e884a5b62d80, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::FovMaskedSpriteRuntime
-  clippedMaterial: {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}
 --- !u!114 &5502223514990625725
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -385,6 +372,19 @@ MonoBehaviour:
     fps: 24
     loop: 1
     nextClip: 
+--- !u!114 &4938097524118985200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4938097524118985193}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d581566ac545da842886e884a5b62d80, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FovMaskedSpriteRuntime
+  clippedMaterial: {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}
 --- !u!1 &7423423773025333378
 GameObject:
   m_ObjectHideFlags: 0
@@ -496,6 +496,9 @@ MonoBehaviour:
   moveSpeed: 1.8
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
+  alwaysDetectRange: 0.5
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
+  detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
   investigateArrivalThreshold: 0.35
   waypoints:
@@ -507,6 +510,8 @@ MonoBehaviour:
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
   skipInvestigateWhenLostPlayer: 0
+  postInvestigateBehavior: 0
+  wanderRadius: 4
 --- !u!50 &2876300555410741934
 Rigidbody2D:
   serializedVersion: 5
@@ -551,8 +556,6 @@ MonoBehaviour:
   rotateToFaceTarget: 1
   spriteForwardOffsetDeg: -90
   turnSpeedDeg: 540
-  attackRange: 1.2
-  attackCooldown: 1.5
   walkSyncReferenceSpeed: 1.64
   minWalkSpeedMultiplier: 0.3
   maxWalkSpeedMultiplier: 3
@@ -597,6 +600,7 @@ MonoBehaviour:
   obstacleLayers:
     serializedVersion: 2
     m_Bits: 768
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
 --- !u!114 &7423423773025333004
 MonoBehaviour:
   m_ObjectHideFlags: 0

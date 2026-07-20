@@ -20,6 +20,10 @@ public class RangedAttack : PlayerAttack
     [Tooltip("Field of view never narrows below this angle while aiming, even at full charge (currentSpreadAngle can get much smaller than this).")]
     [SerializeField] private float minAimViewAngle = 25f;
 
+    [Header("Noise")]
+    [Tooltip("Shared noise ranges asset — the firing noise radius is read from here.")]
+    [SerializeField] private NoiseSettings noiseSettings;
+
     private float currentSpreadAngle;
     private FieldOfView playerFov;
 
@@ -75,6 +79,8 @@ public class RangedAttack : PlayerAttack
         float randomOffset = UnityEngine.Random.Range(-currentSpreadAngle / 2f, currentSpreadAngle / 2f);
         Quaternion shootRotation = shootPoint.rotation * Quaternion.Euler(0, 0, randomOffset);
         Instantiate(projectilePrefab, shootPoint.position, shootRotation);
+        if (noiseSettings != null)
+            NoiseEvents.Emit(shootPoint.position, noiseSettings.shootNoiseRadius);
     }
 
     private void UpdateAimLines()

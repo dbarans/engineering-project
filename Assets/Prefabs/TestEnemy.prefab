@@ -212,6 +212,7 @@ MonoBehaviour:
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
   skipInvestigateWhenLostPlayer: 0
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
 --- !u!50 &2876300555410741934
 Rigidbody2D:
   serializedVersion: 5
@@ -280,3 +281,4 @@ MonoBehaviour:
   obstacleLayers:
     serializedVersion: 2
     m_Bits: 768
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}

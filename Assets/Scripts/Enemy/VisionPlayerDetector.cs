@@ -10,6 +10,7 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
     [SerializeField] private float range = 5f;
     [Tooltip("Layers that block line of sight (e.g. walls). Player must not be on these layers.")]
     [SerializeField] private LayerMask obstacleLayers;
+    [SerializeField] private GizmoDebugSettings gizmoDebugSettings;
 
     public bool IsPlayerDetected(Transform player)
     {
@@ -26,8 +27,10 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
         return true;
     }
 
-    private void OnDrawGizmosSelected()
+    private void OnDrawGizmos()
     {
+        if (gizmoDebugSettings != null && !gizmoDebugSettings.IsVisible(GizmoRanges.EnemyVision)) return;
+
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, range);
     }

@@ -15,6 +15,7 @@ public class SoundPlayerDetector : MonoBehaviour, INoiseSensor
     [SerializeField] private LayerMask hearingBlockerMask;
     [Tooltip("How long (seconds) a heard noise stays fresh. Should exceed the emitter's interval so continuous movement reads as a continuous trail.")]
     [SerializeField] private float heardNoiseRetention = 0.35f;
+    [SerializeField] private GizmoDebugSettings gizmoDebugSettings;
 
     private float lastHeardTime = float.NegativeInfinity;
     private Vector2 lastNoisePosition;
@@ -49,8 +50,10 @@ public class SoundPlayerDetector : MonoBehaviour, INoiseSensor
         lastNoisePosition = position;
     }
 
-    private void OnDrawGizmosSelected()
+    private void OnDrawGizmos()
     {
+        if (gizmoDebugSettings != null && !gizmoDebugSettings.IsVisible(GizmoRanges.EnemyHearing)) return;
+
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireSphere(transform.position, hearingRange);
     }

@@ -11,7 +11,8 @@ GameObject:
   - component: {fileID: 5250971494135250769}
   - component: {fileID: 102505280938881608}
   - component: {fileID: 4039403981012611171}
-  m_Layer: 8
+  - component: {fileID: 7108180406061880600}
+  m_Layer: 11
   m_Name: Barrel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -59,7 +60,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: 6a95e0c2d7b34f18a3c8b52f19d6e483, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -128,3 +129,16 @@ CircleCollider2D:
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
   m_Radius: 2.405
+--- !u!114 &7108180406061880600
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7108180406061880555}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d581566ac545da842886e884a5b62d80, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FovMaskedSpriteRuntime
+  clippedMaterial: {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}

@@ -43,6 +43,8 @@ public class FieldOfView : MonoBehaviour
     [SerializeField] private string sortingLayerName = "Default";
     [Tooltip("Order in layer. Set lower than DarknessOverlay so stencil is written first.")]
     [SerializeField] private int sortingOrder = 5;
+    [Tooltip("Order in layer for the stencil prepass child. Must be lower than every sprite using the SpriteFovMasked material, so the FOV stencil exists before those sprites are drawn.")]
+    [SerializeField] private int stencilPrepassSortingOrder = -10;
 
     private Mesh viewMesh;
     private MeshFilter meshFilter;
@@ -64,6 +66,33 @@ public class FieldOfView : MonoBehaviour
         var mr = GetComponent<MeshRenderer>();
         mr.sortingLayerName = sortingLayerName;
         mr.sortingOrder = sortingOrder;
+
+        CreateStencilPrepass();
+    }
+
+    /// <summary>
+    /// Creates a child renderer that draws the same FOV mesh before regular sprites
+    /// (negative sorting order) using the color-less FovStencilPrepass shader. This puts
+    /// stencil = 1 in place early, so sprites using Custom/SpriteFovMasked are clipped
+    /// pixel-perfectly at the vision boundary instead of being merely darkened.
+    /// </summary>
+    private void CreateStencilPrepass()
+    {
+        Shader prepassShader = Shader.Find("Custom/FovStencilPrepass");
+        if (prepassShader == null)
+        {
+            Debug.LogWarning("[FieldOfView] Custom/FovStencilPrepass shader not found — SpriteFovMasked sprites will not be clipped.");
+            return;
+        }
+
+        var child = new GameObject("FOV Stencil Prepass");
+        child.transform.SetParent(transform, false);
+
+        child.AddComponent<MeshFilter>().sharedMesh = viewMesh;
+        var childMr = child.AddComponent<MeshRenderer>();
+        childMr.sharedMaterial = new Material(prepassShader);
+        childMr.sortingLayerName = sortingLayerName;
+        childMr.sortingOrder = stencilPrepassSortingOrder;
     }
 
     private void LateUpdate()

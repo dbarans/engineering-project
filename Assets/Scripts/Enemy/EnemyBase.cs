@@ -6,7 +6,7 @@ using UnityEngine;
 /// </summary>
 public enum EnemyState
 {
-    /// <summary>Patrols waypoints or holds position when no waypoint is available.</summary>
+    /// <summary>Patrols waypoints, or (transiently) decides what to do when no waypoint is configured.</summary>
     Idle,
     /// <summary>Actively follows the player while in detection range.</summary>
     FollowPlayer,
@@ -15,7 +15,21 @@ public enum EnemyState
     /// <summary>Returns to the patrol route (closest waypoint).</summary>
     ReturnToPatrol,
     /// <summary>Moves toward the position of a heard noise to check it out.</summary>
-    InvestigateNoise
+    InvestigateNoise,
+    /// <summary>Wanders between random points near where the player was lost, instead of returning to patrol.</summary>
+    WanderNearLastPosition
+}
+
+/// <summary>
+/// What an enemy does once it gives up investigating (reaches the last-known-position or
+/// noise target without re-detecting the player).
+/// </summary>
+public enum PostInvestigateBehavior
+{
+    /// <summary>Heads back to the nearest patrol waypoint, as before.</summary>
+    ReturnToPatrol,
+    /// <summary>Wanders between random points near the spot where the player was lost.</summary>
+    WanderNearLastPosition
 }
 
 /// <summary>
@@ -48,6 +62,12 @@ public abstract class EnemyBase : MonoBehaviour
     [Tooltip("If true, losing sight of the player sends the enemy straight to the nearest patrol waypoint. If false, it visits the last known position first.")]
     [SerializeField] private bool skipInvestigateWhenLostPlayer = true;
 
+    [Header("After losing the player")]
+    [Tooltip("What to do once investigation ends without re-detecting the player: return to patrol waypoints, or wander near the spot where the player was lost.")]
+    [SerializeField] private PostInvestigateBehavior postInvestigateBehavior = PostInvestigateBehavior.ReturnToPatrol;
+    [Tooltip("Radius within which random wander points are picked: around the spot where the player was lost (WanderNearLastPosition), or around the spawn position for enemies with no waypoints configured.")]
+    [SerializeField] private float wanderRadius = 4f;
+
     protected float currentHealth;
     private IMovementStrategy movementStrategy;
     private IPlayerDetector[] detectors;
@@ -55,6 +75,10 @@ public abstract class EnemyBase : MonoBehaviour
     private Rigidbody2D rb;
     private float lastDetectionTime = float.NegativeInfinity;
     private Vector2 noiseTargetPosition;
+    private Vector2 wanderAnchor;
+    private Vector2 wanderTargetPosition;
+    private float nextUnreachableWanderRetryTime;
+    private Vector2 spawnPosition;
 
     private EnemyState currentState = EnemyState.Idle;
     private int currentWaypointIndex;
@@ -92,9 +116,9 @@ public abstract class EnemyBase : MonoBehaviour
     public bool IsDead => currentHealth <= 0f;
 
     /// <summary>
-    /// Player transform assigned in the inspector. Available to derived types (e.g. for attacks).
+    /// Player transform assigned in the inspector. Used by companion components (e.g. attacks).
     /// </summary>
-    protected Transform Player => player;
+    public Transform Player => player;
 
     protected virtual void Awake()
     {
@@ -102,6 +126,7 @@ public abstract class EnemyBase : MonoBehaviour
         movementStrategy = GetComponent<IMovementStrategy>();
         detectors = GetComponents<IPlayerDetector>();
         noiseSensor = GetComponent<INoiseSensor>();
+        spawnPosition = transform.position;
 
         rb = GetComponent<Rigidbody2D>();
         if (rb != null) rb.constraints = RigidbodyConstraints2D.FreezeRotation;
@@ -113,6 +138,7 @@ public abstract class EnemyBase : MonoBehaviour
 
         UpdateStateMachine();
         ResolveUnreachablePatrolWaypoint();
+        ResolveUnreachableWanderTarget();
         if (movementStrategy != null && ShouldMove())
             Move();
     }
@@ -133,6 +159,21 @@ public abstract class EnemyBase : MonoBehaviour
         isWaitingAtWaypoint = false;
         waypointPauseTimer = 0f;
         nextUnreachableWaypointRetryTime = Time.time + unreachableWaypointRetryInterval;
+    }
+
+    /// <summary>
+    /// Picks a new random wander point when the current one turns out unreachable.
+    /// Uses the same throttled-retry pattern as ResolveUnreachablePatrolWaypoint.
+    /// </summary>
+    private void ResolveUnreachableWanderTarget()
+    {
+        if (currentState != EnemyState.WanderNearLastPosition) return;
+        if (Time.time < nextUnreachableWanderRetryTime) return;
+        if (movementStrategy is not IPathStatusProvider pathStatus) return;
+        if (pathStatus.HasReachablePath) return;
+
+        PickRandomWanderTarget();
+        nextUnreachableWanderRetryTime = Time.time + unreachableWaypointRetryInterval;
     }
 
     /// <summary>
@@ -170,6 +211,14 @@ public abstract class EnemyBase : MonoBehaviour
                     noiseTargetPosition = noiseSensor.LastNoisePosition;
                     currentState = EnemyState.InvestigateNoise;
                 }
+                else if (!HasValidWaypoint())
+                {
+                    // No patrol route configured: wander near the spawn position instead of
+                    // standing still forever.
+                    wanderAnchor = spawnPosition;
+                    PickRandomWanderTarget();
+                    currentState = EnemyState.WanderNearLastPosition;
+                }
                 else
                     AdvanceWaypointIfReached();
                 break;
@@ -202,8 +251,7 @@ public abstract class EnemyBase : MonoBehaviour
                 else if (Vector2.Distance(transform.position, investigateTargetPosition) <= investigateArrivalThreshold)
                 {
                     hasLastKnownPlayerPosition = false;
-                    SelectClosestWaypoint();
-                    currentState = EnemyState.ReturnToPatrol;
+                    currentState = EndInvestigation();
                 }
                 break;
             case EnemyState.InvestigateNoise:
@@ -218,10 +266,22 @@ public abstract class EnemyBase : MonoBehaviour
                         noiseTargetPosition = noiseSensor.LastNoisePosition;
 
                     if (Vector2.Distance(transform.position, noiseTargetPosition) <= investigateArrivalThreshold)
-                    {
-                        SelectClosestWaypoint();
-                        currentState = EnemyState.ReturnToPatrol;
-                    }
+                        currentState = EndInvestigation();
+                }
+                break;
+            case EnemyState.WanderNearLastPosition:
+                if (playerInRange)
+                {
+                    currentState = EnemyState.FollowPlayer;
+                }
+                else if (heardNoise)
+                {
+                    noiseTargetPosition = noiseSensor.LastNoisePosition;
+                    currentState = EnemyState.InvestigateNoise;
+                }
+                else if (Vector2.Distance(transform.position, wanderTargetPosition) <= investigateArrivalThreshold)
+                {
+                    PickRandomWanderTarget();
                 }
                 break;
             case EnemyState.ReturnToPatrol:
@@ -236,6 +296,31 @@ public abstract class EnemyBase : MonoBehaviour
                     currentState = EnemyState.Idle;
                 break;
         }
+    }
+
+    /// <summary>
+    /// Called when an investigation (last-known-position or noise) ends without re-detecting
+    /// the player. Returns the next state per postInvestigateBehavior: either heads back to the
+    /// nearest patrol waypoint, or starts wandering near the current position (where the
+    /// investigation trail ran out).
+    /// </summary>
+    private EnemyState EndInvestigation()
+    {
+        if (postInvestigateBehavior == PostInvestigateBehavior.WanderNearLastPosition)
+        {
+            wanderAnchor = transform.position;
+            PickRandomWanderTarget();
+            return EnemyState.WanderNearLastPosition;
+        }
+
+        SelectClosestWaypoint();
+        return EnemyState.ReturnToPatrol;
+    }
+
+    /// <summary>Picks a new random point within wanderRadius of wanderAnchor.</summary>
+    private void PickRandomWanderTarget()
+    {
+        wanderTargetPosition = wanderAnchor + Random.insideUnitCircle * wanderRadius;
     }
 
     /// <summary>
@@ -429,6 +514,8 @@ public abstract class EnemyBase : MonoBehaviour
                 return hasLastKnownPlayerPosition ? (Vector3)investigateTargetPosition : transform.position;
             case EnemyState.InvestigateNoise:
                 return noiseTargetPosition;
+            case EnemyState.WanderNearLastPosition:
+                return wanderTargetPosition;
             case EnemyState.ReturnToPatrol:
             case EnemyState.Idle:
             default:
@@ -466,7 +553,8 @@ public abstract class EnemyBase : MonoBehaviour
     {
         if (currentState == EnemyState.FollowPlayer
             || currentState == EnemyState.InvestigateLastKnown
-            || currentState == EnemyState.InvestigateNoise)
+            || currentState == EnemyState.InvestigateNoise
+            || currentState == EnemyState.WanderNearLastPosition)
             return true;
 
         if (!HasValidWaypoint())
@@ -516,9 +604,11 @@ public abstract class EnemyBase : MonoBehaviour
             : Vector2.zero;
 
         var restoredState = (EnemyState)state.aiState;
-        if (restoredState < EnemyState.Idle || restoredState > EnemyState.InvestigateNoise)
+        if (restoredState < EnemyState.Idle || restoredState > EnemyState.WanderNearLastPosition)
             restoredState = EnemyState.Idle; // unknown value from a foreign/edited save
-        if (restoredState == EnemyState.InvestigateLastKnown || restoredState == EnemyState.InvestigateNoise)
+        if (restoredState == EnemyState.InvestigateLastKnown
+            || restoredState == EnemyState.InvestigateNoise
+            || restoredState == EnemyState.WanderNearLastPosition)
         {
             SelectClosestWaypoint();
             restoredState = EnemyState.ReturnToPatrol;
@@ -530,5 +620,11 @@ public abstract class EnemyBase : MonoBehaviour
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, alwaysDetectRange);
+
+        if (postInvestigateBehavior == PostInvestigateBehavior.WanderNearLastPosition)
+        {
+            Gizmos.color = Color.magenta;
+            Gizmos.DrawWireSphere(transform.position, wanderRadius);
+        }
     }
 }

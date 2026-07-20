@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 2037763284372678567}
   - component: {fileID: 6393033308300503413}
   - component: {fileID: 3651791535717973024}
+  - component: {fileID: 948308133762826400}
   m_Layer: 7
   m_Name: EnemyModel
   m_TagString: Untagged
@@ -59,7 +60,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: 6a95e0c2d7b34f18a3c8b52f19d6e483, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -92,6 +93,19 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!114 &948308133762826400
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 948308133762826366}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d581566ac545da842886e884a5b62d80, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FovMaskedSpriteRuntime
+  clippedMaterial: {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}
 --- !u!114 &3651791535717973024
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -384,11 +398,11 @@ GameObject:
   - component: {fileID: 1415371953429770650}
   - component: {fileID: 2017720869098448843}
   - component: {fileID: 3772641526658118025}
-  - component: {fileID: 8274482166923678494}
   - component: {fileID: 4581907739179917010}
   - component: {fileID: 5153235430892638495}
   - component: {fileID: 5255311201659851376}
   - component: {fileID: 8613185589414859183}
+  - component: {fileID: 8613185589414859184}
   m_Layer: 7
   m_Name: BlindListenerEnemy
   m_TagString: Untagged
@@ -510,25 +524,9 @@ MonoBehaviour:
   rotateToFaceTarget: 1
   spriteForwardOffsetDeg: -90
   turnSpeedDeg: 540
-  attackRange: 1.2
-  attackCooldown: 1.5
   walkSyncReferenceSpeed: 1.64
   minWalkSpeedMultiplier: 0.3
   maxWalkSpeedMultiplier: 3
---- !u!114 &8274482166923678494
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6831290240910429170}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa2410fbd902c3042ba7ad25d56e70eb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HideableObject
-  playerFov: {fileID: 0}
-  visibilityCheckPoint: {fileID: 0}
 --- !u!114 &4581907739179917010
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -570,6 +568,7 @@ MonoBehaviour:
   hearingBlockerMask:
     serializedVersion: 2
     m_Bits: 768
+  heardNoiseRetention: 0.35
 --- !u!114 &8613185589414859183
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -586,7 +585,8 @@ MonoBehaviour:
   moveSpeed: 3
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
-  alwaysDetectRange: 1.5
+  alwaysDetectRange: 2.5
+  detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
   investigateArrivalThreshold: 0.35
   waypoints: []
@@ -594,3 +594,19 @@ MonoBehaviour:
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
   skipInvestigateWhenLostPlayer: 0
+--- !u!114 &8613185589414859184
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6831290240910429170}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b29dd2c3d008a11dcf511026fd07371, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeleeAttack
+  attackRange: 1.2
+  attackCooldown: 1.5
+  attackDamage: 20
+  attackHitDelay: 0.4

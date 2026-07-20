@@ -24,8 +24,10 @@ public class FieldOfView : MonoBehaviour
     [SerializeField] private float lanternRadius = 5f;
 
     [Header("Ray Settings")]
-    [Tooltip("Number of rays per degree. Higher = smoother but slower.")]
+    [Tooltip("Number of rays per degree inside the view cone. Higher = smoother but slower.")]
     [SerializeField] private int raysPerDegree = 1;
+    [Tooltip("Rays per degree for the near-vision/lantern circle OUTSIDE the cone (the part behind/beside the player). This area doesn't need cone-level smoothness, so it defaults much coarser to cut raycasts without touching cone quality.")]
+    [SerializeField] private float nearCircleRaysPerDegree = 0.25f;
     [SerializeField] private LayerMask obstacleMask;
 
     [Header("Edge Detection")]
@@ -42,6 +44,8 @@ public class FieldOfView : MonoBehaviour
     [SerializeField] private string sortingLayerName = "Default";
     [Tooltip("Order in layer. Set lower than DarknessOverlay so stencil is written first.")]
     [SerializeField] private int sortingOrder = 5;
+    [Tooltip("Order in layer for the stencil prepass child. Must be lower than every sprite using the SpriteFovMasked material, so the FOV stencil exists before those sprites are drawn.")]
+    [SerializeField] private int stencilPrepassSortingOrder = -10;
 
     [Header("Aiming")]
     [Tooltip("How fast the view angle narrows toward its aim target, in degrees/second. Independent of how fast the aim itself charges — the FOV eases toward the target on its own pace instead of tracking the charge progress 1:1.")]
@@ -72,6 +76,13 @@ public class FieldOfView : MonoBehaviour
     /// <summary>Target view cone angle: viewAngle, or the aim-narrowed angle while aiming.</summary>
     private float TargetViewAngle => aimNarrowingActive ? Mathf.Clamp(aimNarrowAngle, 1f, 360f) : viewAngle;
 
+    // Reused across frames to avoid per-frame GC allocation (BuildMesh runs every LateUpdate).
+    private readonly List<float> angleBuffer = new List<float>(512);
+    private readonly List<Vector3> viewPoints = new List<Vector3>(512);
+    private Vector3[] vertices = new Vector3[0];
+    private Vector2[] uvs = new Vector2[0];
+    private int[] triangles = new int[0];
+
     private void Awake()
     {
         meshFilter = GetComponent<MeshFilter>();
@@ -82,6 +93,33 @@ public class FieldOfView : MonoBehaviour
         var mr = GetComponent<MeshRenderer>();
         mr.sortingLayerName = sortingLayerName;
         mr.sortingOrder = sortingOrder;
+
+        CreateStencilPrepass();
+    }
+
+    /// <summary>
+    /// Creates a child renderer that draws the same FOV mesh before regular sprites
+    /// (negative sorting order) using the color-less FovStencilPrepass shader. This puts
+    /// stencil = 1 in place early, so sprites using Custom/SpriteFovMasked are clipped
+    /// pixel-perfectly at the vision boundary instead of being merely darkened.
+    /// </summary>
+    private void CreateStencilPrepass()
+    {
+        Shader prepassShader = Shader.Find("Custom/FovStencilPrepass");
+        if (prepassShader == null)
+        {
+            Debug.LogWarning("[FieldOfView] Custom/FovStencilPrepass shader not found — SpriteFovMasked sprites will not be clipped.");
+            return;
+        }
+
+        var child = new GameObject("FOV Stencil Prepass");
+        child.transform.SetParent(transform, false);
+
+        child.AddComponent<MeshFilter>().sharedMesh = viewMesh;
+        var childMr = child.AddComponent<MeshRenderer>();
+        childMr.sharedMaterial = new Material(prepassShader);
+        childMr.sortingLayerName = sortingLayerName;
+        childMr.sortingOrder = stencilPrepassSortingOrder;
     }
 
     private void LateUpdate()
@@ -101,15 +139,14 @@ public class FieldOfView : MonoBehaviour
         float sweepAngle = useNearCircle ? 360f : currentViewAngle;
         float startAngle = useNearCircle ? facingAngle - 180f : facingAngle - currentViewAngle / 2f;
 
-        int stepCount = Mathf.Max(1, Mathf.RoundToInt(sweepAngle * raysPerDegree));
-        float stepSize = sweepAngle / stepCount;
+        BuildAngleSweep(useNearCircle, sweepAngle, startAngle);
 
-        List<Vector3> viewPoints = new List<Vector3>(stepCount + 16);
+        viewPoints.Clear();
         ViewCastInfo prevCast = default;
 
-        for (int i = 0; i <= stepCount; i++)
+        for (int i = 0; i < angleBuffer.Count; i++)
         {
-            float angle = startAngle + stepSize * i;
+            float angle = angleBuffer[i];
             ViewCastInfo cast = Cast(angle);
 
             if (i > 0)
@@ -128,11 +165,12 @@ public class FieldOfView : MonoBehaviour
         }
 
         int vertCount = viewPoints.Count + 1;
-        Vector3[] vertices = new Vector3[vertCount];
-        // UV.x encodes normalized distance from the player (0 = center, 1 = that ray's reach).
-        // Used by the FovMaskWriter shader to fade darkness in near the edge.
-        Vector2[] uvs = new Vector2[vertCount];
-        int[] triangles = new int[(vertCount - 2) * 3];
+        if (vertices.Length != vertCount)
+        {
+            vertices = new Vector3[vertCount];
+            uvs = new Vector2[vertCount];
+            triangles = new int[(vertCount - 2) * 3];
+        }
 
         Vector2 origin = transform.position;
         vertices[0] = Vector3.zero;
@@ -166,6 +204,41 @@ public class FieldOfView : MonoBehaviour
         viewMesh.uv = uvs;
         viewMesh.triangles = triangles;
         viewMesh.RecalculateNormals();
+    }
+
+    /// <summary>
+    /// Fills angleBuffer with the angles to raycast this frame. Inside the cone, uses full
+    /// raysPerDegree resolution (cone quality is untouched); outside the cone (the near-vision/
+    /// lantern circle behind/beside the player, only relevant when useNearCircle is true), uses
+    /// the much coarser nearCircleRaysPerDegree — that region doesn't need cone-level smoothness,
+    /// so this cuts total raycasts without reducing what the player actually sees ahead of them.
+    /// </summary>
+    private void BuildAngleSweep(bool useNearCircle, float sweepAngle, float startAngle)
+    {
+        angleBuffer.Clear();
+
+        if (!useNearCircle)
+        {
+            int stepCount = Mathf.Max(1, Mathf.RoundToInt(sweepAngle * raysPerDegree));
+            float stepSize = sweepAngle / stepCount;
+            for (int i = 0; i <= stepCount; i++)
+                angleBuffer.Add(startAngle + stepSize * i);
+            return;
+        }
+
+        float coneStep = 1f / Mathf.Max(0.01f, raysPerDegree);
+        float outerStep = Mathf.Max(coneStep, 1f / Mathf.Max(0.01f, nearCircleRaysPerDegree));
+        float halfCone = viewAngle * 0.5f;
+        float end = startAngle + sweepAngle;
+
+        float angle = startAngle;
+        while (angle < end)
+        {
+            angleBuffer.Add(angle);
+            float distFromFacing = Mathf.Abs(Mathf.DeltaAngle(facingAngle, angle));
+            angle += distFromFacing <= halfCone ? coneStep : outerStep;
+        }
+        angleBuffer.Add(end);
     }
 
     /// <summary>

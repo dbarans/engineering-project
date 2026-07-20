@@ -389,6 +389,7 @@ GameObject:
   - component: {fileID: 5153235430892638495}
   - component: {fileID: 5255311201659851376}
   - component: {fileID: 8613185589414859183}
+  - component: {fileID: 8613185589414859184}
   m_Layer: 7
   m_Name: BlindListenerEnemy
   m_TagString: Untagged
@@ -510,8 +511,6 @@ MonoBehaviour:
   rotateToFaceTarget: 1
   spriteForwardOffsetDeg: -90
   turnSpeedDeg: 540
-  attackRange: 1.2
-  attackCooldown: 1.5
   walkSyncReferenceSpeed: 1.64
   minWalkSpeedMultiplier: 0.3
   maxWalkSpeedMultiplier: 3
@@ -529,6 +528,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HideableObject
   playerFov: {fileID: 0}
   visibilityCheckPoint: {fileID: 0}
+  checkEveryNFrames: 3
 --- !u!114 &4581907739179917010
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -570,6 +570,7 @@ MonoBehaviour:
   hearingBlockerMask:
     serializedVersion: 2
     m_Bits: 768
+  heardNoiseRetention: 0.35
 --- !u!114 &8613185589414859183
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -586,7 +587,8 @@ MonoBehaviour:
   moveSpeed: 3
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
-  alwaysDetectRange: 1.5
+  alwaysDetectRange: 2.5
+  detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
   investigateArrivalThreshold: 0.35
   waypoints: []
@@ -594,3 +596,19 @@ MonoBehaviour:
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
   skipInvestigateWhenLostPlayer: 0
+--- !u!114 &8613185589414859184
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6831290240910429170}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b29dd2c3d008a11dcf511026fd07371, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeleeAttack
+  attackRange: 1.2
+  attackCooldown: 1.5
+  attackDamage: 20
+  attackHitDelay: 0.4

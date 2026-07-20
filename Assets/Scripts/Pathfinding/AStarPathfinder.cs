@@ -1,8 +1,12 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 /// <summary>
-/// Grid-based A* pathfinder (4-direction movement).
+/// Grid-based A* pathfinder (4-direction movement). Scratch buffers (score/visited/parent grids)
+/// are cached per <see cref="PathfindingGrid"/> and reused across searches instead of being
+/// allocated on every call — each chasing enemy re-paths every repathInterval, so this avoids
+/// repeated GC allocations proportional to grid size × enemy count × repath frequency.
 /// </summary>
 public static class AStarPathfinder
 {
@@ -13,6 +17,20 @@ public static class AStarPathfinder
         new Vector2Int(0, 1),
         new Vector2Int(0, -1)
     };
+
+    private class Scratch
+    {
+        public int Width;
+        public int Height;
+        public float[,] GScore;
+        public bool[,] Closed;
+        public bool[,] InOpen;
+        public int[,] ParentX;
+        public int[,] ParentY;
+        public readonly List<Vector2Int> Open = new List<Vector2Int>();
+    }
+
+    private static readonly ConditionalWeakTable<PathfindingGrid, Scratch> ScratchByGrid = new ConditionalWeakTable<PathfindingGrid, Scratch>();
 
     /// <summary>
     /// Finds a path from start to target world position.
@@ -34,23 +52,27 @@ public static class AStarPathfinder
         int width = grid.Width;
         int height = grid.Height;
 
-        float[,] gScore = new float[width, height];
-        bool[,] closed = new bool[width, height];
-        bool[,] inOpen = new bool[width, height];
-        int[,] parentX = new int[width, height];
-        int[,] parentY = new int[width, height];
+        Scratch scratch = GetScratch(grid, width, height);
+        float[,] gScore = scratch.GScore;
+        bool[,] closed = scratch.Closed;
+        bool[,] inOpen = scratch.InOpen;
+        int[,] parentX = scratch.ParentX;
+        int[,] parentY = scratch.ParentY;
 
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
             {
                 gScore[x, y] = float.PositiveInfinity;
+                closed[x, y] = false;
+                inOpen[x, y] = false;
                 parentX[x, y] = -1;
                 parentY[x, y] = -1;
             }
         }
 
-        var open = new List<Vector2Int>();
+        var open = scratch.Open;
+        open.Clear();
         var start = new Vector2Int(startX, startY);
         var target = new Vector2Int(targetX, targetY);
 
@@ -97,6 +119,32 @@ public static class AStarPathfinder
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Returns the cached scratch buffers for this grid, (re)allocating them only when the
+    /// grid's dimensions changed since the last search (or on first use).
+    /// </summary>
+    private static Scratch GetScratch(PathfindingGrid grid, int width, int height)
+    {
+        if (!ScratchByGrid.TryGetValue(grid, out Scratch scratch))
+        {
+            scratch = new Scratch();
+            ScratchByGrid.Add(grid, scratch);
+        }
+
+        if (scratch.Width != width || scratch.Height != height)
+        {
+            scratch.Width = width;
+            scratch.Height = height;
+            scratch.GScore = new float[width, height];
+            scratch.Closed = new bool[width, height];
+            scratch.InOpen = new bool[width, height];
+            scratch.ParentX = new int[width, height];
+            scratch.ParentY = new int[width, height];
+        }
+
+        return scratch;
     }
 
     private static int GetBestOpenIndex(List<Vector2Int> open, float[,] gScore, Vector2Int target)

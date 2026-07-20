@@ -11,6 +11,7 @@ public class FieldOfView : MonoBehaviour
 {
     [Header("View Settings")]
     [SerializeField] private float viewRadius = 8f;
+    [Tooltip("Base view cone angle. Temporarily overridden while aiming — see SetAimNarrowing.")]
     [Range(1, 360)]
     [SerializeField] private float viewAngle = 360f;
     [Tooltip("Small 360° visibility radius around the player, in addition to the cone (Darkwood-style). Set to 0 to disable.")]
@@ -46,9 +47,34 @@ public class FieldOfView : MonoBehaviour
     [Tooltip("Order in layer for the stencil prepass child. Must be lower than every sprite using the SpriteFovMasked material, so the FOV stencil exists before those sprites are drawn.")]
     [SerializeField] private int stencilPrepassSortingOrder = -10;
 
+    [Header("Aiming")]
+    [Tooltip("How fast the view angle narrows toward its aim target, in degrees/second. Independent of how fast the aim itself charges — the FOV eases toward the target on its own pace instead of tracking the charge progress 1:1.")]
+    [SerializeField] private float aimTransitionSpeed = 40f;
+    [Tooltip("How fast the view angle widens back to normal after aiming stops, in degrees/second. Faster than aimTransitionSpeed so releasing aim feels snappy while still easing smoothly (not an instant jump).")]
+    [SerializeField] private float aimReturnSpeed = 240f;
+
     private Mesh viewMesh;
     private MeshFilter meshFilter;
     private float facingAngle;
+    private bool aimNarrowingActive;
+    private float aimNarrowAngle;
+    private float currentViewAngle;
+
+    /// <summary>
+    /// Narrows the view cone toward aimAngle while aiming (e.g. a ranged weapon's spread cone
+    /// while charging a shot) — the player trades peripheral vision for focus on the target.
+    /// The transition itself is gradual (aimTransitionSpeed), not synced to the aim's own
+    /// charge curve. Call with active = false to ease back to viewAngle. Whoever is currently
+    /// aiming (only one weapon can be equipped at a time) owns this call.
+    /// </summary>
+    public void SetAimNarrowing(bool active, float aimAngle)
+    {
+        aimNarrowingActive = active;
+        aimNarrowAngle = aimAngle;
+    }
+
+    /// <summary>Target view cone angle: viewAngle, or the aim-narrowed angle while aiming.</summary>
+    private float TargetViewAngle => aimNarrowingActive ? Mathf.Clamp(aimNarrowAngle, 1f, 360f) : viewAngle;
 
     // Reused across frames to avoid per-frame GC allocation (BuildMesh runs every LateUpdate).
     private readonly List<float> angleBuffer = new List<float>(512);
@@ -62,6 +88,7 @@ public class FieldOfView : MonoBehaviour
         meshFilter = GetComponent<MeshFilter>();
         viewMesh = new Mesh { name = "FOV Mesh" };
         meshFilter.mesh = viewMesh;
+        currentViewAngle = viewAngle;
 
         var mr = GetComponent<MeshRenderer>();
         mr.sortingLayerName = sortingLayerName;
@@ -97,6 +124,8 @@ public class FieldOfView : MonoBehaviour
 
     private void LateUpdate()
     {
+        float speed = aimNarrowingActive ? aimTransitionSpeed : aimReturnSpeed;
+        currentViewAngle = Mathf.MoveTowards(currentViewAngle, TargetViewAngle, speed * Time.deltaTime);
         BuildMesh();
     }
 
@@ -106,9 +135,9 @@ public class FieldOfView : MonoBehaviour
 
         // When the near-vision circle is active on a cone, sweep the full 360°:
         // inside the cone the reach is viewRadius, elsewhere it drops to the near radius.
-        bool useNearCircle = EffectiveNearRadius() > 0f && viewAngle < 360f;
-        float sweepAngle = useNearCircle ? 360f : viewAngle;
-        float startAngle = useNearCircle ? facingAngle - 180f : facingAngle - viewAngle / 2f;
+        bool useNearCircle = EffectiveNearRadius() > 0f && currentViewAngle < 360f;
+        float sweepAngle = useNearCircle ? 360f : currentViewAngle;
+        float startAngle = useNearCircle ? facingAngle - 180f : facingAngle - currentViewAngle / 2f;
 
         BuildAngleSweep(useNearCircle, sweepAngle, startAngle);
 
@@ -157,7 +186,7 @@ public class FieldOfView : MonoBehaviour
             // keeps the near circle mostly clear so objects behind the player stay visible.
             Vector2 dir = (Vector2)viewPoints[i] - origin;
             float pointAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-            bool isNear = useNearCircle && Mathf.Abs(Mathf.DeltaAngle(facingAngle, pointAngle)) > viewAngle * 0.5f;
+            bool isNear = useNearCircle && Mathf.Abs(Mathf.DeltaAngle(facingAngle, pointAngle)) > currentViewAngle * 0.5f;
             float reach = isNear ? EffectiveNearRadius() : viewRadius;
             uvs[i + 1] = new Vector2(Mathf.Clamp01(localPoint.magnitude / reach), isNear ? 1f : 0f);
 
@@ -235,11 +264,11 @@ public class FieldOfView : MonoBehaviour
     /// </summary>
     private float MaxDistanceForAngle(float angleDeg)
     {
-        if (EffectiveNearRadius() <= 0f || viewAngle >= 360f)
+        if (EffectiveNearRadius() <= 0f || currentViewAngle >= 360f)
             return viewRadius;
 
         float offset = Mathf.Abs(Mathf.DeltaAngle(facingAngle, angleDeg));
-        return offset <= viewAngle / 2f ? viewRadius : EffectiveNearRadius();
+        return offset <= currentViewAngle / 2f ? viewRadius : EffectiveNearRadius();
     }
 
     private ViewCastInfo Cast(float angleDeg)
@@ -302,14 +331,14 @@ public class FieldOfView : MonoBehaviour
 
         float facing = directionSource != null ? directionSource.eulerAngles.z : transform.eulerAngles.z;
 
-        if (viewAngle < 360f)
+        if (currentViewAngle < 360f)
         {
             Vector2 facingDir = new Vector2(Mathf.Cos(facing * Mathf.Deg2Rad), Mathf.Sin(facing * Mathf.Deg2Rad));
             Vector2 toPoint = (worldPoint - origin).normalized;
             float angleToPoint = Vector2.Angle(facingDir, toPoint);
 
             // Outside the cone, only the near-vision / lantern circle counts.
-            bool insideCone = angleToPoint <= viewAngle / 2f;
+            bool insideCone = angleToPoint <= currentViewAngle / 2f;
             bool insideNearCircle = EffectiveNearRadius() > 0f && distance <= EffectiveNearRadius();
             if (!insideCone && !insideNearCircle)
                 return false;

@@ -16,7 +16,17 @@ public class RangedAttack : PlayerAttack
     [SerializeField] private LineRenderer leftLine;
     [SerializeField] private LineRenderer rightLine;
 
+    [Header("Aim FOV Narrowing")]
+    [Tooltip("Field of view never narrows below this angle while aiming, even at full charge (currentSpreadAngle can get much smaller than this).")]
+    [SerializeField] private float minAimViewAngle = 25f;
+
     private float currentSpreadAngle;
+    private FieldOfView playerFov;
+
+    private void Awake()
+    {
+        playerFov = GetComponentInParent<FieldOfView>();
+    }
 
     public override void StartCharging()
     {
@@ -36,6 +46,11 @@ public class RangedAttack : PlayerAttack
             currentSpreadAngle = Mathf.Lerp(maxSpreadAngle, minSpreadAngle, progress);
 
             UpdateAimLines();
+            // Field of view eases toward minAimViewAngle while aiming (focused aim, less
+            // peripheral vision). The target is fixed, not the ever-narrowing spread cone —
+            // FieldOfView handles its own gradual transition (aimTransitionSpeed) independently
+            // of how fast the shot is charging.
+            playerFov?.SetAimNarrowing(true, minAimViewAngle);
         }
         else
         {
@@ -47,6 +62,12 @@ public class RangedAttack : PlayerAttack
     {
         base.StopCharging();
         ToggleLines(false);
+        playerFov?.SetAimNarrowing(false, 0f);
+    }
+
+    private void OnDisable()
+    {
+        playerFov?.SetAimNarrowing(false, 0f);
     }
 
     protected override void ExecuteAttack()

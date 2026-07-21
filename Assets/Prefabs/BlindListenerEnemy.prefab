@@ -93,19 +93,6 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!114 &948308133762826400
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 948308133762826366}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d581566ac545da842886e884a5b62d80, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::FovMaskedSpriteRuntime
-  clippedMaterial: {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}
 --- !u!114 &3651791535717973024
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -385,6 +372,19 @@ MonoBehaviour:
     fps: 24
     loop: 1
     nextClip: 
+--- !u!114 &948308133762826400
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 948308133762826366}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d581566ac545da842886e884a5b62d80, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FovMaskedSpriteRuntime
+  clippedMaterial: {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}
 --- !u!1 &6831290240910429170
 GameObject:
   m_ObjectHideFlags: 0
@@ -564,11 +564,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9ff8be997c0d361448203e802d91e14c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SoundPlayerDetector
-  hearingRange: 8
+  hearingRange: 23.9
   hearingBlockerMask:
     serializedVersion: 2
     m_Bits: 768
   heardNoiseRetention: 0.35
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
 --- !u!114 &8613185589414859183
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -585,7 +586,8 @@ MonoBehaviour:
   moveSpeed: 3
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
-  alwaysDetectRange: 2.5
+  alwaysDetectRange: 4.1
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
   detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
   investigateArrivalThreshold: 0.35
@@ -594,6 +596,8 @@ MonoBehaviour:
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
   skipInvestigateWhenLostPlayer: 0
+  postInvestigateBehavior: 1
+  wanderRadius: 5.7
 --- !u!114 &8613185589414859184
 MonoBehaviour:
   m_ObjectHideFlags: 0

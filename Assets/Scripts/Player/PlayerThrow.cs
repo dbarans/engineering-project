@@ -15,8 +15,8 @@ public class PlayerThrow : MonoBehaviour
     [Tooltip("Temporary direct key binding; replace with a PlayerControls action when editing the input asset.")]
     [SerializeField] private Key throwKey = Key.G;
     [SerializeField] private float throwSpeed = 12f;
-    [Tooltip("How far the landing noise carries (world units).")]
-    [SerializeField] private float landingNoiseRadius = 10f;
+    [Tooltip("Shared noise ranges asset — the landing noise radius is read from here.")]
+    [SerializeField] private NoiseSettings noiseSettings;
     [Tooltip("Fallback despawn/emit time if the projectile never hits anything.")]
     [SerializeField] private float maxFlightTime = 1.5f;
     [SerializeField] private float throwCooldown = 1f;
@@ -74,6 +74,7 @@ public class PlayerThrow : MonoBehaviour
         foreach (Collider2D playerCollider in GetComponentsInChildren<Collider2D>())
             Physics2D.IgnoreCollision(collider, playerCollider);
 
+        float landingNoiseRadius = noiseSettings != null ? noiseSettings.throwLandingRadius : 0f;
         var projectile = go.AddComponent<NoiseProjectile>();
         projectile.Initialize(landingNoiseRadius, maxFlightTime);
     }

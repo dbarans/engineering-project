@@ -10,10 +10,8 @@ public class PlayerNoiseEmitter : MonoBehaviour
 {
     [Tooltip("Seconds between noise emissions while moving.")]
     [SerializeField] private float emitInterval = 0.2f;
-    [Tooltip("How far walking footsteps carry (world units).")]
-    [SerializeField] private float walkNoiseRadius = 4f;
-    [Tooltip("How far sprinting footsteps carry (world units).")]
-    [SerializeField] private float sprintNoiseRadius = 8f;
+    [Tooltip("Shared noise ranges asset — walking/sprinting radii are read from here.")]
+    [SerializeField] private NoiseSettings noiseSettings;
 
     private PlayerMovement movement;
     private float nextEmitTime;
@@ -39,16 +37,16 @@ public class PlayerNoiseEmitter : MonoBehaviour
     /// </summary>
     private float CurrentNoiseRadius()
     {
-        if (!movement.IsMoving) return 0f;
+        if (noiseSettings == null || !movement.IsMoving) return 0f;
 
         switch (movement.CurrentMode)
         {
             case PlayerMovement.MovementMode.Sneak:
                 return 0f;
             case PlayerMovement.MovementMode.Sprint:
-                return sprintNoiseRadius;
+                return noiseSettings.sprintNoiseRadius;
             default:
-                return walkNoiseRadius;
+                return noiseSettings.walkNoiseRadius;
         }
     }
 }

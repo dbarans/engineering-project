@@ -59,9 +59,6 @@ public static class SkullGuySetup
         driverSo.FindProperty("animator").objectReferenceValue = animator;
         driverSo.ApplyModifiedProperties();
 
-        // --- Hidden outside the player's field of view (Darkwood vision) ---
-        Ensure<HideableObject>(go);
-
         // --- Assign player on EnemyBase ---
         var enemySo = new SerializedObject(enemy);
         var playerProp = enemySo.FindProperty("player");

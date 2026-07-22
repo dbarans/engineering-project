@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 6789780786709879319}
   - component: {fileID: 5278033365671871643}
   - component: {fileID: 5502223514990625725}
+  - component: {fileID: 4938097524118985200}
   m_Layer: 7
   m_Name: EnemyModel
   m_TagString: Untagged
@@ -59,7 +60,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: 6a95e0c2d7b34f18a3c8b52f19d6e483, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -371,6 +372,19 @@ MonoBehaviour:
     fps: 24
     loop: 1
     nextClip: 
+--- !u!114 &4938097524118985200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4938097524118985193}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d581566ac545da842886e884a5b62d80, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FovMaskedSpriteRuntime
+  clippedMaterial: {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}
 --- !u!1 &7423423773025333378
 GameObject:
   m_ObjectHideFlags: 0
@@ -385,10 +399,10 @@ GameObject:
   - component: {fileID: 7892708207933928237}
   - component: {fileID: 2876300555410741934}
   - component: {fileID: 8170650620769265054}
-  - component: {fileID: 7918804242314932684}
   - component: {fileID: 7423423773025333001}
   - component: {fileID: 7423423773025333002}
   - component: {fileID: 7423423773025333003}
+  - component: {fileID: 7423423773025333004}
   m_Layer: 7
   m_Name: SkullGuyEnemy
   m_TagString: Untagged
@@ -482,6 +496,9 @@ MonoBehaviour:
   moveSpeed: 1.8
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
+  alwaysDetectRange: 0.5
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
+  detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
   investigateArrivalThreshold: 0.35
   waypoints:
@@ -493,6 +510,8 @@ MonoBehaviour:
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
   skipInvestigateWhenLostPlayer: 0
+  postInvestigateBehavior: 0
+  wanderRadius: 4
 --- !u!50 &2876300555410741934
 Rigidbody2D:
   serializedVersion: 5
@@ -537,25 +556,9 @@ MonoBehaviour:
   rotateToFaceTarget: 1
   spriteForwardOffsetDeg: -90
   turnSpeedDeg: 540
-  attackRange: 1.2
-  attackCooldown: 1.5
   walkSyncReferenceSpeed: 1.64
   minWalkSpeedMultiplier: 0.3
   maxWalkSpeedMultiplier: 3
---- !u!114 &7918804242314932684
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7423423773025333378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa2410fbd902c3042ba7ad25d56e70eb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HideableObject
-  playerFov: {fileID: 0}
-  visibilityCheckPoint: {fileID: 0}
 --- !u!114 &7423423773025333001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -597,3 +600,20 @@ MonoBehaviour:
   obstacleLayers:
     serializedVersion: 2
     m_Bits: 768
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
+--- !u!114 &7423423773025333004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7423423773025333378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b29dd2c3d008a11dcf511026fd07371, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeleeAttack
+  attackRange: 1.2
+  attackCooldown: 1.5
+  attackDamage: 20
+  attackHitDelay: 0.4

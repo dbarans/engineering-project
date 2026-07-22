@@ -136,7 +136,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 9
+  orthographic size: 10
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -560,6 +560,8 @@ MonoBehaviour:
   lineLength: 15
   leftLine: {fileID: 3358374598462730033}
   rightLine: {fileID: 6444401980949971931}
+  minAimViewAngle: 25
+  noiseSettings: {fileID: 11400000, guid: c4d5e6f7a8b9010203040506070809ab, type: 2}
 --- !u!1 &6276286142702985053
 GameObject:
   m_ObjectHideFlags: 0
@@ -690,6 +692,7 @@ GameObject:
   - component: {fileID: 1438528037279594877}
   - component: {fileID: 157545601758896288}
   - component: {fileID: 1391362041904047824}
+  - component: {fileID: 6900123456789012345}
   - component: {fileID: 5570424979841258391}
   - component: {fileID: 5570424979841258392}
   - component: {fileID: 5570424979841258393}
@@ -960,6 +963,7 @@ MonoBehaviour:
   lanternEnabled: 0
   lanternRadius: 2
   raysPerDegree: 1
+  nearCircleRaysPerDegree: 0.25
   obstacleMask:
     serializedVersion: 2
     m_Bits: 768
@@ -968,6 +972,9 @@ MonoBehaviour:
   directionSource: {fileID: 2038790236695264251}
   sortingLayerName: Default
   sortingOrder: 5
+  stencilPrepassSortingOrder: -10
+  aimTransitionSpeed: 40
+  aimReturnSpeed: 240
 --- !u!114 &157545601758896288
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1012,6 +1019,20 @@ MonoBehaviour:
   - item: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
     count: 64
     toBackpack: 1
+--- !u!114 &6900123456789012345
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a2b3c4d5e6f70819203a4b5c6d7e8f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerNoiseRangeGizmos
+  noiseSettings: {fileID: 11400000, guid: c4d5e6f7a8b9010203040506070809ab, type: 2}
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
 --- !u!114 &5570424979841258391
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1037,8 +1058,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNoiseEmitter
   emitInterval: 0.2
-  walkNoiseRadius: 4
-  sprintNoiseRadius: 8
+  noiseSettings: {fileID: 11400000, guid: c4d5e6f7a8b9010203040506070809ab, type: 2}
 --- !u!114 &5570424979841258393
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1053,7 +1073,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerThrow
   throwKey: 21
   throwSpeed: 12
-  landingNoiseRadius: 10
+  noiseSettings: {fileID: 11400000, guid: c4d5e6f7a8b9010203040506070809ab, type: 2}
   maxFlightTime: 1.5
   throwCooldown: 1
   spawnOffset: 0.6

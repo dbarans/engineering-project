@@ -685,7 +685,7 @@ GameObject:
   - component: {fileID: 5570424979841258393}
   m_Layer: 6
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -953,7 +953,7 @@ MonoBehaviour:
   nearCircleRaysPerDegree: 0.25
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 768
+    m_Bits: 4864
   edgeDistanceThreshold: 0.5
   edgeResolveIterations: 4
   directionSource: {fileID: 2038790236695264251}
@@ -1253,7 +1253,7 @@ MonoBehaviour:
   chargeTimeRequired: 1.5
   enemyLayer:
     serializedVersion: 2
-    m_Bits: 128
+    m_Bits: 4224
   attackPoint: {fileID: 7231161171343297202}
   minAttackRadius: 0.3
   maxAttackRadius: 0.9

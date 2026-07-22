@@ -32,7 +32,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerMovement
     /// Standing still makes no noise even outside Sneak mode.
     /// </summary>
     public bool IsMoving => rb.linearVelocity.sqrMagnitude > movingSpeedThreshold * movingSpeedThreshold;
-
+    public bool IsSprinting => currentMode == MovementMode.Sprint && IsMoving;
     private void ApplyModeSettings()
     {
         switch(currentMode)

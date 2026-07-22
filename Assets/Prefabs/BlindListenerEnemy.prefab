@@ -403,9 +403,10 @@ GameObject:
   - component: {fileID: 5255311201659851376}
   - component: {fileID: 8613185589414859183}
   - component: {fileID: 8613185589414859184}
+  - component: {fileID: 8297037061503491443}
   m_Layer: 7
   m_Name: BlindListenerEnemy
-  m_TagString: Untagged
+  m_TagString: Enemy
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -614,3 +615,17 @@ MonoBehaviour:
   attackCooldown: 1.5
   attackDamage: 20
   attackHitDelay: 0.4
+--- !u!114 &8297037061503491443
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6831290240910429170}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7bf25e300f3de3043925f805def92c09, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyDoorAttacker
+  damagePerHit: 25
+  attackInterval: 1.2

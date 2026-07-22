@@ -6,7 +6,7 @@ public class RangedAttack : PlayerAttack
     [Header("Ranged Settings")]
     [SerializeField] private GameObject projectilePrefab;
     [SerializeField] private Transform shootPoint;
-    
+
     [Header("Accuracy Settings")]
     [SerializeField] private float maxSpreadAngle = 40f;
     [SerializeField] private float minSpreadAngle = 2f;
@@ -79,6 +79,12 @@ public class RangedAttack : PlayerAttack
         float randomOffset = UnityEngine.Random.Range(-currentSpreadAngle / 2f, currentSpreadAngle / 2f);
         Quaternion shootRotation = shootPoint.rotation * Quaternion.Euler(0, 0, randomOffset);
         Instantiate(projectilePrefab, shootPoint.position, shootRotation);
+
+        CameraShake shaker = FindFirstObjectByType<CameraShake>();
+        if (shaker != null)
+        {
+            shaker.TriggerShake(0.08f, 0.4f);
+        }
         if (noiseSettings != null)
             NoiseEvents.Emit(shootPoint.position, noiseSettings.shootNoiseRadius);
     }

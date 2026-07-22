@@ -59,6 +59,14 @@ public class MeleeAttack : PlayerAttack
         }
 
         FlashAttackArea(center, radius);
+
+        CameraShake shaker = FindFirstObjectByType<CameraShake>();
+        if (shaker != null)
+        {
+            float shakeForceMultiplier = Mathf.Lerp(0.4f, 1.5f, progress);
+
+            shaker.TriggerShake(0.15f, 0.2f, shakeForceMultiplier);
+        }
     }
 
     /// <summary>Attack circle center: the attack point pushed forward along the aim direction.</summary>

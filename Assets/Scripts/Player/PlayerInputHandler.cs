@@ -14,6 +14,7 @@ public class PlayerInputHandler : MonoBehaviour
     [SerializeField] private PlayerLegs playerLegs;
     [SerializeField] private PlayerAttack currentAttack;
     [SerializeField] private PlayerStaminaSystem playerStamina;
+    [SerializeField] private PlayerHiding playerHiding;
     [SerializeField] private BackpackUI backpackUI;
 
     private IGameStateManager gameStateManager;
@@ -27,6 +28,7 @@ public class PlayerInputHandler : MonoBehaviour
     {
         controls = new PlayerControls();
         if (playerStamina == null) playerStamina = GetComponent<PlayerStaminaSystem>();
+        if (playerHiding == null) playerHiding = GetComponent<PlayerHiding>();
         if (backpackUI == null) backpackUI = FindFirstObjectByType<BackpackUI>();
     }
 
@@ -39,10 +41,20 @@ public class PlayerInputHandler : MonoBehaviour
         gameStateManager = manager;
     }
 
+    /// <summary>
+    /// True while the player is hidden under something (see <see cref="PlayerHiding"/>) and so
+    /// must stay crouched: neither releasing Ctrl nor running out of stamina may stand them up
+    /// into the object above them. They leave the crouch by walking out of the hideout.
+    /// </summary>
+    private bool CrouchLocked => playerHiding != null && playerHiding.IsHidden;
+
     private void ForceStopSprint()
     {
-        movementState = MovementState.Walk;
-        playerMovement.SetMovementMode(PlayerMovement.MovementMode.Walk);
+        bool locked = CrouchLocked;
+        movementState = locked ? MovementState.Sneaking : MovementState.Walk;
+        playerMovement.SetMovementMode(locked
+            ? PlayerMovement.MovementMode.Sneak
+            : PlayerMovement.MovementMode.Walk);
         playerStamina?.SetSprinting(false);
     }
 
@@ -52,6 +64,9 @@ public class PlayerInputHandler : MonoBehaviour
 
         if (playerStamina != null)
             playerStamina.OnStaminaDepletedWhileSprinting += ForceStopSprint;
+
+        if (playerHiding != null)
+            playerHiding.InHideoutChanged += OnInHideoutChanged;
 
         // Subscribe to input events
         controls.Player.Move.performed += OnMovePerformed;
@@ -73,6 +88,9 @@ public class PlayerInputHandler : MonoBehaviour
     {
         if (playerStamina != null)
             playerStamina.OnStaminaDepletedWhileSprinting -= ForceStopSprint;
+
+        if (playerHiding != null)
+            playerHiding.InHideoutChanged -= OnInHideoutChanged;
 
         // Unsubscribe to prevent memory leaks
         controls.Player.Move.performed -= OnMovePerformed;
@@ -150,6 +168,7 @@ public class PlayerInputHandler : MonoBehaviour
     private void OnSprintPerformed(InputAction.CallbackContext context)
     {
         if (isAiming) return;
+        if (CrouchLocked) return;
 
         if (movementState == MovementState.Walk && (playerStamina == null || playerStamina.CanSprint()))
         {
@@ -170,7 +189,32 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void OnMovementModifierCanceled(InputAction.CallbackContext context)
     {
-        if (!isAiming && controls.Player.Sprint.IsPressed() && (playerStamina == null || playerStamina.CanSprint()))
+        ApplyMovementModifierState();
+    }
+
+    /// <summary>
+    /// Fired when the player leaves the last hideout. Crouch was locked on while inside, so the
+    /// mode now has to be re-derived from the keys actually held — Ctrl may have been released
+    /// long before the player walked out from under the table.
+    /// </summary>
+    private void OnInHideoutChanged(bool inHideout)
+    {
+        if (!inHideout) ApplyMovementModifierState();
+    }
+
+    /// <summary>
+    /// Re-derives the movement mode from the movement modifier keys currently held, or forces
+    /// Sneak while crouch is locked by a hideout.
+    /// </summary>
+    private void ApplyMovementModifierState()
+    {
+        if (CrouchLocked)
+        {
+            movementState = MovementState.Sneaking;
+            playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sneak);
+            playerStamina?.SetSprinting(false);
+        }
+        else if (!isAiming && controls.Player.Sprint.IsPressed() && (playerStamina == null || playerStamina.CanSprint()))
         {
             movementState = MovementState.Sprinting;
             playerMovement.SetMovementMode(PlayerMovement.MovementMode.Sprint);

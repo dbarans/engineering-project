@@ -73,6 +73,8 @@ public abstract class EnemyBase : MonoBehaviour
     private IMovementStrategy movementStrategy;
     private IPlayerDetector[] detectors;
     private INoiseSensor noiseSensor;
+    private IPlayerConcealment playerConcealment;
+    private Transform concealmentSource;
     private Rigidbody2D rb;
     private float lastDetectionTime = float.NegativeInfinity;
     private Vector2 noiseTargetPosition;
@@ -340,10 +342,14 @@ public abstract class EnemyBase : MonoBehaviour
     /// Detects the player by querying every <see cref="IPlayerDetector"/> component on the enemy
     /// (e.g. <see cref="VisionPlayerDetector"/>, <see cref="SoundPlayerDetector"/>). Player is
     /// detected if any detector succeeds, or unconditionally within alwaysDetectRange.
+    /// A concealed player (crouched under a table) is never detected — that check comes first,
+    /// so hiding beats even alwaysDetectRange.
     /// </summary>
     private bool IsPlayerDetected()
     {
         if (player == null) return false;
+
+        if (IsPlayerConcealed()) return false;
 
         if (Vector2.Distance(transform.position, player.position) <= alwaysDetectRange) return true;
 
@@ -356,6 +362,22 @@ public abstract class EnemyBase : MonoBehaviour
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// True while the player is hidden by the world itself (see <see cref="IPlayerConcealment"/>).
+    /// Resolved lazily and re-resolved whenever the player reference changes, since it is a
+    /// serialized field that can be reassigned at runtime.
+    /// </summary>
+    private bool IsPlayerConcealed()
+    {
+        if (concealmentSource != player)
+        {
+            concealmentSource = player;
+            playerConcealment = player.GetComponent<IPlayerConcealment>();
+        }
+
+        return playerConcealment != null && playerConcealment.IsConcealed;
     }
 
     /// <summary>

@@ -36,6 +36,7 @@ public static class CraftingBoxSetup
         "Assets/Items/Recipes/Recipe 1 - Sword.asset",
         "Assets/Items/Recipes/Recipe 2 - Mana Potion.asset",
         "Assets/Items/Recipes/Recipe 3 - Wood.asset",
+        "Assets/Items/Recipes/Recipe 4 - Ink.asset",   // craft Ink (save cost) from Wood
     };
 
     [MenuItem("Tools/Slot Inventory/Build Crafting Box")]

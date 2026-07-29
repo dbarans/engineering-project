@@ -23,6 +23,7 @@ public static class SaveStationSetup
     private const string StationPrefabPath = "Assets/Prefabs/World/SaveStation.prefab";
     private const string SlotBgSpritePath = "Assets/Art/GDS/Sprites/ui/backgrounds/bg-slot.png";
     private const string WindowBgSpritePath = "Assets/Art/GDS/Sprites/ui/backgrounds/bg-window.png";
+    private const string InkItemPath = "Assets/Items/Item 6 - Ink.asset";  // ink = the save cost
 
     private const int InteractableLayer = 10;      // "Interactable" — semantic grouping of usable props
     private const float StationScale = 0.35f;      // 362px sprite @100ppu → ~1.3 world units
@@ -59,10 +60,13 @@ public static class SaveStationSetup
         EditorUtility.DisplayDialog("Save Station",
             "Setup complete.\n\n• SaveStation prefab (typewriter) + scene instance\n" +
             "• Full-screen Save/Load screen (5 slots) on the main canvas\n" +
+            "• Ink cost: each save spends one Ink item; the screen shows how many\n" +
+            "  saves the carried ink allows and greys out when out of ink\n" +
             "• 'Game saved' toast in the lower-right corner\n\n" +
-            "In Play mode left-click the typewriter. Saving over an occupied slot asks " +
-            "for confirmation; after a save the screen closes and the toast confirms it; " +
-            "Load is clickable only on occupied slots.",
+            "In Play mode left-click the typewriter. Saving needs Ink in the inventory " +
+            "and consumes one per save; saving over an occupied slot asks for confirmation; " +
+            "after a save the screen closes and the toast confirms it; Load is clickable " +
+            "only on occupied slots.",
             "OK");
 
         if (station != null)
@@ -170,6 +174,16 @@ public static class SaveStationSetup
         rootRt.SetAsLastSibling(); // must draw over the backpack/crafting windows
         var ui = rootRt.gameObject.AddComponent<SaveLoadUI>();
 
+        // Ink cost: each save spends one Ink item from the inventory.
+        var saveCost = rootRt.gameObject.AddComponent<SaveCost>();
+        var inkItem = AssetDatabase.LoadAssetAtPath<ItemData>(InkItemPath);
+        if (inkItem == null)
+            Debug.LogWarning(
+                $"[SaveStation] Ink item not found at '{InkItemPath}' — saving will be free " +
+                "until the asset exists. Run Tools ▸ Save System ▸ Rebuild Item Database if it does.");
+        SetRef(saveCost, "saveItem", inkItem);
+        SetRef(ui, "saveCost", saveCost);
+
         var panelRt = NewUI("Panel", rootRt);
         Stretch(panelRt, 0);
         var panelImg = panelRt.gameObject.AddComponent<Image>();
@@ -189,6 +203,15 @@ public static class SaveStationSetup
         PlaceTopCenter((RectTransform)loadTab.transform, new Vector2(85, -130));
         StyleTab(saveTab);
         StyleTab(loadTab);
+
+        // Ink counter under the tabs: how many saves the carried ink allows.
+        var cost = MakeLabel("CostLabel", panelRt, "Ink: 0", 24, FontStyles.Bold,
+            TextAlignmentOptions.Center);
+        var costRt = (RectTransform)cost.transform;
+        costRt.anchorMin = costRt.anchorMax = new Vector2(0.5f, 1f);
+        costRt.pivot = new Vector2(0.5f, 1f);
+        costRt.sizeDelta = new Vector2(600, 34);
+        costRt.anchoredPosition = new Vector2(0, -186);
 
         // Slot rows in a fixed centered column.
         int slotCount = SaveManager.MaxSlots;
@@ -248,6 +271,7 @@ public static class SaveStationSetup
         // Wire the behaviour.
         SetRef(ui, "panelRoot", panelRt.gameObject);
         SetRef(ui, "titleLabel", title);
+        SetRef(ui, "costLabel", cost);
         SetRef(ui, "saveTabButton", saveTab);
         SetRef(ui, "loadTabButton", loadTab);
         SetRef(ui, "closeButton", close);

@@ -1097,7 +1097,7 @@ MonoBehaviour:
   bodyCollider: {fileID: 5284207013399126457}
   crouchPassableLayers:
     serializedVersion: 2
-    m_Bits: 4096
+    m_Bits: 8192
 --- !u!1 &6661940005107315833
 GameObject:
   m_ObjectHideFlags: 0

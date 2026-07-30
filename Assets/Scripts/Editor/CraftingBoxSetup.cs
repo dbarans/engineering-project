@@ -30,12 +30,17 @@ public static class CraftingBoxSetup
     private const float GridPadding = 4f;   // GridLayoutGroup inner padding (all sides)
     private const float SlotsInset = 8f;     // gap from panel edge to the slots area (L/R/B)
     private const float TitleHeight = 40f;   // reserved strip at the panel top for the title
+    private const float FooterHeight = 44f;  // reserved strip at the panel bottom for the repair button
+    private const float RepairButtonWidth = 190f;
+    private const float RepairButtonHeight = 34f;
 
+    // Recipes always available in the box, even away from a crafting table. The
+    // table-gated recipes (Sword, Mana Potion) live on the CraftingTable instead — see
+    // CraftingTableSetup — so they only show up when the player stands at a table.
     private static readonly string[] RecipePaths =
     {
-        "Assets/Items/Recipes/Recipe 1 - Sword.asset",
-        "Assets/Items/Recipes/Recipe 2 - Mana Potion.asset",
         "Assets/Items/Recipes/Recipe 3 - Wood.asset",
+        "Assets/Items/Recipes/Recipe 4 - Ink.asset",   // craft Ink (save cost) from Wood
     };
 
     [MenuItem("Tools/Slot Inventory/Build Crafting Box")]
@@ -167,6 +172,7 @@ public static class CraftingBoxSetup
             if (existing.transform.parent != canvas.transform)
                 existing.transform.SetParent(canvas.transform, false);
             ConfigureGrid(GetSlotsGrid(existing));            // refresh columns/alignment
+            EnsureRepairFooter(existing);                     // footer strip + repair button
             ApplyPanelLayout(existing, backpack, recipeCount); // keep size/position in sync
             return existing;
         }
@@ -202,7 +208,7 @@ public static class CraftingBoxSetup
         var slotsRt = NewUI("Slots", panelRt);
         slotsRt.anchorMin = Vector2.zero;
         slotsRt.anchorMax = Vector2.one;
-        slotsRt.offsetMin = new Vector2(SlotsInset, SlotsInset);
+        slotsRt.offsetMin = new Vector2(SlotsInset, SlotsInset + FooterHeight); // leave the footer strip
         slotsRt.offsetMax = new Vector2(-SlotsInset, -TitleHeight);
         ConfigureGrid(slotsRt.gameObject.AddComponent<GridLayoutGroup>());
 
@@ -210,7 +216,8 @@ public static class CraftingBoxSetup
         SetRef(box, "slotsContainer", slotsRt);
         SetRef(box, "slotPrefab", slotPrefab);
 
-        ApplyPanelLayout(box, backpack, recipeCount); // size to rows, place beside backpack
+        EnsureRepairFooter(box);                        // footer strip + repair button
+        ApplyPanelLayout(box, backpack, recipeCount);   // size to rows, place beside backpack
 
         Undo.RegisterCreatedObjectUndo(rootRt.gameObject, "Create Crafting Box");
         return box;
@@ -233,7 +240,7 @@ public static class CraftingBoxSetup
         float gridWidth = MaxColumns * CellSize + (MaxColumns - 1) * CellSpacing + 2 * GridPadding;
         float gridHeight = rows * CellSize + (rows - 1) * CellSpacing + 2 * GridPadding;
         float width = gridWidth + 2 * SlotsInset;
-        float height = gridHeight + TitleHeight + SlotsInset; // title strip on top, inset below
+        float height = gridHeight + TitleHeight + SlotsInset + FooterHeight; // title on top, footer + inset below
         var size = new Vector2(width, height);
 
         panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
@@ -252,6 +259,63 @@ public static class CraftingBoxSetup
         float backpackTop = bpRt.anchoredPosition.y + bpRt.sizeDelta.y * 0.5f;
         float y = backpackTop - size.y * 0.5f;
         panel.anchoredPosition = new Vector2(x, y);
+    }
+
+    /// <summary>
+    /// Ensures the panel reserves a bottom footer strip and holds the weapon-repair
+    /// button, then wires it to the box. Idempotent: fixes the Slots inset and reuses an
+    /// existing button on re-runs. <see cref="CraftingBoxUI"/> shows/hides the button at
+    /// runtime depending on whether a crafting table is in range.
+    /// </summary>
+    private static void EnsureRepairFooter(CraftingBoxUI box)
+    {
+        var panel = GetPanelRect(box);
+        if (panel == null) return;
+
+        // Reserve the footer band inside the Slots rect (idempotent; upgrades older panels).
+        var slots = new SerializedObject(box).FindProperty("slotsContainer").objectReferenceValue as RectTransform;
+        if (slots != null)
+            slots.offsetMin = new Vector2(SlotsInset, SlotsInset + FooterHeight);
+
+        var existing = panel.Find("RepairButton") as RectTransform;
+        GameObject buttonGo = existing != null ? existing.gameObject : BuildRepairButton(panel);
+
+        SetRef(box, "repairButtonRoot", buttonGo);
+    }
+
+    /// <summary>
+    /// Builds the "Repair Weapon" button, centered in the panel's bottom footer strip:
+    /// a clickable background + label, carrying the placeholder <see cref="WeaponRepairButton"/>.
+    /// </summary>
+    private static GameObject BuildRepairButton(RectTransform panel)
+    {
+        var rt = NewUI("RepairButton", panel);
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.sizeDelta = new Vector2(RepairButtonWidth, RepairButtonHeight);
+        // Sit in the footer band, above the SlotsInset bottom margin.
+        rt.anchoredPosition = new Vector2(0f, SlotsInset + (FooterHeight - RepairButtonHeight) * 0.5f);
+
+        var img = rt.gameObject.AddComponent<Image>();
+        img.color = new Color(0.22f, 0.2f, 0.17f, 0.95f);
+        var bgSprite = AssetDatabase.LoadAssetAtPath<Sprite>(SlotBgSpritePath);
+        if (bgSprite != null) { img.sprite = bgSprite; img.type = Image.Type.Sliced; }
+
+        var button = rt.gameObject.AddComponent<Button>();
+        button.targetGraphic = img;
+        rt.gameObject.AddComponent<WeaponRepairButton>();
+
+        var labelRt = NewUI("Label", rt);
+        Stretch(labelRt, 2);
+        var text = labelRt.gameObject.AddComponent<TextMeshProUGUI>();
+        text.text = "Repair Weapon";
+        text.alignment = TextAlignmentOptions.Center;
+        text.fontSize = 20;
+        text.fontStyle = FontStyles.Bold;
+        text.raycastTarget = false;
+        if (TMP_Settings.defaultFontAsset != null) text.font = TMP_Settings.defaultFontAsset;
+
+        return rt.gameObject;
     }
 
     /// <summary>

@@ -2,6 +2,26 @@
 
 Working reference for the Enemy system, maintained across branches (`GU-0032-enemy-sound-tracking`, `GU-0033-enemy-investigate-linger`, ...) and kept up to date whenever Enemy-related code changes are committed.
 
+## Hiding under a table — concealment beats every detector
+
+New `Table.prefab` (art `Art/FURNITURE_pngy_stol.png`): a barrel-like obstacle while standing, a hiding spot while crouching (Ctrl — crouch is the existing `Sneak` movement mode, not a new action).
+
+**`Interfaces/IPlayerConcealment.cs`** (`bool IsConcealed`) — implemented by `Player/PlayerHiding.cs` on the Player prefab. `EnemyBase.IsPlayerDetected()` checks `IsPlayerConcealed()` **first**, before `alwaysDetectRange` and before any `IPlayerDetector`, so a hidden player cannot be found even point blank. The reference is resolved lazily off the serialized `player` transform and re-resolved if that transform is reassigned. Hearing needed no change: crouching is already silent in `PlayerNoiseEmitter`, and crouch cannot be released while hidden. A chase already in progress still lingers for `detectionMemoryDuration`, then investigates the last known position and gives up — the intended stealth behaviour, not a bug.
+
+**Layer `CrouchPassable` (12)**, added to `ProjectSettings/TagManager.asset`. The table is split across two colliders because "blocks pathfinding", "blocks a standing body" and "counts as hidden" are three different shapes:
+- **Root `Table`, layer `ObstaclePathOnly` (11), trigger box over the full sprite** — the concealment footprint (`World/CrouchHideout.cs`), and the pathfinding blocker. Reusing layer 11 is deliberate: `PathfindingGrid.obstacleMask` already includes it for `Barrel`, so **no scene-side mask edits are needed**, and `FieldOfView.obstacleMask` (768) still ignores it, so vision passes over the table and the FOV stencil covers the ground under it (see the Barrel gotcha in GU-0036).
+- **Child `Solid`, layer `CrouchPassable` (12), non-trigger box inset 0.12 local units per side** — the physical obstacle. `PlayerHiding` adds layer 12 to the player collider's `excludeLayers` while crouching and removes it otherwise, so a crouching player walks through and a standing one is blocked. Enemies never exclude it, so the table blocks them at all times.
+
+The inset matters: the player only ever leaves a hideout on `OnTriggerExit2D`, and the solid box is smaller than the trigger, so by the time crouch unlocks the player is provably clear of the box it is about to re-collide with. 0.12 local ≈ 0.03 world at the prefab's 0.25 scale — 3× the 0.01 default contact offset.
+
+**Crouch lock.** While `PlayerHiding.IsHidden` (inside a hideout *and* in Sneak), `PlayerInputHandler.CrouchLocked` keeps the player crouched: releasing Ctrl, or draining stamina mid-sprint, cannot stand them up into the table, and sprint is refused. They leave by walking out; `PlayerHiding.InHideoutChanged` then makes the input handler re-derive the mode from the keys actually held (`ApplyMovementModifierState`, extracted from `OnMovementModifierCanceled`). Overlapping hideouts are counted, not flagged, so walking from one table straight into another never un-hides the player mid-step.
+
+`PlayerMovement` gained `MovementModeChanged` (raised only on a real change) so `PlayerHiding` can toggle passability without polling.
+
+The table's `SpriteRenderer` sits at sorting order 1, above the player's 0, so it covers the player underneath. Since a standing player can never overlap the solid box, this only ever draws over the player while they are hidden.
+
+**The table deliberately does NOT use `SpriteFovMasked` / `FovMaskedSpriteRuntime` — do not "fix" it to match `Barrel`.** It carries the plain `Sprite-Lit-Default`, like the floor and wall sprites, so outside the FOV it is dimmed by `DarknessOverlay` rather than hard-clipped away. It was first built as a copy of `Barrel` (masked + clipped) and that was wrong: a table is a *hiding spot*, and clipping it means the player cannot see anywhere to hide until it is already inside the vision cone, which fights the stealth loop. This is the GU-0036 rule applied as written — only "occupants" of the world (enemies, items) vanish completely; environment and furniture are dimmed.
+
 ## GU-0036: removed HideableObject — enemies/items are now stencil-clipped at the vision boundary
 
 `Vision/HideableObject.cs` toggled `renderer.enabled` on a single-point `FieldOfView.IsVisible()` check, which hid the whole sprite at once — a hard pop. Removed it entirely (from `SkullGuyEnemy.prefab`, `BlindListenerEnemy.prefab`, the added-component overrides in `Dominik.unity`/`Maks.unity`, and the `Ensure<HideableObject>(go)` call in `Editor/SkullGuySetup.cs`).

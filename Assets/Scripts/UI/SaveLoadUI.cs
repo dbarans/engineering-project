@@ -35,10 +35,20 @@ public class SaveLoadUI : MonoBehaviour
     [SerializeField] private Button confirmAcceptButton;
     [SerializeField] private Button confirmCancelButton;
 
+    [Header("Save cost (ink)")]
+    [Tooltip("Ink cost of a save. Auto-resolved from this object when left unset; " +
+             "null disables the cost entirely.")]
+    [SerializeField] private SaveCost saveCost;
+    [Tooltip("Shows how many saves the carried ink allows. Hidden in Load mode.")]
+    [SerializeField] private TextMeshProUGUI costLabel;
+
     [Header("Dependencies")]
     [SerializeField] private GameManager gameManager;
     [Tooltip("HUD toast used for the 'Game saved' confirmation.")]
     [SerializeField] private ToastUI toast;
+
+    private static readonly Color CostOkColor = new Color(0.85f, 0.82f, 0.72f, 1f);
+    private static readonly Color CostEmptyColor = new Color(0.92f, 0.55f, 0.42f, 1f);
 
     private Mode _mode = Mode.Save;
     private int _pendingSlot = -1;
@@ -48,6 +58,7 @@ public class SaveLoadUI : MonoBehaviour
 
     private void Awake()
     {
+        if (saveCost == null) saveCost = GetComponent<SaveCost>();
         if (gameManager == null) gameManager = FindFirstObjectByType<GameManager>();
         if (gameManager != null) gameManager.OnGameStateChanged += OnGameStateChanged;
 
@@ -128,16 +139,44 @@ public class SaveLoadUI : MonoBehaviour
 
     private void Refresh()
     {
+        UpdateCostLabel();
+
         if (slotViews == null) return;
+
+        // In Save mode every slot is a target, but only when the player can afford the
+        // ink; out of ink, the whole screen is read-only (like Load on empty slots).
+        bool canSaveHere = _mode == Mode.Save && (saveCost == null || saveCost.CanSave);
 
         var infos = SaveManager.Instance.GetSlotInfos();
         for (int i = 0; i < slotViews.Length; i++)
         {
             if (slotViews[i] == null) continue;
             var meta = i < infos.Length ? infos[i] : null;
-            // Save mode: every slot is a target. Load mode: only readable saves.
-            slotViews[i].SetInfo(i, meta, _mode == Mode.Save || meta != null);
+            bool interactable = _mode == Mode.Save ? canSaveHere : meta != null;
+            slotViews[i].SetInfo(i, meta, interactable);
         }
+    }
+
+    /// <summary>
+    /// Shows how many saves the carried ink allows (plan §5: ink-gated saving). Hidden
+    /// in Load mode — loading is free — and when no ink cost is configured.
+    /// </summary>
+    private void UpdateCostLabel()
+    {
+        if (costLabel == null) return;
+
+        if (_mode != Mode.Save || saveCost == null || !saveCost.HasCost)
+        {
+            costLabel.gameObject.SetActive(false);
+            return;
+        }
+
+        int saves = saveCost.AvailableSaves;
+        costLabel.gameObject.SetActive(true);
+        costLabel.text = saves > 0
+            ? $"Ink: {saves}   ({saves} save{(saves == 1 ? "" : "s")} left)"
+            : "Out of ink — you need ink to save";
+        costLabel.color = saves > 0 ? CostOkColor : CostEmptyColor;
     }
 
     private void OnSlotClicked(int slot)
@@ -183,6 +222,23 @@ public class SaveLoadUI : MonoBehaviour
 
     private void DoSave(int slot)
     {
+        // Gate on ink even here, in case a slot was somehow triggered while greyed out.
+        if (saveCost != null && !saveCost.CanSave)
+        {
+            if (toast != null) toast.Show("You need ink to save");
+            Refresh();
+            return;
+        }
+
+        // Spend the ink before capturing state, so the written save already reflects the
+        // ink used — otherwise loading it back would return the ink and give a free save.
+        if (saveCost != null && !saveCost.TryConsume())
+        {
+            if (toast != null) toast.Show("You need ink to save");
+            Refresh();
+            return;
+        }
+
         if (SaveManager.Instance.Save(slot))
         {
             Close(); // back to the game; the HUD toast is the confirmation
@@ -190,6 +246,8 @@ public class SaveLoadUI : MonoBehaviour
         }
         else
         {
+            // A failed write must not cost the player their ink — hand it back.
+            if (saveCost != null) saveCost.Refund();
             // Stay open so the player can try another slot; details are in the log.
             Refresh();
             if (toast != null) toast.Show("Save failed");

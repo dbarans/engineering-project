@@ -1,8 +1,10 @@
+using System;
 using UnityEngine;
 
 /// <summary>
 /// Handles player movement and movement mode (walk / sprint / sneak).
 /// Sneak is intentionally silent for enemies with hearing-based detection; see <see cref="SoundPlayerDetector"/>.
+/// Sneak doubles as crouching: it is what lets the player fit under a table (see <see cref="PlayerHiding"/>).
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerMovement : MonoBehaviour, IPlayerMovement
@@ -26,6 +28,12 @@ public class PlayerMovement : MonoBehaviour, IPlayerMovement
     /// the player is currently making noise (Sneak is silent).
     /// </summary>
     public MovementMode CurrentMode => currentMode;
+
+    /// <summary>
+    /// Raised whenever the mode actually changes. Lets components react to crouching
+    /// (entering/leaving Sneak) without polling every frame; see <see cref="PlayerHiding"/>.
+    /// </summary>
+    public event Action<MovementMode> MovementModeChanged;
 
     /// <summary>
     /// True while the player is actually moving (not just standing still in Walk/Sprint mode).
@@ -57,9 +65,12 @@ public class PlayerMovement : MonoBehaviour, IPlayerMovement
 
     public void SetMovementMode (MovementMode newMode)
     {
+        bool changed = currentMode != newMode;
         currentMode = newMode;
         ApplyModeSettings();
         rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+
+        if (changed) MovementModeChanged?.Invoke(currentMode);
     }
 
     public void Move(Vector2 direction)

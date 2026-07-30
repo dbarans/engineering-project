@@ -696,6 +696,7 @@ GameObject:
   - component: {fileID: 5570424979841258391}
   - component: {fileID: 5570424979841258392}
   - component: {fileID: 5570424979841258393}
+  - component: {fileID: 3908612447025518360}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -738,6 +739,7 @@ MonoBehaviour:
   playerLegs: {fileID: 3214693079691589210}
   currentAttack: {fileID: 3513556798588415593}
   playerStamina: {fileID: 4763037826514429300}
+  playerHiding: {fileID: 3908612447025518360}
   backpackUI: {fileID: 0}
 --- !u!50 &397985806577126160
 Rigidbody2D:
@@ -1019,6 +1021,9 @@ MonoBehaviour:
   - item: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
     count: 64
     toBackpack: 1
+  - item: {fileID: 11400000, guid: c007459642cf4ea1bf44c6ffe9d32db3, type: 2}
+    count: 3
+    toBackpack: 1
 --- !u!114 &6900123456789012345
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1077,6 +1082,22 @@ MonoBehaviour:
   maxFlightTime: 1.5
   throwCooldown: 1
   spawnOffset: 0.6
+--- !u!114 &3908612447025518360
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d9b2e64c1a74f83b0d5e29876fc41ab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHiding
+  bodyCollider: {fileID: 5284207013399126457}
+  crouchPassableLayers:
+    serializedVersion: 2
+    m_Bits: 4096
 --- !u!1 &6661940005107315833
 GameObject:
   m_ObjectHideFlags: 0

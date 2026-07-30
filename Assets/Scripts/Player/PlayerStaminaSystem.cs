@@ -84,4 +84,8 @@ public class PlayerStaminaSystem : MonoBehaviour
         lastUseTime = Time.time;
         staminaBar?.SetStamina(currentStamina);
     }
+    public void UseRamStamina(float amount)
+    {
+        Drain(amount);
+    }
 }

@@ -62,5 +62,16 @@ public abstract class PlayerAttack : MonoBehaviour
 
     protected abstract void ExecuteAttack();
 
+    protected virtual void TryDamageTarget(Collider2D hitCollider, float damage)
+    {
+        if (hitCollider == null) return;
+
+        SimpleDoor door = hitCollider.GetComponent<SimpleDoor>();
+        if (door != null)
+        {
+            door.TakeDamage(damage);
+        }
+    }
+
     public float GetChargeProgress() => isReady ? 1f : (isCharging ? Mathf.Clamp01((Time.time - chargeStartTime) / chargeTimeRequired) : 0f);
 }

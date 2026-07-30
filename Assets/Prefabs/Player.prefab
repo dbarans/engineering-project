@@ -699,7 +699,7 @@ GameObject:
   - component: {fileID: 3908612447025518360}
   m_Layer: 6
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1082,6 +1082,22 @@ MonoBehaviour:
   maxFlightTime: 1.5
   throwCooldown: 1
   spawnOffset: 0.6
+--- !u!114 &3908612447025518360
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d9b2e64c1a74f83b0d5e29876fc41ab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHiding
+  bodyCollider: {fileID: 5284207013399126457}
+  crouchPassableLayers:
+    serializedVersion: 2
+    m_Bits: 4096
 --- !u!1 &6661940005107315833
 GameObject:
   m_ObjectHideFlags: 0
@@ -1402,19 +1418,3 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerLegs
   legsTransform: {fileID: 4130320205669602059}
---- !u!114 &3908612447025518360
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6548805452745224477}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3d9b2e64c1a74f83b0d5e29876fc41ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerHiding
-  bodyCollider: {fileID: 5284207013399126457}
-  crouchPassableLayers:
-    serializedVersion: 2
-    m_Bits: 4096

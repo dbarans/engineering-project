@@ -1,10 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Creates a large black quad that covers the entire scene.
-/// Works together with FovMaskWriter (on FOV mesh) and DarknessOverlay shader:
-///   - FOV mesh writes stencil = 1 (Queue Transparent+1)
-///   - This quad renders black where stencil != 1 (Queue Transparent+2)
+/// Creates a large black quad that covers the entire scene. The Custom/DarknessOverlay shader on
+/// it reads the shared vision mask (see <see cref="VisionMaskRenderer"/>) and darkens each pixel
+/// by how little light reaches it, so lit areas stay clear and every light fades out at its rim.
 ///
 /// Setup in editor:
 ///   1. Create an empty GameObject named "DarknessOverlay".
@@ -22,7 +21,7 @@ public class DarknessOverlayQuad : MonoBehaviour
 
     [Header("Rendering")]
     [SerializeField] private string sortingLayerName = "Default";
-    [Tooltip("Must be higher than FieldOfView sortingOrder so darkness renders after stencil write.")]
+    [Tooltip("Must be higher than the sprites it darkens, so the overlay renders on top of them.")]
     [SerializeField] private int sortingOrder = 6;
 
     [Header("Follow")]

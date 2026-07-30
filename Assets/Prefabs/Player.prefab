@@ -79,6 +79,7 @@ GameObject:
   - component: {fileID: 3727011404493025173}
   - component: {fileID: 8897463052305007464}
   - component: {fileID: 7839822940610137288}
+  - component: {fileID: 3856911459756780228}
   m_Layer: 6
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -237,6 +238,19 @@ MonoBehaviour:
   explorationInfluence: 0.05
   maxAimOffset: 4.5
   aimInfluence: 0.4
+--- !u!114 &3856911459756780228
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1263869902556360065}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a62929bc8888b2d45a1b0db3931aaec4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VisionMaskRenderer
+  resolutionScale: 1
 --- !u!1 &1669606323305772735
 GameObject:
   m_ObjectHideFlags: 0
@@ -972,9 +986,9 @@ MonoBehaviour:
   edgeDistanceThreshold: 0.5
   edgeResolveIterations: 4
   directionSource: {fileID: 2038790236695264251}
+  visionMaskMaterial: {fileID: 0}
   sortingLayerName: Default
   sortingOrder: 5
-  stencilPrepassSortingOrder: -10
   aimTransitionSpeed: 40
   aimReturnSpeed: 240
 --- !u!114 &157545601758896288
@@ -1082,6 +1096,22 @@ MonoBehaviour:
   maxFlightTime: 1.5
   throwCooldown: 1
   spawnOffset: 0.6
+--- !u!114 &3908612447025518360
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d9b2e64c1a74f83b0d5e29876fc41ab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHiding
+  bodyCollider: {fileID: 5284207013399126457}
+  crouchPassableLayers:
+    serializedVersion: 2
+    m_Bits: 4096
 --- !u!1 &6661940005107315833
 GameObject:
   m_ObjectHideFlags: 0
@@ -1402,19 +1432,3 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerLegs
   legsTransform: {fileID: 4130320205669602059}
---- !u!114 &3908612447025518360
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6548805452745224477}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3d9b2e64c1a74f83b0d5e29876fc41ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerHiding
-  bodyCollider: {fileID: 5284207013399126457}
-  crouchPassableLayers:
-    serializedVersion: 2
-    m_Bits: 4096

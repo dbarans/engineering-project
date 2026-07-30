@@ -2,11 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Generates a field-of-view mesh around the player using raycasting.
-/// Attach directly to the player GameObject.
-/// Requires MeshFilter and MeshRenderer components.
+/// Generates a field-of-view mesh around the player using raycasting. Attach directly to the
+/// player GameObject. The mesh is not drawn to the screen: it is rendered into the shared vision
+/// mask (see <see cref="VisionMaskRenderer"/>) through a child on the mask layer, together with
+/// every other light source, and the darkness overlay and masked sprites read it from there.
 /// </summary>
-[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class FieldOfView : MonoBehaviour
 {
     [Header("View Settings")]
@@ -40,12 +40,12 @@ public class FieldOfView : MonoBehaviour
     [SerializeField] private Transform directionSource;
 
     [Header("Rendering")]
+    [Tooltip("Material using Custom/VisionMaskWriter. The FOV mesh is drawn through it into the vision mask, never straight to the screen.")]
+    [SerializeField] private Material visionMaskMaterial;
     [Tooltip("Sorting layer name for the FOV mesh (must match a layer defined in Tags & Layers).")]
     [SerializeField] private string sortingLayerName = "Default";
-    [Tooltip("Order in layer. Set lower than DarknessOverlay so stencil is written first.")]
+    [Tooltip("Order in layer. Lights combine by max in the mask, so this only affects draw order between light meshes, not the result.")]
     [SerializeField] private int sortingOrder = 5;
-    [Tooltip("Order in layer for the stencil prepass child. Must be lower than every sprite using the SpriteFovMasked material, so the FOV stencil exists before those sprites are drawn.")]
-    [SerializeField] private int stencilPrepassSortingOrder = -10;
 
     [Header("Aiming")]
     [Tooltip("How fast the view angle narrows toward its aim target, in degrees/second. Independent of how fast the aim itself charges — the FOV eases toward the target on its own pace instead of tracking the charge progress 1:1.")]
@@ -54,11 +54,16 @@ public class FieldOfView : MonoBehaviour
     [SerializeField] private float aimReturnSpeed = 240f;
 
     private Mesh viewMesh;
-    private MeshFilter meshFilter;
+    private OcclusionMeshBuilder meshBuilder;
     private float facingAngle;
     private bool aimNarrowingActive;
     private float aimNarrowAngle;
     private float currentViewAngle;
+    private bool useNearCircle;
+
+    // Cached delegates handed to the mesh builder, so the per-frame build allocates nothing.
+    private System.Func<float, float> reachForAngle;
+    private System.Func<float, bool> isNearCircleAngle;
 
     /// <summary>
     /// Narrows the view cone toward aimAngle while aiming (e.g. a ranged weapon's spread cone
@@ -78,48 +83,25 @@ public class FieldOfView : MonoBehaviour
 
     // Reused across frames to avoid per-frame GC allocation (BuildMesh runs every LateUpdate).
     private readonly List<float> angleBuffer = new List<float>(512);
-    private readonly List<Vector3> viewPoints = new List<Vector3>(512);
-    private Vector3[] vertices = new Vector3[0];
-    private Vector2[] uvs = new Vector2[0];
-    private int[] triangles = new int[0];
 
     private void Awake()
     {
-        meshFilter = GetComponent<MeshFilter>();
         viewMesh = new Mesh { name = "FOV Mesh" };
-        meshFilter.mesh = viewMesh;
         currentViewAngle = viewAngle;
+        meshBuilder = new OcclusionMeshBuilder(edgeDistanceThreshold, edgeResolveIterations);
+        reachForAngle = MaxDistanceForAngle;
+        isNearCircleAngle = IsNearCircleAngle;
 
-        var mr = GetComponent<MeshRenderer>();
-        mr.sortingLayerName = sortingLayerName;
-        mr.sortingOrder = sortingOrder;
+        // The mesh is drawn by a child on the vision mask layer, not by the player itself — the
+        // player has to stay on its own layer for physics and enemy detection.
+        VisionMaskRenderer.CreateLightMeshChild(
+            "FOV Mask Mesh", transform, viewMesh, visionMaskMaterial, sortingLayerName, sortingOrder);
 
-        CreateStencilPrepass();
-    }
-
-    /// <summary>
-    /// Creates a child renderer that draws the same FOV mesh before regular sprites
-    /// (negative sorting order) using the color-less FovStencilPrepass shader. This puts
-    /// stencil = 1 in place early, so sprites using Custom/SpriteFovMasked are clipped
-    /// pixel-perfectly at the vision boundary instead of being merely darkened.
-    /// </summary>
-    private void CreateStencilPrepass()
-    {
-        Shader prepassShader = Shader.Find("Custom/FovStencilPrepass");
-        if (prepassShader == null)
-        {
-            Debug.LogWarning("[FieldOfView] Custom/FovStencilPrepass shader not found — SpriteFovMasked sprites will not be clipped.");
-            return;
-        }
-
-        var child = new GameObject("FOV Stencil Prepass");
-        child.transform.SetParent(transform, false);
-
-        child.AddComponent<MeshFilter>().sharedMesh = viewMesh;
-        var childMr = child.AddComponent<MeshRenderer>();
-        childMr.sharedMaterial = new Material(prepassShader);
-        childMr.sortingLayerName = sortingLayerName;
-        childMr.sortingOrder = stencilPrepassSortingOrder;
+        // Legacy setups draw the FOV mesh straight from the player GameObject. That would now
+        // paint the raw mask onto the screen, so silence it.
+        var localRenderer = GetComponent<MeshRenderer>();
+        if (localRenderer != null)
+            localRenderer.enabled = false;
     }
 
     private void LateUpdate()
@@ -135,75 +117,26 @@ public class FieldOfView : MonoBehaviour
 
         // When the near-vision circle is active on a cone, sweep the full 360°:
         // inside the cone the reach is viewRadius, elsewhere it drops to the near radius.
-        bool useNearCircle = EffectiveNearRadius() > 0f && currentViewAngle < 360f;
+        useNearCircle = EffectiveNearRadius() > 0f && currentViewAngle < 360f;
         float sweepAngle = useNearCircle ? 360f : currentViewAngle;
         float startAngle = useNearCircle ? facingAngle - 180f : facingAngle - currentViewAngle / 2f;
 
-        BuildAngleSweep(useNearCircle, sweepAngle, startAngle);
+        BuildAngleSweep(sweepAngle, startAngle);
 
-        viewPoints.Clear();
-        ViewCastInfo prevCast = default;
+        // UV.x: distance normalized by this direction's reach (so the near circle fades over its
+        // own radius and the cone over the full radius). UV.y: region flag — 1 for the near-vision
+        // circle, 0 for the main cone. The shader keeps the near circle mostly clear so objects
+        // behind the player stay visible.
+        meshBuilder.Build(viewMesh, transform, obstacleMask, angleBuffer, reachForAngle, isNearCircleAngle);
+    }
 
-        for (int i = 0; i < angleBuffer.Count; i++)
-        {
-            float angle = angleBuffer[i];
-            ViewCastInfo cast = Cast(angle);
-
-            if (i > 0)
-            {
-                bool distGap = Mathf.Abs(prevCast.distance - cast.distance) > edgeDistanceThreshold;
-                if (prevCast.hit != cast.hit || (prevCast.hit && cast.hit && distGap))
-                {
-                    EdgeInfo edge = FindEdge(prevCast, cast);
-                    if (edge.pointA != Vector3.zero) viewPoints.Add(edge.pointA);
-                    if (edge.pointB != Vector3.zero) viewPoints.Add(edge.pointB);
-                }
-            }
-
-            viewPoints.Add(cast.point);
-            prevCast = cast;
-        }
-
-        int vertCount = viewPoints.Count + 1;
-        if (vertices.Length != vertCount)
-        {
-            vertices = new Vector3[vertCount];
-            uvs = new Vector2[vertCount];
-            triangles = new int[(vertCount - 2) * 3];
-        }
-
-        Vector2 origin = transform.position;
-        vertices[0] = Vector3.zero;
-        uvs[0] = Vector2.zero;
-        for (int i = 0; i < viewPoints.Count; i++)
-        {
-            Vector3 localPoint = transform.InverseTransformPoint(viewPoints[i]);
-            vertices[i + 1] = localPoint;
-
-            // UV.x: distance normalized by this direction's reach (so the near circle fades
-            // over its own radius and the cone fades over the full radius).
-            // UV.y: region flag — 1 for the near-vision circle, 0 for the main cone. The shader
-            // keeps the near circle mostly clear so objects behind the player stay visible.
-            Vector2 dir = (Vector2)viewPoints[i] - origin;
-            float pointAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-            bool isNear = useNearCircle && Mathf.Abs(Mathf.DeltaAngle(facingAngle, pointAngle)) > currentViewAngle * 0.5f;
-            float reach = isNear ? EffectiveNearRadius() : viewRadius;
-            uvs[i + 1] = new Vector2(Mathf.Clamp01(localPoint.magnitude / reach), isNear ? 1f : 0f);
-
-            if (i < viewPoints.Count - 1)
-            {
-                int t = i * 3;
-                triangles[t] = 0;
-                triangles[t + 1] = i + 1;
-                triangles[t + 2] = i + 2;
-            }
-        }
-
-        viewMesh.Clear();
-        viewMesh.vertices = vertices;
-        viewMesh.uv = uvs;
-        viewMesh.triangles = triangles;
-        viewMesh.RecalculateNormals();
+    /// <summary>
+    /// True when the given world angle falls outside the view cone and is therefore covered by
+    /// the near-vision / lantern circle rather than the cone itself.
+    /// </summary>
+    private bool IsNearCircleAngle(float angleDeg)
+    {
+        return useNearCircle && Mathf.Abs(Mathf.DeltaAngle(facingAngle, angleDeg)) > currentViewAngle * 0.5f;
     }
 
     /// <summary>
@@ -213,7 +146,7 @@ public class FieldOfView : MonoBehaviour
     /// the much coarser nearCircleRaysPerDegree — that region doesn't need cone-level smoothness,
     /// so this cuts total raycasts without reducing what the player actually sees ahead of them.
     /// </summary>
-    private void BuildAngleSweep(bool useNearCircle, float sweepAngle, float startAngle)
+    private void BuildAngleSweep(float sweepAngle, float startAngle)
     {
         angleBuffer.Clear();
 
@@ -271,52 +204,6 @@ public class FieldOfView : MonoBehaviour
         return offset <= currentViewAngle / 2f ? viewRadius : EffectiveNearRadius();
     }
 
-    private ViewCastInfo Cast(float angleDeg)
-    {
-        Vector3 dir = AngleToDirection(angleDeg);
-        float maxDist = MaxDistanceForAngle(angleDeg);
-        RaycastHit2D hit = Physics2D.Raycast(transform.position, dir, maxDist, obstacleMask);
-
-        if (hit.collider != null)
-            return new ViewCastInfo(true, hit.point, hit.distance, angleDeg);
-
-        return new ViewCastInfo(false, transform.position + dir * maxDist, maxDist, angleDeg);
-    }
-
-    private EdgeInfo FindEdge(ViewCastInfo a, ViewCastInfo b)
-    {
-        float minAngle = a.angle;
-        float maxAngle = b.angle;
-        Vector3 minPoint = Vector3.zero;
-        Vector3 maxPoint = Vector3.zero;
-
-        for (int i = 0; i < edgeResolveIterations; i++)
-        {
-            float midAngle = (minAngle + maxAngle) / 2f;
-            ViewCastInfo mid = Cast(midAngle);
-
-            bool distGap = Mathf.Abs(a.distance - mid.distance) > edgeDistanceThreshold;
-            if (mid.hit == a.hit && !distGap)
-            {
-                minAngle = midAngle;
-                minPoint = mid.point;
-            }
-            else
-            {
-                maxAngle = midAngle;
-                maxPoint = mid.point;
-            }
-        }
-
-        return new EdgeInfo(minPoint, maxPoint);
-    }
-
-    private static Vector3 AngleToDirection(float angleDeg)
-    {
-        float rad = angleDeg * Mathf.Deg2Rad;
-        return new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0f);
-    }
-
     /// <summary>
     /// Returns true if the given world-space point is visible: inside the cone within
     /// viewRadius, or inside the near-vision circle around the player, and not obstructed.
@@ -350,28 +237,4 @@ public class FieldOfView : MonoBehaviour
 
     /// <summary>View radius in world units.</summary>
     public float ViewRadius => viewRadius;
-
-    private struct ViewCastInfo
-    {
-        public bool hit;
-        public Vector3 point;
-        public float distance;
-        public float angle;
-
-        public ViewCastInfo(bool hit, Vector3 point, float distance, float angle)
-        {
-            this.hit = hit;
-            this.point = point;
-            this.distance = distance;
-            this.angle = angle;
-        }
-    }
-
-    private struct EdgeInfo
-    {
-        public Vector3 pointA;
-        public Vector3 pointB;
-
-        public EdgeInfo(Vector3 a, Vector3 b) { pointA = a; pointB = b; }
-    }
 }

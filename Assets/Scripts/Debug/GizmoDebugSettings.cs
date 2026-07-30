@@ -17,6 +17,7 @@ public enum GizmoRanges
     EnemyVision = 1 << 4,
     EnemyHearing = 1 << 5,
     EnemyAlwaysDetect = 1 << 6,
+    LightRadius = 1 << 7,
 }
 
 [CreateAssetMenu(fileName = "GizmoDebugSettings", menuName = "Debug/Gizmo Debug Settings")]

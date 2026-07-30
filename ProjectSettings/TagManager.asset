@@ -19,7 +19,7 @@ TagManager:
   - Interactable
   - ObstaclePathOnly
   - CrouchPassable
-  - 
+  - VisionMask
   - 
   - 
   - 

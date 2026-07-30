@@ -1,14 +1,20 @@
-// Rendered on the FOV mesh. Single pass (URP 2D Renderer draws only one Universal2D pass):
-//   1. Writes stencil = 1 across the visible area so DarknessOverlay skips it.
-//   2. Fades darkness in near the view radius, softening the line between view and shadow.
-// UV.x (set by FieldOfView.cs) is the normalized distance from the player:
-// 0 at the center, 1 at the view radius. Points cut short by walls have UV.x < 1,
-// so wall shadows stay sharp while the outer range edge fades smoothly.
-Shader "Custom/FovMaskWriter"
+// Rendered on every light mesh (the player's FOV mesh and each lamp's lit circle) into the
+// offscreen vision mask, never to the screen. Outputs how lit each pixel is: 1 inside the light,
+// falling off to 0 across the outer rim.
+//
+// UV.x (set by OcclusionMeshBuilder) is the normalized distance from the light's origin: 0 at the
+// center, 1 at its reach. Points cut short by a wall have UV.x < 1, so wall shadows stay hard
+// while the outer range edge fades smoothly.
+// UV.y is the region flag selecting the edge softness: 1 for the player's near-vision circle
+// (narrow edge, so the circle around the player stays clear), 0 for a cone or a lamp.
+//
+// BlendOp Max is what makes multiple lights combine correctly: overlapping lights take the
+// brighter contribution instead of accumulating, so a lamp cannot paint its dim rim over ground
+// the player already sees.
+Shader "Custom/VisionMaskWriter"
 {
     Properties
     {
-        _Darkness("Darkness Alpha (match DarknessOverlay)", Range(0, 1)) = 0.97
         _EdgeSoftness("Cone Edge Softness", Range(0, 1)) = 0.35
         _NearEdgeSoftness("Near Circle Edge Softness", Range(0, 1)) = 0.15
     }
@@ -19,22 +25,16 @@ Shader "Custom/FovMaskWriter"
         {
             "RenderType" = "Transparent"
             "RenderPipeline" = "UniversalPipeline"
-            "Queue" = "Transparent+1"
+            "Queue" = "Transparent"
         }
 
         Pass
         {
-            Name "FovStencilAndFalloff"
+            Name "VisionMaskWriter"
             Tags { "LightMode" = "Universal2D" }
 
-            Stencil
-            {
-                Ref 1
-                Comp Always
-                Pass Replace
-            }
-
-            Blend SrcAlpha OneMinusSrcAlpha
+            BlendOp Max
+            Blend One One
             ZWrite Off
             Cull Off
 
@@ -44,7 +44,6 @@ Shader "Custom/FovMaskWriter"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
-                float _Darkness;
                 float _EdgeSoftness;
                 float _NearEdgeSoftness;
             CBUFFER_END
@@ -71,13 +70,10 @@ Shader "Custom/FovMaskWriter"
 
             half4 Frag(Varyings IN) : SV_Target
             {
-                // Softness depends on the region (UV.y): the wide cone edge vs the narrow
-                // near-circle edge. A narrow near edge keeps the circle clear so objects
-                // behind the player stay visible instead of being darkened away.
                 float softness = lerp(_EdgeSoftness, _NearEdgeSoftness, saturate(IN.uv.y));
                 float edgeStart = 1.0 - saturate(softness);
-                float falloff = smoothstep(edgeStart, 1.0, saturate(IN.uv.x));
-                return half4(0, 0, 0, falloff * _Darkness);
+                half visibility = 1.0h - smoothstep(edgeStart, 1.0, saturate(IN.uv.x));
+                return half4(visibility, visibility, visibility, visibility);
             }
             ENDHLSL
         }

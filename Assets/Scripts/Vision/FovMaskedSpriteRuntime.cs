@@ -2,15 +2,10 @@ using UnityEngine;
 
 /// <summary>
 /// Put on the same GameObject as a SpriteRenderer authored with the Custom/SpriteFovMasked
-/// material (Materials/SpriteFovMasked.mat — stencil comparison Always, so it renders normally
-/// in the Editor: Scene view, Prefab view, Project thumbnails, where no FieldOfView has ever
-/// written the vision stencil). At Awake here we swap in Materials/SpriteFovMaskedClipped.mat,
-/// the same shader with stencil comparison baked to Equal, so hard FOV clipping only applies
-/// once the game is actually running.
-///
-/// A MaterialPropertyBlock override was tried first but does not affect the fixed-function
-/// Stencil block — that state is baked per-material, not resolved per-draw-call — hence the
-/// material swap instead.
+/// material (Materials/SpriteFovMasked.mat — vision masking off, so it renders normally in the
+/// Editor: Scene view, Prefab view, Project thumbnails, where no vision mask has ever been
+/// rendered). At Awake here we swap in Materials/SpriteFovMaskedClipped.mat, the same shader with
+/// masking enabled, so the sprite is masked by the player's vision only once the game is running.
 /// </summary>
 [RequireComponent(typeof(SpriteRenderer))]
 public class FovMaskedSpriteRuntime : MonoBehaviour

@@ -555,6 +555,8 @@ MonoBehaviour:
     m_Bits: 0
   projectilePrefab: {fileID: 1754720517791319931, guid: 49e66544740696242a264e565071e604, type: 3}
   shootPoint: {fileID: 5194058292031987262}
+  ammoItem: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
+  inventory: {fileID: 157545601758896288}
   maxSpreadAngle: 40
   minSpreadAngle: 2
   lineLength: 15
@@ -1014,6 +1016,9 @@ MonoBehaviour:
     toBackpack: 0
   - item: {fileID: 11400000, guid: 4f8a1c2d3e5b6a798b0c1d2e3f4a5b6c, type: 2}
     count: 1
+    toBackpack: 0
+  - item: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
+    count: 10
     toBackpack: 0
   - item: {fileID: 11400000, guid: 5a9b2d3e4f6c7b8a9c1d2e3f4a5b6c7d, type: 2}
     count: 1

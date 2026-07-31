@@ -31,10 +31,20 @@ public abstract class PlayerAttack : MonoBehaviour
         if (!isCharging)
             return false;
 
+        if (!CanFire())
+            return false;
+
         ExecuteAttack();
         RestartCharge();
         return true;
     }
+
+    /// <summary>
+    /// Last check before a charged shot is released. Base weapons can always fire;
+    /// subclasses override to add requirements such as available ammo. Returning
+    /// false aborts the shot without consuming the charge or attack stamina.
+    /// </summary>
+    protected virtual bool CanFire() => true;
 
     /// <summary>
     /// Resets charge progress after a shot. Charging continues from the start

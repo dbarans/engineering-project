@@ -7,6 +7,14 @@ public class RangedAttack : PlayerAttack
     [SerializeField] private GameObject projectilePrefab;
     [SerializeField] private Transform shootPoint;
 
+    [Header("Ammo")]
+    [Tooltip("Item consumed by each shot. One unit is spent per shot; with none in the " +
+             "inventory the weapon cannot fire. Leave empty to disable the ammo requirement.")]
+    [SerializeField] private ItemData ammoItem;
+
+    [Tooltip("Inventory the ammo is drawn from. Auto-resolved at runtime if left unset.")]
+    [SerializeField] private SlotInventory inventory;
+
     [Header("Accuracy Settings")]
     [SerializeField] private float maxSpreadAngle = 40f;
     [SerializeField] private float minSpreadAngle = 2f;
@@ -30,6 +38,8 @@ public class RangedAttack : PlayerAttack
     private void Awake()
     {
         playerFov = GetComponentInParent<FieldOfView>();
+        if (inventory == null) inventory = GetComponentInParent<SlotInventory>();
+        if (inventory == null) inventory = FindFirstObjectByType<SlotInventory>();
     }
 
     public override void StartCharging()
@@ -74,8 +84,45 @@ public class RangedAttack : PlayerAttack
         playerFov?.SetAimNarrowing(false, 0f);
     }
 
+    /// <summary>
+    /// Gates the shot on ammo: with an <see cref="ammoItem"/> configured, at least one
+    /// unit must be in the inventory or the trigger does nothing.
+    /// </summary>
+    protected override bool CanFire() => HasAmmo();
+
+    /// <summary>True when firing is allowed: no ammo item is required, or one is available.</summary>
+    private bool HasAmmo()
+    {
+        if (ammoItem == null) return true;
+        return AmmoCount() > 0;
+    }
+
+    /// <summary>Total rounds of <see cref="ammoItem"/> held across the hotbar and backpack.</summary>
+    private int AmmoCount()
+    {
+        if (inventory == null || ammoItem == null) return 0;
+        return inventory.Hotbar.Count(ammoItem) + inventory.Backpack.Count(ammoItem);
+    }
+
+    /// <summary>
+    /// Spends a single round, draining the hotbar first then the backpack. Returns false
+    /// when nothing could be removed (also true when no ammo item is required).
+    /// </summary>
+    private bool ConsumeAmmo()
+    {
+        if (ammoItem == null) return true;
+        if (inventory == null) return false;
+        if (inventory.Hotbar.TryRemove(ammoItem, 1) > 0) return true;
+        return inventory.Backpack.TryRemove(ammoItem, 1) > 0;
+    }
+
     protected override void ExecuteAttack()
     {
+        // CanFire already confirmed a round is available; consuming here keeps the spend
+        // and the projectile spawn atomic so a shot is never fired without paying for it.
+        if (!ConsumeAmmo())
+            return;
+
         float randomOffset = UnityEngine.Random.Range(-currentSpreadAngle / 2f, currentSpreadAngle / 2f);
         Quaternion shootRotation = shootPoint.rotation * Quaternion.Euler(0, 0, randomOffset);
         Instantiate(projectilePrefab, shootPoint.position, shootRotation);

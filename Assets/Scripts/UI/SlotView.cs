@@ -54,7 +54,7 @@ public class SlotView : MonoBehaviour, IPointerClickHandler
         if (hasItem)
         {
             if (_item == null) _item = SpawnItem();
-            if (_item != null) _item.SetStack(stack.item, stack.count);
+            if (_item != null) _item.SetStack(stack.item, stack.count, stack.CurrentDurability);
         }
         else if (_item != null)
         {

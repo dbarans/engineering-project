@@ -569,6 +569,8 @@ MonoBehaviour:
     m_Bits: 0
   projectilePrefab: {fileID: 1754720517791319931, guid: 49e66544740696242a264e565071e604, type: 3}
   shootPoint: {fileID: 5194058292031987262}
+  ammoItem: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
+  inventory: {fileID: 157545601758896288}
   maxSpreadAngle: 40
   minSpreadAngle: 2
   lineLength: 15
@@ -713,7 +715,7 @@ GameObject:
   - component: {fileID: 3908612447025518360}
   m_Layer: 6
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -982,7 +984,7 @@ MonoBehaviour:
   nearCircleRaysPerDegree: 0.25
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 768
+    m_Bits: 4864
   edgeDistanceThreshold: 0.5
   edgeResolveIterations: 4
   directionSource: {fileID: 2038790236695264251}
@@ -1028,6 +1030,9 @@ MonoBehaviour:
     toBackpack: 0
   - item: {fileID: 11400000, guid: 4f8a1c2d3e5b6a798b0c1d2e3f4a5b6c, type: 2}
     count: 1
+    toBackpack: 0
+  - item: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
+    count: 10
     toBackpack: 0
   - item: {fileID: 11400000, guid: 5a9b2d3e4f6c7b8a9c1d2e3f4a5b6c7d, type: 2}
     count: 1
@@ -1112,6 +1117,7 @@ MonoBehaviour:
   crouchPassableLayers:
     serializedVersion: 2
     m_Bits: 4096
+    m_Bits: 8192
 --- !u!1 &6661940005107315833
 GameObject:
   m_ObjectHideFlags: 0
@@ -1301,7 +1307,7 @@ MonoBehaviour:
   chargeTimeRequired: 1.5
   enemyLayer:
     serializedVersion: 2
-    m_Bits: 128
+    m_Bits: 4224
   attackPoint: {fileID: 7231161171343297202}
   minAttackRadius: 0.3
   maxAttackRadius: 0.9

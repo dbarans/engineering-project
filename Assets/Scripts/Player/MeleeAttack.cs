@@ -50,6 +50,7 @@ public class MeleeAttack : PlayerAttack
 
         foreach (Collider2D hit in hitEnemies)
         {
+            TryDamageTarget(hit, damage);
             if (hit.TryGetComponent<EnemyBase>(out EnemyBase enemy))
             {
                 enemy.TakeDamage(damage);

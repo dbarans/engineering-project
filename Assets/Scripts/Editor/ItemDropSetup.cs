@@ -100,7 +100,7 @@ public static class ItemDropSetup
     private static CursorController EnsureCursor(HeldItemController held)
     {
         var go = held.gameObject;
-        var cursor = go.GetComponent<CursorController>() ?? Undo.AddComponent<CursorController>(go);
+        var cursor = EditorSetupUtility.EnsureComponent<CursorController>(go);
 
         var existing = new SerializedObject(cursor).FindProperty("labelRoot").objectReferenceValue as GameObject;
         if (existing == null)

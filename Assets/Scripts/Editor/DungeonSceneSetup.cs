@@ -93,7 +93,7 @@ public static class DungeonSceneSetup
     private static Grid EnsureGrid()
     {
         var existing = GameObject.Find("DungeonRoot");
-        if (existing != null) return EnsureComponent<Grid>(existing);
+        if (existing != null) return EditorSetupUtility.EnsureComponent<Grid>(existing);
 
         var root = new GameObject("DungeonRoot");
         Undo.RegisterCreatedObjectUndo(root, "Create Dungeon Root");
@@ -105,7 +105,7 @@ public static class DungeonSceneSetup
     private static Tilemap EnsureFloorTilemap(Grid grid)
     {
         Tilemap tilemap = EnsureTilemap(grid, "Floor");
-        EnsureComponent<TilemapRenderer>(tilemap.gameObject).sortingOrder = FloorSortingOrder;
+        EditorSetupUtility.EnsureComponent<TilemapRenderer>(tilemap.gameObject).sortingOrder = FloorSortingOrder;
         return tilemap;
     }
 
@@ -120,30 +120,15 @@ public static class DungeonSceneSetup
         var go = tilemap.gameObject;
 
         go.layer = ObstacleStaticLayer;
-        EnsureComponent<TilemapRenderer>(go).sortingOrder = WallSortingOrder;
+        EditorSetupUtility.EnsureComponent<TilemapRenderer>(go).sortingOrder = WallSortingOrder;
 
         // Order matters: the composite needs a body, and the tilemap collider needs the
         // composite to merge into.
-        EnsureComponent<Rigidbody2D>(go).bodyType = RigidbodyType2D.Static;
-        EnsureComponent<CompositeCollider2D>(go).geometryType = CompositeCollider2D.GeometryType.Polygons;
-        EnsureComponent<TilemapCollider2D>(go).compositeOperation = Collider2D.CompositeOperation.Merge;
+        EditorSetupUtility.EnsureComponent<Rigidbody2D>(go).bodyType = RigidbodyType2D.Static;
+        EditorSetupUtility.EnsureComponent<CompositeCollider2D>(go).geometryType = CompositeCollider2D.GeometryType.Polygons;
+        EditorSetupUtility.EnsureComponent<TilemapCollider2D>(go).compositeOperation = Collider2D.CompositeOperation.Merge;
 
         return tilemap;
-    }
-
-    /// <summary>
-    /// Returns the component, adding it when absent.
-    ///
-    /// Written with an explicit <c>== null</c> rather than <c>??</c> on purpose:
-    /// <c>??</c> uses reference equality, while a Unity object whose native half is gone
-    /// or not yet live is a non-null C# reference that only Unity's overloaded
-    /// <c>==</c> recognises as null. With <c>??</c> the missing component is never added
-    /// and the first field assignment throws MissingComponentException.
-    /// </summary>
-    private static T EnsureComponent<T>(GameObject target) where T : Component
-    {
-        T existing = target.GetComponent<T>();
-        return existing != null ? existing : target.AddComponent<T>();
     }
 
     private static Tilemap EnsureTilemap(Grid grid, string name)
@@ -151,8 +136,8 @@ public static class DungeonSceneSetup
         Transform child = grid.transform.Find(name);
         if (child != null)
         {
-            EnsureComponent<TilemapRenderer>(child.gameObject);
-            return EnsureComponent<Tilemap>(child.gameObject);
+            EditorSetupUtility.EnsureComponent<TilemapRenderer>(child.gameObject);
+            return EditorSetupUtility.EnsureComponent<Tilemap>(child.gameObject);
         }
 
         var go = new GameObject(name);
@@ -174,18 +159,18 @@ public static class DungeonSceneSetup
     {
         var root = grid.gameObject;
 
-        var painter = EnsureComponent<DungeonPainter>(root);
+        var painter = EditorSetupUtility.EnsureComponent<DungeonPainter>(root);
         SetRef(painter, "floorTilemap", floor);
         SetRef(painter, "wallTilemap", walls);
         SetRef(painter, "floorTile", floorTile);
         SetRef(painter, "wallTile", wallTile);
 
-        var builder = EnsureComponent<DungeonBuilder>(root);
+        var builder = EditorSetupUtility.EnsureComponent<DungeonBuilder>(root);
         SetRef(builder, "settings", settings);
         SetRef(builder, "painter", painter);
         SetRef(builder, "pathfindingGrid", Object.FindFirstObjectByType<PathfindingGrid>());
 
-        var populator = EnsureComponent<DungeonPopulator>(root);
+        var populator = EditorSetupUtility.EnsureComponent<DungeonPopulator>(root);
         SetRef(populator, "builder", builder);
         SetRef(populator, "content", contentSettings);
         SetRef(populator, "registry", registry);

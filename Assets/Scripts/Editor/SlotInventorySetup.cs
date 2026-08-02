@@ -316,7 +316,7 @@ public static class SlotInventorySetup
         var pistol = AssetDatabase.LoadAssetAtPath<ItemData>(Item5Path);
         if (sword == null && mana == null && wood == null && axe == null && pistol == null) return;
 
-        var fill = owner.GetComponent<SlotInventoryDebugFill>() ?? Undo.AddComponent<SlotInventoryDebugFill>(owner);
+        var fill = EditorSetupUtility.EnsureComponent<SlotInventoryDebugFill>(owner);
         var so = new SerializedObject(fill);
         so.FindProperty("slotInventory").objectReferenceValue = slotInventory;
         var entries = so.FindProperty("entries");

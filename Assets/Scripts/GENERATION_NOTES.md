@@ -12,7 +12,14 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 2 — Painter | done | `feat: [GU-0051] paint generated layouts into tilemaps` |
 | 3 — Population | done | `feat: [GU-0051] populate generated dungeons with content` |
 | 4 — Save integration | done | `feat: [GU-0051] seed-based save integration` |
-| 5 — Polish | metrics + room templates done | `feat: [GU-0051] generation metrics and room templates` |
+| 5 — Polish | metrics + room templates done; Rule Tiles / floors / biomes deferred, see below | `feat: [GU-0051] generation metrics and room templates` |
+
+**Verification so far is compile-level plus logic-level, not in-editor.** The layout
+assembly is engine-free by design, so it was run outside Unity against 500 seeds
+(determinism, connectivity, spacing, room roles, loop behaviour, metrics — all passing),
+and the whole project compiles clean under Unity's Roslyn. What has *not* been exercised
+is anything that needs the editor: painting tiles, collider regeneration, spawning, and
+the save round trip. Those need a pass in Unity — see the checklist at the end.
 
 ---
 
@@ -145,15 +152,18 @@ Turns a walkable maze into a playable level. Expect the most iteration here.
 
 ---
 
-## Stage 5 — Tuning and quality (optional, do as time allows)
+## Stage 5 — Tuning and quality
 
-Ordered by value-to-effort:
+**Done:**
 
-1. **Rule Tiles** for walls — automatic corner/edge sprite selection. Purely visual, big perceived-quality jump.
-2. **Metrics + debug overlay** — generation time, room count, corridor length, loop ratio, dead-end count. Directly usable as thesis measurements.
-3. **Room templates** — hand-authored prefab room interiors dropped into generated room rectangles (this is how Darkwood mixes authored and generated content). The best answer to "procedural levels feel samey".
-4. **Multiple floors** — `DungeonBuilder` takes a floor index, seed becomes `{runSeed}:{floor}`, stairs prefab in the `Treasure` room. Requires either one scene per floor or extending the save key beyond scene name.
-5. **Biomes** — per-region tile sets and spawn tables.
+- **Metrics** — `DungeonMetrics.Measure(layout)` reports rooms, corridors, loops, loop ratio, dead ends, doorways, open-cell ratio and depth. Surfaced in the Layout Preview window, including a batch mode that runs N seeds and reports failure and retry rates. This is what makes "this parameter change improved the dungeons" a checkable claim rather than an impression, and these are the figures to quote in the write-up.
+- **Room templates** — `DungeonRoomTemplate` + `DungeonSpawnMarker`. A template is a prefab whose children are markers; the populator converts the markers into spawns and skips the room's random loot and props. Layouts stay generated, interiors can be designed. This is the standard answer to "procedural levels feel samey", and how Darkwood mixes authored and generated content.
+
+**Not done, with reasons:**
+
+- **Rule Tiles** — the package (`com.unity.2d.tilemap.extras`) is already installed, but Rule Tiles select corner and edge sprites, and the placeholder tiles are flat colour squares with no such variants. This needs wall art first; it is asset work, not code.
+- **Multiple floors** — decision D5 keys a dungeon to its scene, and `SceneSaveData` is keyed by scene name, so two floors sharing a scene would collide in the save. Doing it properly means either one scene per floor or extending the save key, which is a save-model change and deserves its own change.
+- **Biomes** — per-region tile sets and spawn tables. Same blocker as Rule Tiles: needs art to be worth anything.
 
 ---
 
@@ -181,3 +191,17 @@ Stage 3  population      → playable run
 Stage 4  save            → complete feature
 Stage 5  polish          → as time allows
 ```
+
+---
+
+## In-editor checklist
+
+Everything below needs the Unity editor and has not been run yet.
+
+1. Open a scene that has a `PathfindingGrid` (e.g. `Dominik 04`), save it as `Dungeon`.
+2. **Tools ▸ Dungeon ▸ Setup Scene Tilemaps.** Creates the tilemaps, tiles, settings and registry, and wires painter, builder and populator.
+3. **Tools ▸ Dungeon ▸ Layout Preview** ▸ Generate. Confirms the generator without touching the scene; the batch button reports the failure rate over N seeds.
+4. Select `DungeonRoot`, right-click the `DungeonBuilder` header ▸ **Generate (random seed)**. A dungeon should appear, with the player standing in the start room.
+5. Enter Play mode and check the two things the whole design rests on: **generated walls block the player's field of view**, and **an enemy paths around them instead of through them**. If either fails, the suspect is the collider ordering in `DungeonPainter.RebuildColliders`.
+6. Walk to the camp room, save at the typewriter, quit, load. The same dungeon must come back, with dead enemies still dead and collected loot still gone.
+7. Tune `RoomContentSettings` — the starting spawn table is a guess, not a design.

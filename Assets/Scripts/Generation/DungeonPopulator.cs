@@ -101,6 +101,11 @@ public class DungeonPopulator : MonoBehaviour
             List<Vector2Int> free = FreeCells(layout, room, roomRandom);
             int slot = 0;
 
+            // An authored interior replaces the room's scatter, so the design is not
+            // buried under random loot and props. Enemies still come from the table:
+            // difficulty has to keep scaling with depth either way.
+            bool authored = ApplyTemplate(layout, room, free, roomRandom, ref slot);
+
             switch (room.Kind)
             {
                 case RoomKind.Start:
@@ -111,19 +116,23 @@ public class DungeonPopulator : MonoBehaviour
                     break;
 
                 case RoomKind.Treasure:
-                    SpawnItems(content.treasureLoot, content.treasureLootCount, free, roomRandom);
+                    if (!authored)
+                        SpawnItems(content.treasureLoot, content.treasureLootCount, free, roomRandom);
                     SpawnEnemies(layout, room, free, roomRandom, ref slot);
                     break;
 
                 default:
                     SpawnEnemies(layout, room, free, roomRandom, ref slot);
-                    SpawnItems(content.loot,
-                        roomRandom.RangeInclusive(content.minLootPerRoom, content.maxLootPerRoom),
-                        free, roomRandom);
+                    if (!authored)
+                    {
+                        SpawnItems(content.loot,
+                            roomRandom.RangeInclusive(content.minLootPerRoom, content.maxLootPerRoom),
+                            free, roomRandom);
+                    }
                     break;
             }
 
-            SpawnProps(layout, room, free, roomRandom, ref slot);
+            if (!authored) SpawnProps(layout, room, free, roomRandom, ref slot);
         }
     }
 
@@ -184,6 +193,61 @@ public class DungeonPopulator : MonoBehaviour
             _prefabs.Spawn(choice.prefabId, builder.CellCenter(cell), _contentRoot,
                 SlotGuid(layout.Seed, room.Index, slot++));
         }
+    }
+
+    // ---------------------------------------------------------------- templates
+
+    /// <summary>
+    /// Converts an authored room template's markers into spawns. Returns false when no
+    /// template fits or the roll went against it, leaving the room to the random tables.
+    ///
+    /// Only the markers are instantiated — the template prefab itself is never placed in
+    /// the scene, so it stays pure authoring data and cannot leak stray objects.
+    /// </summary>
+    private bool ApplyTemplate(DungeonLayout layout, Room room, List<Vector2Int> free,
+        DeterministicRandom random, ref int slot)
+    {
+        DungeonRoomTemplate template = content.PickTemplate(room, random);
+        if (template == null) return false;
+
+        Vector2Int anchor = template.AnchorIn(room);
+
+        foreach (DungeonSpawnMarker marker in template.Markers)
+        {
+            if (marker == null) continue;
+
+            Vector2Int cell = anchor + marker.CellOffset;
+
+            // A marker pushed outside the room by a bad footprint would otherwise spawn
+            // into rock or into the corridor beyond.
+            if (!room.Contains(cell) || !layout.IsWalkable(cell)) continue;
+
+            // Reserve the cell whether or not the marker fires, so a marker that rolled
+            // against itself still leaves the designed gap.
+            free.Remove(cell);
+
+            if (!random.Chance(marker.Chance)) continue;
+
+            switch (marker.Kind)
+            {
+                case SpawnMarkerKind.Prefab:
+                    if (!string.IsNullOrEmpty(marker.Id))
+                    {
+                        _prefabs.Spawn(marker.Id, builder.CellCenter(cell), _contentRoot,
+                            SlotGuid(layout.Seed, room.Index, slot++));
+                    }
+                    break;
+
+                case SpawnMarkerKind.Item:
+                    Drop(marker.Id, random.RangeInclusive(marker.MinCount, marker.MaxCount), cell);
+                    break;
+
+                case SpawnMarkerKind.KeepClear:
+                    break; // the reservation above was the whole point
+            }
+        }
+
+        return true;
     }
 
     // ---------------------------------------------------------------- loot

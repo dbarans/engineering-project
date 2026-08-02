@@ -79,6 +79,41 @@ public class RoomContentSettings : ScriptableObject
     public string saveStationPrefabId = "world.savestation";
     public string lightPrefabId = "world.lamp";
 
+    [Header("Room templates")]
+    [Tooltip("Hand-authored room interiors. A room that takes one skips random loot and " +
+             "props, so the designed layout is not buried under scatter.")]
+    public List<DungeonRoomTemplate> templates = new List<DungeonRoomTemplate>();
+
+    [Tooltip("Chance a room that has a fitting template uses it.")]
+    [Range(0f, 1f)] public float templateChance = 0.4f;
+
+    /// <summary>
+    /// Picks a template that fits the room, by weight. Returns null when none fits or
+    /// the roll went against it.
+    /// </summary>
+    public DungeonRoomTemplate PickTemplate(Room room, DeterministicRandom random)
+    {
+        if (templates == null || templates.Count == 0) return null;
+        if (!random.Chance(templateChance)) return null;
+
+        float total = 0f;
+        foreach (var template in templates)
+        {
+            if (template != null && template.Fits(room)) total += template.Weight;
+        }
+        if (total <= 0f) return null;
+
+        float roll = random.NextFloat() * total;
+        foreach (var template in templates)
+        {
+            if (template == null || !template.Fits(room)) continue;
+            roll -= template.Weight;
+            if (roll <= 0f) return template;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Picks a prefab by weight, ignoring entries gated above the room's depth.
     /// Returns null when nothing is eligible.

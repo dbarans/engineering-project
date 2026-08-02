@@ -122,33 +122,11 @@ public class DungeonLayoutPreviewWindow : EditorWindow
 
     private static string Describe(DungeonLayout layout, RoomCorridorGenerator generator, double milliseconds)
     {
-        int deadEnds = 0, doors = 0;
-        int deepest = 0;
-        foreach (var room in layout.Rooms)
-        {
-            if (room.Degree <= 1) deadEnds++;
-            if (room.DepthFromStart != int.MaxValue)
-                deepest = Mathf.Max(deepest, room.DepthFromStart);
-        }
-        for (int y = 0; y < layout.Height; y++)
-        {
-            for (int x = 0; x < layout.Width; x++)
-                if (layout[x, y] == CellType.Door) doors++;
-        }
-
-        // Links beyond a spanning tree are exactly the cycles.
-        int loops = Mathf.Max(0, layout.Links.Count - (layout.Rooms.Count - 1));
-
         var builder = new StringBuilder();
         builder.AppendLine(
             $"seed '{layout.Seed}'   {layout.Width}x{layout.Height}   {milliseconds:F1} ms   " +
             $"attempt {generator.LastAttemptCount}");
-        builder.AppendLine(
-            $"rooms {layout.Rooms.Count}   corridors {layout.Links.Count}   loops {loops}   " +
-            $"dead ends {deadEnds}   doors {doors}");
-        builder.Append(
-            $"open cells {layout.CountWalkable()} ({100f * layout.CountWalkable() / (layout.Width * layout.Height):F1}%)   " +
-            $"deepest room {deepest} hops from start");
+        builder.Append(DungeonMetrics.Measure(layout).ToReport());
 
         if (!generator.LastGenerationSucceeded)
             builder.Append($"\nVALIDATION FAILED: {generator.LastFailureReason}");

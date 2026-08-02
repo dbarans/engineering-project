@@ -243,9 +243,10 @@ public class SaveManager : MonoBehaviour
     /// <summary>
     /// Overlays saved entity states (enemies, chests…) onto the freshly loaded scene:
     /// entities present in the scene but absent from the save keep their authored
-    /// state (restore never undoes — decision D5); a saved state without a live
-    /// entity would need the prefab registry, which is deferred until something
-    /// actually spawns entities at runtime (plan §3b).
+    /// state (restore never undoes — decision D5). A saved state whose object is not in
+    /// the world is respawned from <see cref="PrefabRegistry"/> when the save recorded
+    /// which prefab it came from; that is the case for everything the dungeon generator
+    /// creates.
     /// </summary>
     private void RestoreEntities(GameSaveData data)
     {
@@ -257,15 +258,8 @@ public class SaveManager : MonoBehaviour
 
         foreach (var pair in scene.entities)
         {
-            var entity = SaveableEntity.Find(pair.Key);
-            if (entity == null)
-            {
-                Debug.LogWarning(
-                    $"[SaveManager] No entity with guid '{pair.Key}' in scene '{sceneName}' — " +
-                    "respawning from a prefab registry is not implemented yet (plan §3b); " +
-                    "state skipped.", this);
-                continue;
-            }
+            var entity = SaveableEntity.Find(pair.Key) ?? RespawnEntity(pair.Key, pair.Value, sceneName);
+            if (entity == null) continue;
 
             try
             {
@@ -277,6 +271,40 @@ public class SaveManager : MonoBehaviour
                     $"[SaveManager] Restore failed on entity '{entity.name}': {e}", this);
             }
         }
+    }
+
+    /// <summary>
+    /// Recreates a saved object that the freshly built world does not contain, using the
+    /// registry id the save recorded. Returns null when the object cannot be recreated —
+    /// a scene-authored entity that was deleted, or an id no longer in the registry.
+    /// </summary>
+    private SaveableEntity RespawnEntity(string guid, EntityState state, string sceneName)
+    {
+        if (state == null || string.IsNullOrEmpty(state.prefabId))
+        {
+            Debug.LogWarning(
+                $"[SaveManager] No entity with guid '{guid}' in scene '{sceneName}' and the " +
+                "save records no prefab id for it — state skipped.", this);
+            return null;
+        }
+
+        var registry = PrefabRegistry.Instance;
+        if (registry == null)
+        {
+            Debug.LogError(
+                $"[SaveManager] Entity '{guid}' needs prefab '{state.prefabId}' but no " +
+                "PrefabRegistry was found in Resources — state skipped.", this);
+            return null;
+        }
+
+        Vector2 position = state.position != null && state.position.Length >= 2
+            ? new Vector2(state.position[0], state.position[1])
+            : Vector2.zero;
+
+        // Restore() applies position and payload afterwards; spawning at the saved spot
+        // just avoids a one-frame flicker at the origin.
+        GameObject instance = registry.Spawn(state.prefabId, position, null, guid);
+        return instance != null ? instance.GetComponent<SaveableEntity>() : null;
     }
 
     /// <summary>Scene systems implementing <see cref="ISaveable"/>, inactive objects included.</summary>

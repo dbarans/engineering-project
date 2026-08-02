@@ -76,15 +76,19 @@ public class PrefabRegistry : ScriptableObject
 
         var instance = Instantiate(prefab, position, Quaternion.identity, parent);
 
-        if (!string.IsNullOrEmpty(guid))
+        var entity = instance.GetComponent<SaveableEntity>();
+        if (entity != null)
         {
-            var entity = instance.GetComponent<SaveableEntity>();
-            if (entity != null)
-                entity.SetGuid(guid);
-            else
-                Debug.LogWarning(
-                    $"[PrefabRegistry] '{id}' was given guid '{guid}' but its prefab has no " +
-                    "SaveableEntity — the object will not survive a save/load.", instance);
+            // Recorded even without a guid: it is what lets the save system recreate the
+            // object later, rather than only overlay state onto one that already exists.
+            entity.SetPrefabId(id);
+            if (!string.IsNullOrEmpty(guid)) entity.SetGuid(guid);
+        }
+        else if (!string.IsNullOrEmpty(guid))
+        {
+            Debug.LogWarning(
+                $"[PrefabRegistry] '{id}' was given guid '{guid}' but its prefab has no " +
+                "SaveableEntity — the object will not survive a save/load.", instance);
         }
 
         return instance;

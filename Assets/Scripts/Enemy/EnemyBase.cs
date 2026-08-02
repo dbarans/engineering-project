@@ -146,6 +146,29 @@ public abstract class EnemyBase : MonoBehaviour
         if (rb != null) rb.constraints = RigidbodyConstraints2D.FreezeRotation;
     }
 
+    /// <summary>
+    /// Last-resort player resolution for enemies nobody injected into — currently the
+    /// ones the save system respawns from the prefab registry, which has no business
+    /// knowing what a player is. Runs in Start so <see cref="GameManager"/> has already
+    /// initialised. Enemies placed in the scene or spawned by the dungeon populator
+    /// already have their reference and skip this entirely.
+    /// </summary>
+    protected virtual void Start()
+    {
+        if (player != null) return;
+
+        var gameManager = FindFirstObjectByType<GameManager>();
+        GameObject resolved = gameManager != null ? gameManager.GetPlayer() : null;
+        if (resolved != null)
+        {
+            player = resolved.transform;
+            return;
+        }
+
+        var movement = FindFirstObjectByType<PlayerMovement>();
+        if (movement != null) player = movement.transform;
+    }
+
     protected virtual void Update()
     {
         if (IsDead) return;

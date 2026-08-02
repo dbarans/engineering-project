@@ -24,11 +24,21 @@ public class SaveableEntity : MonoBehaviour
     [Tooltip("Stable identifier used by the save system. Auto-generated; never edit or reuse.")]
     [SerializeField] private string guid;
 
+    [Tooltip("PrefabRegistry id this instance was spawned from. Empty for scene-authored objects.")]
+    [SerializeField] private string prefabId;
+
     private static readonly Dictionary<string, SaveableEntity> Registry =
         new Dictionary<string, SaveableEntity>();
 
     /// <summary>Stable identity of this instance (empty on prefab assets).</summary>
     public string Guid => guid;
+
+    /// <summary>
+    /// Registry id this instance was spawned from, or empty when it was authored into
+    /// the scene. Without it a saved object that no longer exists in the freshly loaded
+    /// world cannot be recreated — only overlaid onto something already there.
+    /// </summary>
+    public string PrefabId => prefabId;
 
     /// <summary>All live entities, including inactive (e.g. deactivated-on-death) ones.</summary>
     public static IReadOnlyCollection<SaveableEntity> All => Registry.Values;
@@ -49,6 +59,7 @@ public class SaveableEntity : MonoBehaviour
     {
         var state = new EntityState
         {
+            prefabId = prefabId,
             position = new[] { transform.position.x, transform.position.y },
             alive = gameObject.activeSelf
         };
@@ -91,6 +102,16 @@ public class SaveableEntity : MonoBehaviour
         }
 
         gameObject.SetActive(state.alive);
+    }
+
+    /// <summary>
+    /// Records which registry entry produced this instance. Called by
+    /// <see cref="PrefabRegistry.Spawn"/> right after Instantiate; scene objects never
+    /// set it.
+    /// </summary>
+    public void SetPrefabId(string registryId)
+    {
+        prefabId = registryId;
     }
 
     /// <summary>

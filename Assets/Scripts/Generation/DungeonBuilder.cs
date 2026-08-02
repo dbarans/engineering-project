@@ -9,7 +9,7 @@ using UnityEngine;
 /// before <see cref="PathfindingGrid"/> samples them, and the grid must be valid before
 /// anything spawns, because spawn placement checks walkability.
 /// </summary>
-public class DungeonBuilder : MonoBehaviour
+public class DungeonBuilder : MonoBehaviour, ISaveable
 {
     [Header("Wiring")]
     [SerializeField] private DungeonGenerationSettings settings;
@@ -39,9 +39,63 @@ public class DungeonBuilder : MonoBehaviour
     /// <summary>Converts a layout cell to a world position; the single source of truth.</summary>
     public Vector2 CellCenter(Vector2Int cell) => painter.CellCenter(cell);
 
+    private void OnEnable()
+    {
+        SaveManager.BuildWorld += BuildFromSave;
+    }
+
+    private void OnDisable()
+    {
+        SaveManager.BuildWorld -= BuildFromSave;
+    }
+
     private void Start()
     {
+        // A load already rebuilt the dungeon from its saved seed: scene-loaded callbacks
+        // run before Start, so building again here would replace the restored world with
+        // a different one right before the saved state lands on it.
+        if (CurrentLayout != null) return;
+
         if (buildOnStart) Build(seed);
+    }
+
+    /// <summary>
+    /// Rebuilds the dungeon a save was made in, from the seed stored with it. Hooked to
+    /// <see cref="SaveManager.BuildWorld"/>, which fires after the scene loads and before
+    /// any entity state is restored — the world has to exist before state can be laid
+    /// over it.
+    /// </summary>
+    private void BuildFromSave(GameSaveData data)
+    {
+        if (data == null) return;
+
+        string sceneName = gameObject.scene.name;
+        if (data.scenes == null || !data.scenes.TryGetValue(sceneName, out var scene)) return;
+
+        if (string.IsNullOrEmpty(scene.generationSeed))
+            return; // save predates generation, or this scene is hand-built
+
+        Build(scene.generationSeed);
+    }
+
+    /// <summary>
+    /// Writes the current seed into the scene's save bucket. The dungeon itself is never
+    /// saved — a seed plus the entity diffs is enough to rebuild it exactly, and it does
+    /// not grow with the size of the map.
+    /// </summary>
+    public void Capture(GameSaveData data)
+    {
+        if (data == null || CurrentLayout == null) return;
+
+        data.GetOrCreateScene(gameObject.scene.name).generationSeed = CurrentLayout.Seed;
+    }
+
+    /// <summary>
+    /// Nothing to do: generation already happened in <see cref="BuildFromSave"/>, which
+    /// runs earlier in the load sequence than this.
+    /// </summary>
+    public void Restore(GameSaveData data)
+    {
     }
 
     /// <summary>

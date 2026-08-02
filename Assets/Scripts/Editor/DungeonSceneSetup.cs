@@ -28,6 +28,7 @@ public static class DungeonSceneSetup
     private const string TilesFolder = GenerationFolder + "/Tiles";
     private const string ResourcesFolder = "Assets/Resources";
     private const string RegistryPath = ResourcesFolder + "/" + PrefabRegistry.ResourcesPath + ".asset";
+    private const string SettingsPath = GenerationFolder + "/DungeonGenerationSettings.asset";
 
     private const int ObstacleStaticLayer = 8; // matches the obstacle masks on FieldOfView/PathfindingGrid
 
@@ -51,12 +52,14 @@ public static class DungeonSceneSetup
         Tile floorTile = EnsureTile("FloorTile", FloorColor, FloorEdgeColor, Tile.ColliderType.None);
         Tile wallTile = EnsureTile("WallTile", WallColor, WallEdgeColor, Tile.ColliderType.Grid);
         PrefabRegistry registry = EnsureRegistry();
+        DungeonGenerationSettings settings = EnsureSettings();
 
         Grid grid = EnsureGrid();
         Tilemap floor = EnsureFloorTilemap(grid);
         Tilemap walls = EnsureWallTilemap(grid);
 
         WarnOnCellSizeMismatch(grid);
+        WireGenerator(grid, floor, walls, floorTile, wallTile, settings);
 
         EditorSceneManager.MarkSceneDirty(grid.gameObject.scene);
         AssetDatabase.SaveAssets();
@@ -70,12 +73,12 @@ public static class DungeonSceneSetup
             "Scene prepared for procedural generation.\n\n" +
             "• DungeonRoot ▸ Floor / Walls tilemaps\n" +
             "• Walls: TilemapCollider2D merged into a CompositeCollider2D, layer ObstacleStatic\n" +
-            "• Placeholder FloorTile / WallTile assets\n" +
-            "• Empty PrefabRegistry in Resources\n\n" +
-            "Verify Stage 0 by hand: paint a few wall tiles with the Tile Palette, then check " +
-            "in Play mode that they block the player's field of view and that an enemy paths " +
-            "around them. Rebuild the PathfindingGrid after painting — it samples physics once " +
-            "on Awake.",
+            "• DungeonPainter + DungeonBuilder wired to the tilemaps and the PathfindingGrid\n" +
+            "• Placeholder FloorTile / WallTile assets and a settings asset\n" +
+            "• PrefabRegistry in Resources\n\n" +
+            "To generate: select DungeonRoot and use the DungeonBuilder context menu " +
+            "(right-click the component header) ▸ Generate. Tools ▸ Dungeon ▸ Layout Preview " +
+            "renders layouts as ASCII without touching the scene.",
             "OK");
 
         Selection.activeGameObject = grid.gameObject;
@@ -151,6 +154,28 @@ public static class DungeonSceneSetup
         var tilemap = go.AddComponent<Tilemap>();
         go.AddComponent<TilemapRenderer>();
         return tilemap;
+    }
+
+    /// <summary>
+    /// Adds and wires the painter and the builder. Wiring here rather than by hand
+    /// means the collider/grid ordering the builder depends on cannot be broken by a
+    /// missing inspector reference.
+    /// </summary>
+    private static void WireGenerator(Grid grid, Tilemap floor, Tilemap walls,
+        Tile floorTile, Tile wallTile, DungeonGenerationSettings settings)
+    {
+        var root = grid.gameObject;
+
+        var painter = root.GetComponent<DungeonPainter>() ?? Undo.AddComponent<DungeonPainter>(root);
+        SetRef(painter, "floorTilemap", floor);
+        SetRef(painter, "wallTilemap", walls);
+        SetRef(painter, "floorTile", floorTile);
+        SetRef(painter, "wallTile", wallTile);
+
+        var builder = root.GetComponent<DungeonBuilder>() ?? Undo.AddComponent<DungeonBuilder>(root);
+        SetRef(builder, "settings", settings);
+        SetRef(builder, "painter", painter);
+        SetRef(builder, "pathfindingGrid", Object.FindFirstObjectByType<PathfindingGrid>());
     }
 
     /// <summary>
@@ -264,6 +289,30 @@ public static class DungeonSceneSetup
             $"[DungeonSetup] Created an empty PrefabRegistry at '{RegistryPath}'. " +
             "Populate it in Stage 3, when the generator starts spawning content.");
         return registry;
+    }
+
+    private static DungeonGenerationSettings EnsureSettings()
+    {
+        var settings = AssetDatabase.LoadAssetAtPath<DungeonGenerationSettings>(SettingsPath);
+        if (settings != null) return settings;
+
+        settings = ScriptableObject.CreateInstance<DungeonGenerationSettings>();
+        AssetDatabase.CreateAsset(settings, SettingsPath);
+        return settings;
+    }
+
+    /// <summary>Sets a private serialized field by name, the way the other setup tools do.</summary>
+    private static void SetRef(Object component, string field, Object value)
+    {
+        var serialized = new SerializedObject(component);
+        var property = serialized.FindProperty(field);
+        if (property == null)
+        {
+            Debug.LogWarning($"[DungeonSetup] Field '{field}' not found on {component.GetType().Name}.");
+            return;
+        }
+        property.objectReferenceValue = value;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void EnsureFolders()

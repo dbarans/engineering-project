@@ -2,6 +2,17 @@
 
 Working reference for the Enemy system, maintained across branches (`GU-0032-enemy-sound-tracking`, `GU-0033-enemy-investigate-linger`, ...) and kept up to date whenever Enemy-related code changes are committed.
 
+## GU-0051: runtime-spawned enemies get their player injected
+
+The procedural dungeon generator (`Generation/`, see `GENERATION_NOTES.md`) spawns enemies that exist in no authored scene. `EnemyBase.player` is a serialized `Transform`, and **a prefab asset cannot hold a reference to a scene object** — so a spawned enemy started with `player == null`, and `IsPlayerDetected()` returns `false` immediately on null. The enemy would patrol forever and never react to anything, with no error anywhere.
+
+Two paths now cover it:
+
+- **`EnemyBase.SetPlayer(Transform)`** — explicit injection, called by `DungeonPopulator` right after `Instantiate`. This is the normal path; the populator already resolved the player once for the whole build, so it costs nothing per enemy.
+- **`EnemyBase.Start()`** — falls back to `GameManager.GetPlayer()`, then to `FindFirstObjectByType<PlayerMovement>()`, but **only when `player` is still null**. This covers enemies that `SaveManager` respawns from the `PrefabRegistry` on load, where the save layer has no business knowing what a player is. Scene-placed enemies keep their inspector reference and skip it entirely.
+
+Enemies spawned without waypoints are already handled by the existing patrol code — they wander around their spawn position.
+
 ## Hiding under a table — concealment beats every detector
 
 New `Table.prefab` (art `Art/FURNITURE_pngy_stol.png`): a barrel-like obstacle while standing, a hiding spot while crouching (Ctrl — crouch is the existing `Sneak` movement mode, not a new action).
@@ -115,6 +126,7 @@ The core of the system is `EnemyBase` (abstract MonoBehaviour) — a self-contai
 
 **Key methods:**
 - `Awake()` — caches `currentHealth`, `GetComponent<IMovementStrategy>`, `GetComponents<IPlayerDetector>()` (additional detectors), freezes Rigidbody2D rotation.
+- `Start()` (virtual) — resolves `player` only if still null; see the GU-0051 section above.
 - `Update()` — if dead: skip; otherwise `UpdateStateMachine()` → `ResolveUnreachablePatrolWaypoint()` → `Move()` if `ShouldMove()`.
 - **`IsPlayerDetected()`** — unconditional within `alwaysDetectRange`, otherwise any of the cached `IPlayerDetector` components (`VisionPlayerDetector`, `SoundPlayerDetector`, ...). Detected if any check succeeds.
 - `UpdateStateMachine()` — transition table (below). A successful detection stamps `lastDetectionTime`; `playerInRange` stays true until `detectionMemoryDuration` elapses since the last real detection. Updates `lastKnownPlayerPosition`/`hasLastKnownPlayerPosition` whenever `playerInRange == true`, regardless of state and regardless of which detector triggered it.
@@ -125,7 +137,7 @@ The core of the system is `EnemyBase` (abstract MonoBehaviour) — a self-contai
 - `GetTargetPosition()` / `Move()` (virtual) — `movementStrategy.Move(...)`, speed multiplied by `chaseSpeedMultiplier` in `FollowPlayer`/`InvestigateLastKnown`.
 - `CaptureSaveState()` / `RestoreSaveState()` — see Saving section.
 
-**Public API:** `CurrentState`, `CurrentTargetPosition`, `CurrentHealth`, `MaxHealth`, `IsDead`.
+**Public API:** `CurrentState`, `CurrentTargetPosition`, `CurrentHealth`, `MaxHealth`, `IsDead`, `Player`, `SetPlayer(Transform)`.
 
 ### State machine (`UpdateStateMachine`)
 - **Idle** → `FollowPlayer` if `playerInRange`; else → `InvestigateNoise` if a fresh noise was heard; otherwise `AdvanceWaypointIfReached()`.

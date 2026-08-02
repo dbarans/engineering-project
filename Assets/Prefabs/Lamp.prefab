@@ -104,6 +104,7 @@ GameObject:
   - component: {fileID: 979120108990676748}
   - component: {fileID: 7338191609042479977}
   - component: {fileID: 3445688931396910586}
+  - component: {fileID: 1056252242812669938}
   m_Layer: 0
   m_Name: Light
   m_TagString: Untagged
@@ -207,3 +208,23 @@ MonoBehaviour:
   sortingLayerName: Default
   sortingOrder: 5
   gizmoDebugSettings: {fileID: 0}
+--- !u!114 &1056252242812669938
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8043085481412696442}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f818459020f6744685d17a01b51e975, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BrokenLightFlicker
+  holdDurationRange: {x: 0.3, y: 5}
+  flutterChance: 0.09204551
+  flutterPulseCountRange: {x: 1, y: 2}
+  flutterStepDurationRange: {x: 0.02, y: 0.03}
+  blackoutChance: 0.060435213
+  blackoutDurationRange: {x: 0.3, y: 0.8}
+  brownoutDuration: 0.02
+  brownoutSteps: 4

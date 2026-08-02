@@ -11,12 +11,16 @@
 // BlendOp Max is what makes multiple lights combine correctly: overlapping lights take the
 // brighter contribution instead of accumulating, so a lamp cannot paint its dim rim over ground
 // the player already sees.
+//
+// _Intensity scales the whole light down (e.g. a flickering lamp) without touching the mesh, so a
+// light source can flicker every frame via a MaterialPropertyBlock instead of re-raycasting.
 Shader "Custom/VisionMaskWriter"
 {
     Properties
     {
         _EdgeSoftness("Cone Edge Softness", Range(0, 1)) = 0.35
         _NearEdgeSoftness("Near Circle Edge Softness", Range(0, 1)) = 0.15
+        _Intensity("Intensity", Range(0, 1)) = 1
     }
 
     SubShader
@@ -46,6 +50,7 @@ Shader "Custom/VisionMaskWriter"
             CBUFFER_START(UnityPerMaterial)
                 float _EdgeSoftness;
                 float _NearEdgeSoftness;
+                float _Intensity;
             CBUFFER_END
 
             struct Attributes
@@ -72,7 +77,7 @@ Shader "Custom/VisionMaskWriter"
             {
                 float softness = lerp(_EdgeSoftness, _NearEdgeSoftness, saturate(IN.uv.y));
                 float edgeStart = 1.0 - saturate(softness);
-                half visibility = 1.0h - smoothstep(edgeStart, 1.0, saturate(IN.uv.x));
+                half visibility = (1.0h - smoothstep(edgeStart, 1.0, saturate(IN.uv.x))) * saturate(_Intensity);
                 return half4(visibility, visibility, visibility, visibility);
             }
             ENDHLSL

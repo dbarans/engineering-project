@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -29,6 +30,7 @@ public static class DungeonSceneSetup
     private const string ResourcesFolder = "Assets/Resources";
     private const string RegistryPath = ResourcesFolder + "/" + PrefabRegistry.ResourcesPath + ".asset";
     private const string SettingsPath = GenerationFolder + "/DungeonGenerationSettings.asset";
+    private const string ContentSettingsPath = GenerationFolder + "/RoomContentSettings.asset";
 
     private const int ObstacleStaticLayer = 8; // matches the obstacle masks on FieldOfView/PathfindingGrid
 
@@ -52,14 +54,16 @@ public static class DungeonSceneSetup
         Tile floorTile = EnsureTile("FloorTile", FloorColor, FloorEdgeColor, Tile.ColliderType.None);
         Tile wallTile = EnsureTile("WallTile", WallColor, WallEdgeColor, Tile.ColliderType.Grid);
         PrefabRegistry registry = EnsureRegistry();
+        EnsureRegistryEntries(registry);
         DungeonGenerationSettings settings = EnsureSettings();
+        RoomContentSettings contentSettings = EnsureContentSettings();
 
         Grid grid = EnsureGrid();
         Tilemap floor = EnsureFloorTilemap(grid);
         Tilemap walls = EnsureWallTilemap(grid);
 
         WarnOnCellSizeMismatch(grid);
-        WireGenerator(grid, floor, walls, floorTile, wallTile, settings);
+        WireGenerator(grid, floor, walls, floorTile, wallTile, settings, contentSettings, registry);
 
         EditorSceneManager.MarkSceneDirty(grid.gameObject.scene);
         AssetDatabase.SaveAssets();
@@ -162,7 +166,8 @@ public static class DungeonSceneSetup
     /// missing inspector reference.
     /// </summary>
     private static void WireGenerator(Grid grid, Tilemap floor, Tilemap walls,
-        Tile floorTile, Tile wallTile, DungeonGenerationSettings settings)
+        Tile floorTile, Tile wallTile, DungeonGenerationSettings settings,
+        RoomContentSettings contentSettings, PrefabRegistry registry)
     {
         var root = grid.gameObject;
 
@@ -176,6 +181,11 @@ public static class DungeonSceneSetup
         SetRef(builder, "settings", settings);
         SetRef(builder, "painter", painter);
         SetRef(builder, "pathfindingGrid", Object.FindFirstObjectByType<PathfindingGrid>());
+
+        var populator = root.GetComponent<DungeonPopulator>() ?? Undo.AddComponent<DungeonPopulator>(root);
+        SetRef(populator, "builder", builder);
+        SetRef(populator, "content", contentSettings);
+        SetRef(populator, "registry", registry);
     }
 
     /// <summary>
@@ -299,6 +309,108 @@ public static class DungeonSceneSetup
         settings = ScriptableObject.CreateInstance<DungeonGenerationSettings>();
         AssetDatabase.CreateAsset(settings, SettingsPath);
         return settings;
+    }
+
+    /// <summary>
+    /// Registers the project's existing prefabs under stable ids. Additive: ids already
+    /// present are left alone, because those ids may already appear in save files.
+    /// </summary>
+    private static void EnsureRegistryEntries(PrefabRegistry registry)
+    {
+        var wanted = new (string id, string path)[]
+        {
+            ("world.door", "Assets/Prefabs/Door_System.prefab"),
+            ("world.savestation", "Assets/Prefabs/World/SaveStation.prefab"),
+            ("world.lamp", "Assets/Prefabs/Lamp.prefab"),
+            ("world.craftingtable", "Assets/Prefabs/World/CraftingTable.prefab"),
+            ("prop.barrel", "Assets/Prefabs/Barrel.prefab"),
+            ("prop.table", "Assets/Prefabs/Table.prefab"),
+            ("enemy.skullguy", "Assets/Prefabs/SkullGuyEnemy.prefab"),
+            ("enemy.blindlistener", "Assets/Prefabs/BlindListenerEnemy.prefab")
+        };
+
+        var serialized = new SerializedObject(registry);
+        SerializedProperty entries = serialized.FindProperty("entries");
+
+        var known = new HashSet<string>();
+        for (int i = 0; i < entries.arraySize; i++)
+            known.Add(entries.GetArrayElementAtIndex(i).FindPropertyRelative("id").stringValue);
+
+        foreach (var (id, path) in wanted)
+        {
+            if (known.Contains(id)) continue;
+
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[DungeonSetup] No prefab at '{path}' — id '{id}' not registered.");
+                continue;
+            }
+
+            int index = entries.arraySize;
+            entries.InsertArrayElementAtIndex(index);
+            SerializedProperty entry = entries.GetArrayElementAtIndex(index);
+            entry.FindPropertyRelative("id").stringValue = id;
+            entry.FindPropertyRelative("prefab").objectReferenceValue = prefab;
+        }
+
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(registry);
+    }
+
+    /// <summary>
+    /// Creates the content settings asset with a starting spawn table. Item ids are read
+    /// off the assets rather than hard-coded, because <see cref="ItemData.Id"/> is an
+    /// opaque guid that says nothing about which item it belongs to.
+    /// </summary>
+    private static RoomContentSettings EnsureContentSettings()
+    {
+        var settings = AssetDatabase.LoadAssetAtPath<RoomContentSettings>(ContentSettingsPath);
+        if (settings != null) return settings;
+
+        settings = ScriptableObject.CreateInstance<RoomContentSettings>();
+
+        settings.enemies.Add(new RoomContentSettings.PrefabChoice
+        { prefabId = "enemy.skullguy", weight = 1f });
+        settings.enemies.Add(new RoomContentSettings.PrefabChoice
+        { prefabId = "enemy.blindlistener", weight = 0.7f, minDepth = 2 });
+
+        settings.props.Add(new RoomContentSettings.PrefabChoice { prefabId = "prop.barrel", weight = 1f });
+        settings.props.Add(new RoomContentSettings.PrefabChoice { prefabId = "prop.table", weight = 0.6f });
+
+        AddLoot(settings.loot, "Assets/Items/Item 7 - Bullet.asset", 1.2f, 2, 6);
+        AddLoot(settings.loot, "Assets/Items/Item 3 - Wood.asset", 1f, 1, 3);
+        AddLoot(settings.loot, "Assets/Items/Item 2 - Mana Potion.asset", 0.5f, 1, 1);
+
+        AddLoot(settings.treasureLoot, "Assets/Items/Item 5 - Pistol.asset", 1f, 1, 1);
+        AddLoot(settings.treasureLoot, "Assets/Items/Item 1 - Sword.asset", 1f, 1, 1);
+        AddLoot(settings.treasureLoot, "Assets/Items/Coins.asset", 1.5f, 5, 15);
+
+        // Ink is what saving costs, so a run with none in it cannot be saved at all.
+        var ink = AssetDatabase.LoadAssetAtPath<ItemData>("Assets/Items/Item 6 - Ink.asset");
+        if (ink != null) settings.guaranteedItemId = ink.Id;
+
+        AssetDatabase.CreateAsset(settings, ContentSettingsPath);
+        return settings;
+    }
+
+    private static void AddLoot(List<RoomContentSettings.ItemChoice> pool,
+        string assetPath, float weight, int minCount, int maxCount)
+    {
+        var item = AssetDatabase.LoadAssetAtPath<ItemData>(assetPath);
+        if (item == null)
+        {
+            Debug.LogWarning($"[DungeonSetup] No item asset at '{assetPath}' — left out of the loot table.");
+            return;
+        }
+
+        pool.Add(new RoomContentSettings.ItemChoice
+        {
+            itemId = item.Id,
+            weight = weight,
+            minCount = minCount,
+            maxCount = maxCount
+        });
     }
 
     /// <summary>Sets a private serialized field by name, the way the other setup tools do.</summary>

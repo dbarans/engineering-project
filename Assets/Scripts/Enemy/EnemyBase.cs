@@ -123,6 +123,17 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     public Transform Player => player;
 
+    /// <summary>
+    /// Injects the player for enemies spawned at runtime. A prefab asset cannot hold a
+    /// reference to a scene object, so a spawned enemy starts with no player and would
+    /// never detect anything — the procedural generator calls this right after
+    /// Instantiate. Scene-placed enemies keep their inspector reference.
+    /// </summary>
+    public void SetPlayer(Transform playerTransform)
+    {
+        if (playerTransform != null) player = playerTransform;
+    }
+
     protected virtual void Awake()
     {
         currentHealth = maxHealth;

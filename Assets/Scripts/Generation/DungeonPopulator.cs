@@ -60,6 +60,16 @@ public class DungeonPopulator : MonoBehaviour
         _pickup = FindFirstObjectByType<WorldItemPickup>();
         _player = ResolvePlayer();
 
+        if (_pickup == null && WantsLoot())
+        {
+            // Worth saying out loud: everything else still spawns, so a dungeon with no
+            // loot anywhere looks like a bad roll rather than a missing scene component.
+            Debug.LogWarning(
+                "[DungeonPopulator] No WorldItemPickup in the scene — no loot will be " +
+                "spawned, including the guaranteed items. Run Tools ▸ Slot Inventory ▸ " +
+                "Build UI & Wire Scene.", this);
+        }
+
         ResetContentRoot();
 
         var random = new DeterministicRandom(layout.Seed).Derive("content");
@@ -396,6 +406,14 @@ public class DungeonPopulator : MonoBehaviour
         var root = new GameObject(ContentRootName);
         root.transform.SetParent(transform, false);
         _contentRoot = root.transform;
+    }
+
+    /// <summary>True when the content table would place any item at all.</summary>
+    private bool WantsLoot()
+    {
+        return content.maxLootPerRoom > 0 ||
+               content.treasureLootCount > 0 ||
+               content.guaranteedItemDrops > 0;
     }
 
     private static Transform ResolvePlayer()

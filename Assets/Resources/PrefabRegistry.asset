@@ -12,4 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f314211b524b0b42825ae3ad6ba3e1a, type: 3}
   m_Name: PrefabRegistry
   m_EditorClassIdentifier: Assembly-CSharp::PrefabRegistry
-  entries: []
+  entries:
+  - id: world.door
+    prefab: {fileID: 8923387513705250510, guid: dee86fb83c75ca94484d61edaab4f876, type: 3}
+  - id: world.savestation
+    prefab: {fileID: 3387577494801086772, guid: 84e75b8020ca3f84f8ecc249b53de13e, type: 3}
+  - id: world.lamp
+    prefab: {fileID: 4445678543466277634, guid: 990f67efd71ff94408219daa84378033, type: 3}
+  - id: world.craftingtable
+    prefab: {fileID: 1369184692762654651, guid: 6170ba43350d6284bb477145603e4002, type: 3}
+  - id: prop.barrel
+    prefab: {fileID: 7108180406061880555, guid: 6640c9367df2ece47a60f6a221c44b48, type: 3}
+  - id: prop.table
+    prefab: {fileID: 4820117563302941188, guid: 2b6f10d4c893a0f4e8517c4a9d3b62e5, type: 3}
+  - id: enemy.skullguy
+    prefab: {fileID: 7423423773025333378, guid: 9fcb20d09d999c34c9420d6778e33bdc, type: 3}
+  - id: enemy.blindlistener
+    prefab: {fileID: 6831290240910429170, guid: 7fe1ae1a7ff22fa499d1543ce35e13ad, type: 3}

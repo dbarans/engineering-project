@@ -36,6 +36,30 @@ public class PathfindingGrid : MonoBehaviour
     }
 
     /// <summary>
+    /// Resizes the grid to cover a procedurally generated dungeon and rebuilds it.
+    /// The authored width/height/origin only fit a hand-built scene, so a generator
+    /// must call this before the grid is first used.
+    ///
+    /// Caller's responsibility: the colliders must already be final. The grid samples
+    /// physics, so calling this before <c>CompositeCollider2D.GenerateGeometry()</c>
+    /// yields a grid that silently disagrees with the visible walls.
+    /// </summary>
+    public void Configure(Vector2 gridOrigin, int gridWidth, int gridHeight)
+    {
+        if (gridWidth <= 0 || gridHeight <= 0)
+        {
+            Debug.LogError(
+                $"[PathfindingGrid] Refusing size {gridWidth}x{gridHeight}; both must be positive.", this);
+            return;
+        }
+
+        origin = gridOrigin;
+        width = gridWidth;
+        height = gridHeight;
+        BuildGrid();
+    }
+
+    /// <summary>
     /// Builds or rebuilds the full walkability grid.
     /// </summary>
     public void BuildGrid()

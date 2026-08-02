@@ -258,7 +258,10 @@ public class SaveManager : MonoBehaviour
 
         foreach (var pair in scene.entities)
         {
-            var entity = SaveableEntity.Find(pair.Key) ?? RespawnEntity(pair.Key, pair.Value, sceneName);
+            // Explicit == null, not ??: Unity's overloaded equality is what recognises a
+            // destroyed object, and ?? would happily hand one back instead of respawning.
+            var entity = SaveableEntity.Find(pair.Key);
+            if (entity == null) entity = RespawnEntity(pair.Key, pair.Value, sceneName);
             if (entity == null) continue;
 
             try

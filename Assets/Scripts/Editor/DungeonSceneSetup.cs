@@ -93,12 +93,7 @@ public static class DungeonSceneSetup
     private static Grid EnsureGrid()
     {
         var existing = GameObject.Find("DungeonRoot");
-        if (existing != null)
-        {
-            var found = existing.GetComponent<Grid>();
-            if (found != null) return found;
-            return Undo.AddComponent<Grid>(existing);
-        }
+        if (existing != null) return EnsureComponent<Grid>(existing);
 
         var root = new GameObject("DungeonRoot");
         Undo.RegisterCreatedObjectUndo(root, "Create Dungeon Root");
@@ -110,7 +105,7 @@ public static class DungeonSceneSetup
     private static Tilemap EnsureFloorTilemap(Grid grid)
     {
         Tilemap tilemap = EnsureTilemap(grid, "Floor");
-        tilemap.GetComponent<TilemapRenderer>().sortingOrder = FloorSortingOrder;
+        EnsureComponent<TilemapRenderer>(tilemap.gameObject).sortingOrder = FloorSortingOrder;
         return tilemap;
     }
 
@@ -125,18 +120,30 @@ public static class DungeonSceneSetup
         var go = tilemap.gameObject;
 
         go.layer = ObstacleStaticLayer;
-        go.GetComponent<TilemapRenderer>().sortingOrder = WallSortingOrder;
+        EnsureComponent<TilemapRenderer>(go).sortingOrder = WallSortingOrder;
 
-        var body = go.GetComponent<Rigidbody2D>() ?? Undo.AddComponent<Rigidbody2D>(go);
-        body.bodyType = RigidbodyType2D.Static;
-
-        var composite = go.GetComponent<CompositeCollider2D>() ?? Undo.AddComponent<CompositeCollider2D>(go);
-        composite.geometryType = CompositeCollider2D.GeometryType.Polygons;
-
-        var collider = go.GetComponent<TilemapCollider2D>() ?? Undo.AddComponent<TilemapCollider2D>(go);
-        collider.compositeOperation = Collider2D.CompositeOperation.Merge;
+        // Order matters: the composite needs a body, and the tilemap collider needs the
+        // composite to merge into.
+        EnsureComponent<Rigidbody2D>(go).bodyType = RigidbodyType2D.Static;
+        EnsureComponent<CompositeCollider2D>(go).geometryType = CompositeCollider2D.GeometryType.Polygons;
+        EnsureComponent<TilemapCollider2D>(go).compositeOperation = Collider2D.CompositeOperation.Merge;
 
         return tilemap;
+    }
+
+    /// <summary>
+    /// Returns the component, adding it when absent.
+    ///
+    /// Written with an explicit <c>== null</c> rather than <c>??</c> on purpose:
+    /// <c>??</c> uses reference equality, while a Unity object whose native half is gone
+    /// or not yet live is a non-null C# reference that only Unity's overloaded
+    /// <c>==</c> recognises as null. With <c>??</c> the missing component is never added
+    /// and the first field assignment throws MissingComponentException.
+    /// </summary>
+    private static T EnsureComponent<T>(GameObject target) where T : Component
+    {
+        T existing = target.GetComponent<T>();
+        return existing != null ? existing : target.AddComponent<T>();
     }
 
     private static Tilemap EnsureTilemap(Grid grid, string name)
@@ -144,12 +151,8 @@ public static class DungeonSceneSetup
         Transform child = grid.transform.Find(name);
         if (child != null)
         {
-            var found = child.GetComponent<Tilemap>();
-            if (found != null) return found;
-            Debug.LogWarning(
-                $"[DungeonSetup] '{name}' exists under DungeonRoot but has no Tilemap — adding one.", child);
-            child.gameObject.AddComponent<TilemapRenderer>();
-            return child.gameObject.AddComponent<Tilemap>();
+            EnsureComponent<TilemapRenderer>(child.gameObject);
+            return EnsureComponent<Tilemap>(child.gameObject);
         }
 
         var go = new GameObject(name);
@@ -171,18 +174,18 @@ public static class DungeonSceneSetup
     {
         var root = grid.gameObject;
 
-        var painter = root.GetComponent<DungeonPainter>() ?? Undo.AddComponent<DungeonPainter>(root);
+        var painter = EnsureComponent<DungeonPainter>(root);
         SetRef(painter, "floorTilemap", floor);
         SetRef(painter, "wallTilemap", walls);
         SetRef(painter, "floorTile", floorTile);
         SetRef(painter, "wallTile", wallTile);
 
-        var builder = root.GetComponent<DungeonBuilder>() ?? Undo.AddComponent<DungeonBuilder>(root);
+        var builder = EnsureComponent<DungeonBuilder>(root);
         SetRef(builder, "settings", settings);
         SetRef(builder, "painter", painter);
         SetRef(builder, "pathfindingGrid", Object.FindFirstObjectByType<PathfindingGrid>());
 
-        var populator = root.GetComponent<DungeonPopulator>() ?? Undo.AddComponent<DungeonPopulator>(root);
+        var populator = EnsureComponent<DungeonPopulator>(root);
         SetRef(populator, "builder", builder);
         SetRef(populator, "content", contentSettings);
         SetRef(populator, "registry", registry);

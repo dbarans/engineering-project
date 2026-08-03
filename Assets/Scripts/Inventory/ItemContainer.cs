@@ -29,18 +29,75 @@ public class ItemContainer
     /// <summary>Returns the live stack at <paramref name="index"/>, or <c>null</c> if out of range.</summary>
     public ItemStack Get(int index) => InRange(index) ? _slots[index] : null;
 
-    /// <summary>Overwrites a slot with the given item/count (count &lt;= 0 or null item clears it).</summary>
+    /// <summary>
+    /// Overwrites a slot with the given item/count (count &lt;= 0 or null item clears it).
+    /// Durability is carried over when the slot already held the same item (so draining or
+    /// topping up a stack keeps its wear) and otherwise reset to full for the incoming item.
+    /// Use the four-argument overload to place an item with an explicit durability (moves, saves).
+    /// </summary>
     public void Set(int index, ItemData item, int count)
+    {
+        if (!InRange(index)) return;
+        var slot = _slots[index];
+        bool sameItem = !slot.IsEmpty && ItemStack.IsSameItem(slot.item, item);
+        Set(index, item, count, sameItem ? slot.durability : -1);
+    }
+
+    /// <summary>
+    /// Overwrites a slot with the given item/count and an explicit remaining
+    /// <paramref name="durability"/> (<c>-1</c> = full). Used when the durability must travel
+    /// with the item — cursor moves and save restore — rather than being inferred.
+    /// </summary>
+    public void Set(int index, ItemData item, int count, int durability)
     {
         if (!InRange(index)) return;
         bool hasItem = item != null && count > 0;
         _slots[index].item = hasItem ? item : null;
         _slots[index].count = hasItem ? count : 0;
+        _slots[index].durability = hasItem ? durability : -1;
         SlotChanged?.Invoke(index);
     }
 
     /// <summary>Empties the slot at <paramref name="index"/>.</summary>
     public void Clear(int index) => Set(index, null, 0);
+
+    /// <summary>Remaining durability of the slot's item (0 for empty or non-durable slots).</summary>
+    public int GetDurability(int index)
+    {
+        var s = Get(index);
+        return s != null ? s.CurrentDurability : 0;
+    }
+
+    /// <summary>
+    /// Sets the slot's remaining durability, clamped to the item's range, and raises
+    /// <see cref="SlotChanged"/> when it actually changed. No-op for empty or non-durable slots.
+    /// </summary>
+    public void SetDurability(int index, int value)
+    {
+        var s = Get(index);
+        if (s == null || s.IsEmpty || !s.HasDurability) return;
+        int clamped = Mathf.Clamp(value, 0, s.MaxDurability);
+        if (s.durability == clamped) return;
+        s.durability = clamped;
+        SlotChanged?.Invoke(index);
+    }
+
+    /// <summary>
+    /// Spends <paramref name="amount"/> durability from the slot's item (never below 0),
+    /// raising <see cref="SlotChanged"/> when it changed. Returns the remaining durability.
+    /// </summary>
+    public int ReduceDurability(int index, int amount)
+    {
+        var s = Get(index);
+        if (s == null || s.IsEmpty || !s.HasDurability || amount <= 0) return GetDurability(index);
+        int next = Mathf.Clamp(s.CurrentDurability - amount, 0, s.MaxDurability);
+        if (next != s.durability)
+        {
+            s.durability = next;
+            SlotChanged?.Invoke(index);
+        }
+        return next;
+    }
 
     /// <summary>Total number of <paramref name="item"/> units held across all slots.</summary>
     public int Count(ItemData item)
@@ -80,10 +137,13 @@ public class ItemContainer
         if (!InRange(a) || !InRange(b) || a == b) return;
         ItemData itemA = _slots[a].item;
         int countA = _slots[a].count;
+        int durabilityA = _slots[a].durability;
         _slots[a].item = _slots[b].item;
         _slots[a].count = _slots[b].count;
+        _slots[a].durability = _slots[b].durability;
         _slots[b].item = itemA;
         _slots[b].count = countA;
+        _slots[b].durability = durabilityA;
         SlotChanged?.Invoke(a);
         SlotChanged?.Invoke(b);
     }

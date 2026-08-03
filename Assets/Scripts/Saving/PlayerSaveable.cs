@@ -71,7 +71,8 @@ public class PlayerSaveable : MonoBehaviour, ISaveable
             slots[i] = new SlotSaveData
             {
                 itemId = occupied ? stack.item.Id : null,
-                count = occupied ? stack.count : 0
+                count = occupied ? stack.count : 0,
+                durability = occupied && stack.HasDurability ? stack.CurrentDurability : -1
             };
         }
         return new ContainerSaveData { slots = slots };
@@ -101,7 +102,7 @@ public class PlayerSaveable : MonoBehaviour, ISaveable
                         "the ItemDatabase (asset removed?) — slot left empty.", this);
             }
 
-            container.Set(i, item, item != null ? slot.count : 0);
+            container.Set(i, item, item != null ? slot.count : 0, item != null ? slot.durability : -1);
         }
     }
 }

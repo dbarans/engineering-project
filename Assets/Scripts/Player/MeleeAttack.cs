@@ -19,12 +19,25 @@ public class MeleeAttack : PlayerAttack
     [SerializeField] private int circleSegments = 40;
     [SerializeField] private float lineWidth = 0.05f;
 
+    [Header("Durability")]
+    [Tooltip("Inventory the equipped weapon's durability is read from and spent on. " +
+             "Auto-resolved at runtime if left unset.")]
+    [SerializeField] private SlotInventory inventory;
+    [Tooltip("Hotbar that says which slot holds the active weapon. Auto-resolved at runtime if left unset.")]
+    [SerializeField] private HotbarUI hotbar;
+    [Tooltip("Damage multiplier once the weapon's durability hits 0. The weapon still swings " +
+             "but hits this much softer until repaired.")]
+    [SerializeField, Range(0f, 1f)] private float brokenDamageMultiplier = 0.2f;
+
     private LineRenderer areaIndicator;
     private Coroutine flashRoutine;
 
     private void Awake()
     {
         CreateAreaIndicator();
+        if (inventory == null) inventory = GetComponentInParent<SlotInventory>();
+        if (inventory == null) inventory = FindFirstObjectByType<SlotInventory>();
+        if (hotbar == null) hotbar = FindFirstObjectByType<HotbarUI>();
     }
 
     private void OnDisable()
@@ -42,12 +55,23 @@ public class MeleeAttack : PlayerAttack
         float damage = Mathf.Lerp(minDamage, maxDamage, progress);
         Vector3 center = AttackCenter();
 
+        // The active weapon lives in the selected hotbar slot (the weapon manager only
+        // equips melee while a melee item is selected). A depleted weapon still swings
+        // but hits much softer until it is repaired.
+        ItemContainer weaponContainer = inventory != null ? inventory.Hotbar : null;
+        int weaponSlot = hotbar != null ? hotbar.SelectedIndex : -1;
+        ItemStack weapon = weaponContainer != null && weaponSlot >= 0 ? weaponContainer.Get(weaponSlot) : null;
+        bool weaponWears = weapon != null && weapon.HasDurability;
+        if (weaponWears && weapon.CurrentDurability <= 0)
+            damage *= brokenDamageMultiplier;
+
         Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(
             center,
             radius,
             enemyLayer
         );
 
+        bool hitAnEnemy = false;
         foreach (Collider2D hit in hitEnemies)
         {
             TryDamageTarget(hit, damage);
@@ -56,8 +80,13 @@ public class MeleeAttack : PlayerAttack
                 enemy.TakeDamage(damage);
                 Vector2 direction = (enemy.transform.position - center).normalized;
                 enemy.Knockback(direction, knockbackForce);
+                hitAnEnemy = true;
             }
         }
+
+        // Each swing that lands on an enemy spends one durability point (until depleted).
+        if (hitAnEnemy && weaponWears && weapon.CurrentDurability > 0)
+            weaponContainer.ReduceDurability(weaponSlot, 1);
 
         FlashAttackArea(center, radius);
 

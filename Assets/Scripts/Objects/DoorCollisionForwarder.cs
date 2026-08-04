@@ -1,5 +1,8 @@
 using UnityEngine;
 
+/// <summary>
+/// Forwards child collider collision events to the parent SimpleDoor component.
+/// </summary>
 public class DoorCollisionForwarder : MonoBehaviour
 {
     private SimpleDoor parentDoor;

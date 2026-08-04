@@ -1046,6 +1046,9 @@ MonoBehaviour:
   - item: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
     count: 6
     toBackpack: 1
+  - item: {fileID: 11400000, guid: 6e99b352a93d14e4e9bc628196155ce9, type: 2}
+    count: 1
+    toBackpack: 1
 --- !u!114 &6900123456789012345
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1120,7 +1123,6 @@ MonoBehaviour:
   crouchPassableLayers:
     serializedVersion: 2
     m_Bits: 4096
-    m_Bits: 8192
 --- !u!1 &6661940005107315833
 GameObject:
   m_ObjectHideFlags: 0
@@ -1322,6 +1324,9 @@ MonoBehaviour:
   flashColor: {r: 1, g: 0.4, b: 0.2, a: 0.8}
   circleSegments: 40
   lineWidth: 0.05
+  inventory: {fileID: 0}
+  hotbar: {fileID: 0}
+  brokenDamageMultiplier: 0.2
 --- !u!1 &8744829407756253201
 GameObject:
   m_ObjectHideFlags: 0

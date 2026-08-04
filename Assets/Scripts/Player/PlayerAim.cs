@@ -3,6 +3,11 @@ using UnityEngine;
 /// <summary>
 /// Handles player aiming by rotating the torso towards the target position.
 /// Respects game state and does not update during pause.
+///
+/// The torso's local +X is the player's forward: that is where the Direction child sits, and
+/// the weapon, shoot point and aim lines hang off it. So this rotation is deliberately
+/// offset-free — the art's own facing is corrected on the TorsoVisual child instead
+/// (see PlayerAnimationSetup), never here, or the weapon would stop following the crosshair.
 /// </summary>
 public class PlayerAim : MonoBehaviour
 {

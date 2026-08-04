@@ -169,8 +169,8 @@ The emission side: static event bus + the player's movement-noise emitter (see s
 
 ## Animation
 
-### `Enemy/EnemySpriteAnimator.cs`
-`[RequireComponent(SpriteRenderer)]`. Its own simple frame player (not Unity Animator), driven by named `Clip`s (`name`, `frames[]`, `fps`, `loop`, `nextClip` for chaining non-looping clips). `Play(name, restartIfSame)`, `SpeedMultiplier`, `ClipFinished` event, `IsPlaying`, `IsFinished`, `CurrentClipName`.
+### `Animation/SpriteFrameAnimator.cs` (+ `Enemy/EnemySpriteAnimator.cs`)
+`[RequireComponent(SpriteRenderer)]`. Its own simple frame player (not Unity Animator), driven by named `Clip`s (`name`, `frames[]`, `fps`, `loop`, `nextClip` for chaining non-looping clips). `Play(name, restartIfSame)`, `Rewind()`, `SpeedMultiplier`, `Paused`, `ClipFinished` event, `IsPlaying`, `IsFinished`, `CurrentClipName`. `EnemySpriteAnimator` is now an empty subclass kept so the enemy prefabs and `SkullGuyAnimationDriver` keep their component reference; the player's torso/legs use the base type directly (see `PLAYER_NOTES.md`).
 
 ### `Enemy/SkullGuyAnimationDriver.cs`
 `[RequireComponent(EnemyBase)]`. Maps `EnemyBase.CurrentState`/movement to clips: `SPOCZYNEK` (idle), `CHOD_POCZATEK→CHOD_LOOP→CHOD_KONIEC` (walk), `ROZGLADANIE` (investigate), `RYK` (roar, one-shot on entering `FollowPlayer`), `ATAK` (one-shot, cooldown, when in `attackRange` of `CurrentTargetPosition`). Also handles facing (`UpdateFacing`) and walk tempo (`SyncWalkTempo`). Currently reused as-is by `BlindListenerEnemy` (same component, same SkullGuy clip set).

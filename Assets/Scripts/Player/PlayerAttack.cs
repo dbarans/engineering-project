@@ -11,6 +11,19 @@ public abstract class PlayerAttack : MonoBehaviour
     protected bool isCharging = false;
     protected bool isReady = false;
 
+    /// <summary>
+    /// True while the prepare button is held. Visual drivers read this to show the aiming
+    /// pose (see <see cref="PlayerAnimationDriver"/>).
+    /// </summary>
+    public bool IsCharging => isCharging;
+
+    /// <summary>
+    /// Raised when a shot/swing actually goes off (after <see cref="CanFire"/> passed).
+    /// Visual drivers subscribe to play the one-shot attack animation, mirroring
+    /// <see cref="EnemyMeleeAttack.AttackStarted"/> on the enemy side.
+    /// </summary>
+    public event Action Fired;
+
     public virtual void StartCharging()
     {
         isCharging = true;
@@ -35,6 +48,7 @@ public abstract class PlayerAttack : MonoBehaviour
             return false;
 
         ExecuteAttack();
+        Fired?.Invoke();
         RestartCharge();
         return true;
     }

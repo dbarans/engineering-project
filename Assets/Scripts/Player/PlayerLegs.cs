@@ -9,6 +9,10 @@ public class PlayerLegs : MonoBehaviour
     [Header("References")]
     [SerializeField] private Transform legsTransform;
 
+    [Tooltip("Degrees added so the legs art's forward matches +X (right). Frames drawn facing " +
+             "up need -90. If the legs point 90° off after swapping the art, try 90 / -90 / 180.")]
+    [SerializeField] private float spriteForwardOffsetDeg = -90f;
+
     private Vector2 legsPosition;
 
     /// <summary>
@@ -27,6 +31,6 @@ public class PlayerLegs : MonoBehaviour
 
         float angle = Mathf.Atan2(legsPosition.y, legsPosition.x) * Mathf.Rad2Deg;
 
-        legsTransform.rotation = Quaternion.Euler(0f, 0f, angle - 90f);
+        legsTransform.rotation = Quaternion.Euler(0f, 0f, angle + spriteForwardOffsetDeg);
     }
 }

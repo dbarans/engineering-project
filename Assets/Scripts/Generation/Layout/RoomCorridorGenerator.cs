@@ -75,9 +75,16 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
         var layout = new DungeonLayout(seed, p.MapWidth, p.MapHeight, rooms, links);
 
         CarveRooms(layout, rooms);
-        CarveCorridors(layout, rooms, links, p, random.Derive("corridors"));
+        CorridorCarver.CarveAll(layout, rooms, links, p, random.Derive("corridors"));
         MarkDoors(layout, rooms);
+
+        // Roles are assigned before the interior pass because that pass reads them: the
+        // start room and the camp are deliberately left legible, and it cannot know which
+        // they are until the graph has been walked.
         AssignRoomRoles(layout, rooms, links);
+
+        RoomInteriorDecorator.Decorate(layout, p, random.Derive("interiors"));
+        Chokepoints.Detect(layout);
 
         return layout;
     }
@@ -111,12 +118,34 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
 
                 if (Overlaps(rooms, bounds, p.RoomSpacing)) continue;
 
-                rooms.Add(new Room(rooms.Count, bounds));
+                rooms.Add(BuildRoom(rooms.Count, bounds, p, random));
                 break;
             }
         }
 
         return rooms;
+    }
+
+    /// <summary>
+    /// Turns an accepted plot into a room, cut to a non-rectangular plan when the
+    /// settings ask for it.
+    ///
+    /// Spacing was already checked against the full plot, so carving can only ever move
+    /// the room's cells further from its neighbours — a shaped room never invalidates a
+    /// placement decision that was made before it.
+    /// </summary>
+    private static Room BuildRoom(int index, RectInt plot, LayoutParams p, DeterministicRandom random)
+    {
+        if (!random.Chance(p.ShapedRoomChance)) return new Room(index, plot);
+
+        RoomShape shape = RoomShaper.PickShape(plot, random);
+        if (shape == RoomShape.Rectangle) return new Room(index, plot);
+
+        List<Vector2Int> cells = RoomShaper.Shape(plot, shape, random);
+
+        // A degenerate carve falls back to the plain rectangle. A room that failed to
+        // become interesting is still a room; dropping it would leave a gap in the map.
+        return cells != null ? new Room(index, cells, shape) : new Room(index, plot);
     }
 
     private static bool Overlaps(List<Room> rooms, RectInt candidate, int spacing)
@@ -194,123 +223,116 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
     {
         foreach (var room in rooms)
         {
-            for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
-            {
-                for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
-                    layout[x, y] = CellType.Floor;
-            }
+            foreach (Vector2Int cell in room.Cells)
+                layout[cell] = CellType.Floor;
         }
-    }
-
-    /// <summary>
-    /// L-shaped corridors. The elbow order is randomised per corridor, which is the
-    /// cheapest way to stop every junction in the dungeon looking identical.
-    /// </summary>
-    private static void CarveCorridors(DungeonLayout layout, List<Room> rooms,
-        List<RoomLink> links, LayoutParams p, DeterministicRandom random)
-    {
-        foreach (var link in links)
-        {
-            Vector2Int from = rooms[link.RoomA].Center;
-            Vector2Int to = rooms[link.RoomB].Center;
-
-            if (random.Chance(0.5f))
-            {
-                CarveHorizontal(layout, from.x, to.x, from.y, p.CorridorWidth);
-                CarveVertical(layout, from.y, to.y, to.x, p.CorridorWidth);
-            }
-            else
-            {
-                CarveVertical(layout, from.y, to.y, from.x, p.CorridorWidth);
-                CarveHorizontal(layout, from.x, to.x, to.y, p.CorridorWidth);
-            }
-        }
-    }
-
-    private static void CarveHorizontal(DungeonLayout layout, int fromX, int toX, int y, int width)
-    {
-        int min = Mathf.Min(fromX, toX);
-        int max = Mathf.Max(fromX, toX);
-        for (int x = min; x <= max; x++)
-        {
-            for (int offset = 0; offset < width; offset++)
-                CarveCell(layout, x, y + offset);
-        }
-    }
-
-    private static void CarveVertical(DungeonLayout layout, int fromY, int toY, int x, int width)
-    {
-        int min = Mathf.Min(fromY, toY);
-        int max = Mathf.Max(fromY, toY);
-        for (int y = min; y <= max; y++)
-        {
-            for (int offset = 0; offset < width; offset++)
-                CarveCell(layout, x + offset, y);
-        }
-    }
-
-    /// <summary>
-    /// Carves one corridor cell, refusing the outermost ring so the map keeps a solid
-    /// border even when a room centre sits close to the edge.
-    /// </summary>
-    private static void CarveCell(DungeonLayout layout, int x, int y)
-    {
-        if (x < 1 || y < 1 || x >= layout.Width - 1 || y >= layout.Height - 1) return;
-        layout[x, y] = CellType.Floor;
     }
 
     /// <summary>
     /// A doorway is the corridor cell in a room's opening. Marking the corridor side
     /// rather than the room side puts the door prefab in the gap, not inside the room.
     ///
-    /// Openings are found per room side as contiguous runs of open cells, and only the
-    /// middle of each run is marked. Without that, a corridor that happens to run
-    /// alongside a wall would mark its whole length and produce a row of doors where
-    /// there is really just one wide opening.
+    /// Openings are found by walking the room's border — the cells just outside it —
+    /// and grouping the open ones into connected clumps, one door per clump. Grouping
+    /// matters: a corridor running alongside a room would otherwise mark its whole
+    /// length and produce a row of doors where there is really one wide opening.
+    ///
+    /// Phrased against the room's cells rather than the four sides of its bounding box,
+    /// because a room is no longer necessarily a rectangle and an L-shaped one has
+    /// border cells inside its own bounding box.
     /// </summary>
     private static void MarkDoors(DungeonLayout layout, List<Room> rooms)
     {
+        var candidates = new List<Vector2Int>();
+        var candidateSet = new HashSet<Vector2Int>();
+
         foreach (var room in rooms)
         {
-            RectInt bounds = room.Bounds;
+            candidates.Clear();
+            candidateSet.Clear();
 
-            MarkOpeningsAlong(layout, rooms,
-                new Vector2Int(bounds.xMin, bounds.yMin - 1), Vector2Int.right, bounds.width);
-            MarkOpeningsAlong(layout, rooms,
-                new Vector2Int(bounds.xMin, bounds.yMax), Vector2Int.right, bounds.width);
-            MarkOpeningsAlong(layout, rooms,
-                new Vector2Int(bounds.xMin - 1, bounds.yMin), Vector2Int.up, bounds.height);
-            MarkOpeningsAlong(layout, rooms,
-                new Vector2Int(bounds.xMax, bounds.yMin), Vector2Int.up, bounds.height);
+            foreach (Vector2Int cell in room.Cells)
+            {
+                for (int i = 0; i < Neighbours.Length; i++)
+                {
+                    Vector2Int next = cell + Neighbours[i];
+                    if (room.Contains(next) || !candidateSet.Add(next)) continue;
+
+                    if (IsDoorCandidate(layout, rooms, next)) candidates.Add(next);
+                    else candidateSet.Remove(next);
+                }
+            }
+
+            MarkOpeningCentres(layout, candidates, candidateSet);
         }
     }
 
     /// <summary>
-    /// Walks one side of a room and marks the centre cell of every contiguous run of
-    /// open, non-room cells.
+    /// Splits the border cells into connected openings and marks the middle of each.
+    /// Iteration follows the candidate list rather than the set, so the result cannot
+    /// depend on hash ordering.
     /// </summary>
-    private static void MarkOpeningsAlong(DungeonLayout layout, List<Room> rooms,
-        Vector2Int origin, Vector2Int step, int length)
+    private static void MarkOpeningCentres(DungeonLayout layout,
+        List<Vector2Int> candidates, HashSet<Vector2Int> remaining)
     {
-        int runStart = -1;
+        var opening = new List<Vector2Int>();
+        var queue = new Queue<Vector2Int>();
 
-        for (int i = 0; i <= length; i++)
+        foreach (Vector2Int start in candidates)
         {
-            // The extra iteration past the end closes a run that reaches the corner.
-            bool open = i < length && IsDoorCandidate(layout, rooms, origin + step * i);
+            if (!remaining.Remove(start)) continue;
 
-            if (open)
+            opening.Clear();
+            queue.Clear();
+            queue.Enqueue(start);
+
+            while (queue.Count > 0)
             {
-                if (runStart < 0) runStart = i;
-                continue;
+                Vector2Int cell = queue.Dequeue();
+                opening.Add(cell);
+
+                for (int i = 0; i < Neighbours.Length; i++)
+                {
+                    Vector2Int next = cell + Neighbours[i];
+                    if (remaining.Remove(next)) queue.Enqueue(next);
+                }
             }
 
-            if (runStart >= 0)
+            layout[Medoid(opening)] = CellType.Door;
+        }
+    }
+
+    /// <summary>The cell of a clump nearest its own centre, ties broken by coordinate.</summary>
+    private static Vector2Int Medoid(List<Vector2Int> cells)
+    {
+        long sumX = 0, sumY = 0;
+        foreach (Vector2Int cell in cells)
+        {
+            sumX += cell.x;
+            sumY += cell.y;
+        }
+
+        var centre = new Vector2Int(
+            Mathf.RoundToInt(sumX / (float)cells.Count),
+            Mathf.RoundToInt(sumY / (float)cells.Count));
+
+        Vector2Int best = cells[0];
+        int bestDistance = int.MaxValue;
+
+        foreach (Vector2Int cell in cells)
+        {
+            int distance = Mathf.Abs(cell.x - centre.x) + Mathf.Abs(cell.y - centre.y);
+            if (distance > bestDistance) continue;
+
+            if (distance < bestDistance ||
+                cell.y < best.y || (cell.y == best.y && cell.x < best.x))
             {
-                layout[origin + step * ((runStart + i - 1) / 2)] = CellType.Door;
-                runStart = -1;
+                bestDistance = distance;
+                best = cell;
             }
         }
+
+        return best;
     }
 
     private static bool IsDoorCandidate(DungeonLayout layout, List<Room> rooms, Vector2Int cell)

@@ -51,6 +51,10 @@ public static class DungeonSceneSetup
     private static readonly Color WallCapColor = new Color32(0x6B, 0x60, 0x55, 0xFF);
     private static readonly Color WallFaceColor = new Color32(0x3C, 0x35, 0x2E, 0xFF);
     private static readonly Color WallFaceShadowColor = new Color32(0x24, 0x1F, 0x1A, 0xFF);
+    private static readonly Color PillarColor = new Color32(0x63, 0x5A, 0x4F, 0xFF);
+    private static readonly Color PillarShadowColor = new Color32(0x33, 0x2D, 0x27, 0xFF);
+    private static readonly Color RubbleColor = new Color32(0x44, 0x3D, 0x35, 0xFF);
+    private static readonly Color RubbleChunkColor = new Color32(0x57, 0x4E, 0x44, 0xFF);
 
     [MenuItem("Tools/Dungeon/Setup Scene Tilemaps")]
     public static void Setup()
@@ -60,6 +64,8 @@ public static class DungeonSceneSetup
         Tile[] floorTiles = EnsureFloorTiles();
         Tile wallTile = EnsureTile("WallTile", TileStyle.WallTop, Tile.ColliderType.Grid);
         Tile wallFaceTile = EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid);
+        Tile pillarTile = EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Grid);
+        Tile rubbleTile = EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid);
         PrefabRegistry registry = EnsureRegistry();
         EnsureRegistryEntries(registry);
         DungeonGenerationSettings settings = EnsureSettings();
@@ -71,7 +77,7 @@ public static class DungeonSceneSetup
 
         WarnOnCellSizeMismatch(grid);
         WireGenerator(grid, floor, walls, floorTiles, wallTile, wallFaceTile,
-            settings, contentSettings, registry);
+            pillarTile, rubbleTile, settings, contentSettings, registry);
 
         EditorSceneManager.MarkSceneDirty(grid.gameObject.scene);
         AssetDatabase.SaveAssets();
@@ -162,7 +168,8 @@ public static class DungeonSceneSetup
     /// missing inspector reference.
     /// </summary>
     private static void WireGenerator(Grid grid, Tilemap floor, Tilemap walls,
-        Tile[] floorTiles, Tile wallTile, Tile wallFaceTile, DungeonGenerationSettings settings,
+        Tile[] floorTiles, Tile wallTile, Tile wallFaceTile, Tile pillarTile, Tile rubbleTile,
+        DungeonGenerationSettings settings,
         RoomContentSettings contentSettings, PrefabRegistry registry)
     {
         var root = grid.gameObject;
@@ -173,6 +180,8 @@ public static class DungeonSceneSetup
         SetArray(painter, "floorTiles", floorTiles);
         SetRef(painter, "wallTile", wallTile);
         SetRef(painter, "wallFaceTile", wallFaceTile);
+        SetRef(painter, "pillarTile", pillarTile);
+        SetRef(painter, "rubbleTile", rubbleTile);
 
         var builder = EditorSetupUtility.EnsureComponent<DungeonBuilder>(root);
         SetRef(builder, "settings", settings);
@@ -260,7 +269,16 @@ public static class DungeonSceneSetup
         WallTop,
 
         /// <summary>Wall seen face-on: darker, with a lit cap along the top edge.</summary>
-        WallFace
+        WallFace,
+
+        /// <summary>
+        /// Free-standing pillar: a lit round column on a dark base, so it reads as an
+        /// object standing in the room rather than as a piece of the wall.
+        /// </summary>
+        Pillar,
+
+        /// <summary>Collapsed masonry: scattered lighter chunks over a dark bed.</summary>
+        Rubble
     }
 
     /// <summary>
@@ -321,6 +339,33 @@ public static class DungeonSceneSetup
                 float depth = 1f - y / (float)(TilePixels - capHeight);
                 Color color = Color.Lerp(WallFaceColor, WallFaceShadowColor, depth * 0.6f);
                 return Jitter(color, 0.025f, random);
+            }
+
+            case TileStyle.Pillar:
+            {
+                // A disc rather than a square, so a colonnade reads as columns instead of
+                // as a grid of wall stubs. Outside the disc is floor-dark, which is what
+                // makes the pillar look like it is standing on the floor.
+                const float radius = 12f;
+                float dx = x - (TilePixels - 1) * 0.5f;
+                float dy = y - (TilePixels - 1) * 0.5f;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy);
+
+                if (distance > radius) return Jitter(FloorColor, 0.02f, random);
+
+                // Lit from the top: the shading is what stops a flat disc looking like a hole.
+                float lit = Mathf.InverseLerp(radius, -radius * 0.4f, dy - distance * 0.3f);
+                Color color = Color.Lerp(PillarShadowColor, PillarColor, lit);
+                return Jitter(color, 0.025f, random);
+            }
+
+            case TileStyle.Rubble:
+            {
+                // Chunks on a 4px lattice with jittered membership: regular enough to read
+                // as broken masonry, irregular enough not to read as a pattern.
+                bool chunk = (x / 4 + y / 4) % 2 == 0 ? random.Chance(0.75f) : random.Chance(0.25f);
+                Color color = chunk ? RubbleChunkColor : RubbleColor;
+                return Jitter(color, 0.04f, random);
             }
 
             default:
@@ -523,6 +568,8 @@ public static class DungeonSceneSetup
         }
         EnsureTile("WallTile", TileStyle.WallTop, Tile.ColliderType.Grid, overwrite: true);
         EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid, overwrite: true);
+        EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Grid, overwrite: true);
+        EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid, overwrite: true);
 
         AssetDatabase.SaveAssets();
         Debug.Log($"[DungeonSetup] Placeholder tiles redrawn in '{TilesFolder}'.");

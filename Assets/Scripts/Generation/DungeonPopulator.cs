@@ -188,8 +188,9 @@ public class DungeonPopulator : MonoBehaviour
     private void SpawnProps(DungeonLayout layout, Room room, List<Vector2Int> free,
         DeterministicRandom random, ref int slot)
     {
-        int area = room.Bounds.width * room.Bounds.height;
-        float expected = area * content.propsPerHundredFloorCells / 100f;
+        // The room's own cells, not its bounding box: an L-shaped room covers roughly
+        // half its box, and scattering by the box would fill it twice as densely.
+        float expected = room.Area * content.propsPerHundredFloorCells / 100f;
 
         int count = Mathf.FloorToInt(expected);
         if (random.Chance(expected - count)) count++;
@@ -333,17 +334,15 @@ public class DungeonPopulator : MonoBehaviour
     /// </summary>
     private static List<Vector2Int> FreeCells(DungeonLayout layout, Room room, DeterministicRandom random)
     {
-        var cells = new List<Vector2Int>(room.Bounds.width * room.Bounds.height);
+        var cells = new List<Vector2Int>(room.Area);
 
-        for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
+        foreach (Vector2Int cell in room.Cells)
         {
-            for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
-            {
-                var cell = new Vector2Int(x, y);
-                if (!layout.IsWalkable(cell)) continue;
-                if (IsNextToDoorway(layout, cell)) continue; // never block an opening
-                cells.Add(cell);
-            }
+            // A room cell is not automatically open ground: the interior pass turns some
+            // of them into pillars and rubble.
+            if (!layout.IsWalkable(cell)) continue;
+            if (IsNextToDoorway(layout, cell)) continue; // never block an opening
+            cells.Add(cell);
         }
 
         random.Shuffle(cells);

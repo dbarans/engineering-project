@@ -35,6 +35,7 @@ public class DungeonRoomTemplate : MonoBehaviour
         if (room == null) return false;
         if (room.Kind == RoomKind.Start) return false; // the start room stays empty
         if (room.Bounds.width < size.x || room.Bounds.height < size.y) return false;
+        if (!FootprintIsInside(room)) return false;
 
         if (allowedKinds == null || allowedKinds.Length == 0) return true;
 
@@ -43,6 +44,28 @@ public class DungeonRoomTemplate : MonoBehaviour
             if (kind == room.Kind) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// True when every cell the template would cover belongs to the room.
+    ///
+    /// Fitting the bounding box is no longer enough now that rooms can be L-shaped or
+    /// ring-shaped: a template centred in such a room's box lands partly in solid rock,
+    /// and half its markers would be silently dropped. Better to decline the room and
+    /// let the random tables fill it.
+    /// </summary>
+    private bool FootprintIsInside(Room room)
+    {
+        Vector2Int anchor = AnchorIn(room);
+
+        for (int y = 0; y < size.y; y++)
+        {
+            for (int x = 0; x < size.x; x++)
+            {
+                if (!room.Contains(anchor + new Vector2Int(x, y))) return false;
+            }
+        }
+        return true;
     }
 
     /// <summary>

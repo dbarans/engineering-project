@@ -11,7 +11,25 @@ public enum CellType
     Floor = 1,
 
     /// <summary>Open ground marking a room entrance — where door prefabs are placed.</summary>
-    Door = 2
+    Door = 2,
+
+    /// <summary>
+    /// A free-standing pillar or partition wall inside a room. Solid and vision-blocking
+    /// in exactly the same way as <see cref="Wall"/>; it is a separate type only so the
+    /// painter can give it its own art and the populator can tell it apart from bedrock.
+    ///
+    /// It has to be a cell rather than a prop prefab. The project's convention is that
+    /// props never block vision or pathfinding, so a pillar spawned as a prop would look
+    /// like an obstacle while rays passed straight through it.
+    /// </summary>
+    Pillar = 3,
+
+    /// <summary>
+    /// Collapsed masonry. Impassable and vision-blocking like <see cref="Pillar"/>, but
+    /// read as knee-height debris rather than as structure, and placed against walls and
+    /// in corners to break the straight sightlines a bare room hands the player for free.
+    /// </summary>
+    Rubble = 4
 }
 
 /// <summary>Role a room plays in the run; drives what gets spawned inside it.</summary>
@@ -30,14 +48,68 @@ public enum RoomKind
     Treasure = 3
 }
 
-/// <summary>One rectangular room of a generated dungeon.</summary>
+/// <summary>
+/// Floor plan a room was cut to. Rooms stopped being plain rectangles because a
+/// rectangle is read in a single glance from the doorway and is then spent: there is
+/// nothing left to find out by walking into it.
+/// </summary>
+public enum RoomShape
+{
+    /// <summary>Plain rectangle. Kept deliberately — without it the others lose contrast.</summary>
+    Rectangle = 0,
+
+    /// <summary>Two arms meeting at a corner; the far arm cannot be seen from the near one.</summary>
+    Ell = 1,
+
+    /// <summary>Three arms off a spine, so there are two blind areas instead of one.</summary>
+    Tee = 2,
+
+    /// <summary>
+    /// Rectangle around a solid core. The player has to commit to one way round, and
+    /// whatever is following can take the other.
+    /// </summary>
+    Ring = 3,
+
+    /// <summary>Overlapping lobes smoothed by cellular automata; reads as collapsed rock.</summary>
+    Cavern = 4
+}
+
+/// <summary>
+/// One room of a generated dungeon, held as the set of cells it occupies.
+///
+/// Deliberately not a <see cref="RectInt"/> any more. The rectangle survives as
+/// <see cref="Bounds"/> for placement and template fitting, but the room's actual shape
+/// is <see cref="Cells"/> — that is what lets a room be L-shaped, ring-shaped or
+/// cave-like, which is the whole point of the shaping pass.
+/// </summary>
 public sealed class Room
 {
+    private readonly List<Vector2Int> _cells;
+    private readonly HashSet<Vector2Int> _lookup;
+
     /// <summary>Index into <see cref="DungeonLayout.Rooms"/>; also part of entity guids.</summary>
     public int Index { get; }
 
-    /// <summary>Floor area of the room in cell coordinates, walls excluded.</summary>
+    /// <summary>
+    /// Axis-aligned box containing every cell of the room. For anything but a
+    /// <see cref="RoomShape.Rectangle"/> this is larger than the room itself, so it is
+    /// only good for placement, spacing and template footprints — never for "is this
+    /// cell in the room", which is what <see cref="Contains"/> is for.
+    /// </summary>
     public RectInt Bounds { get; }
+
+    /// <summary>The floor plan this room was cut to.</summary>
+    public RoomShape Shape { get; }
+
+    /// <summary>
+    /// Every cell belonging to the room, in a deterministic order. Some of them may have
+    /// been turned into pillars or rubble afterwards, so walkability is still a question
+    /// for <see cref="DungeonLayout.IsWalkable(Vector2Int)"/>, not for this list.
+    /// </summary>
+    public IReadOnlyList<Vector2Int> Cells => _cells;
+
+    /// <summary>Cell count. The honest area measure once rooms stop being rectangles.</summary>
+    public int Area => _cells.Count;
 
     /// <summary>Role in the run; assigned after the graph is built.</summary>
     public RoomKind Kind { get; internal set; }
@@ -48,22 +120,98 @@ public sealed class Room
     /// <summary>Number of corridors attached to this room; 1 means a dead end.</summary>
     public int Degree { get; internal set; }
 
-    /// <summary>Cell at the middle of the room, rounded down.</summary>
-    public Vector2Int Center =>
-        new Vector2Int(Bounds.xMin + Bounds.width / 2, Bounds.yMin + Bounds.height / 2);
+    /// <summary>
+    /// A cell of the room near its middle — the medoid, not the centre of
+    /// <see cref="Bounds"/>. For an L-shaped or ring-shaped room the box centre lands in
+    /// solid rock, and corridors are carved between room centres, so using it would start
+    /// corridors inside walls.
+    /// </summary>
+    public Vector2Int Center { get; }
 
-    public Room(int index, RectInt bounds)
+    /// <summary>Builds a room from its cells. The collection must not be empty.</summary>
+    public Room(int index, IReadOnlyList<Vector2Int> cells, RoomShape shape)
     {
         Index = index;
-        Bounds = bounds;
+        Shape = shape;
         Kind = RoomKind.Normal;
+
+        _cells = new List<Vector2Int>(cells);
+        _lookup = new HashSet<Vector2Int>(_cells);
+
+        Bounds = ComputeBounds(_cells);
+        Center = ComputeMedoid(_cells);
     }
 
-    /// <summary>True when the cell lies inside this room's floor area.</summary>
-    public bool Contains(Vector2Int cell)
+    /// <summary>Convenience for a plain rectangular room.</summary>
+    public Room(int index, RectInt bounds)
+        : this(index, CellsOf(bounds), RoomShape.Rectangle)
     {
-        return cell.x >= Bounds.xMin && cell.x < Bounds.xMax &&
-               cell.y >= Bounds.yMin && cell.y < Bounds.yMax;
+    }
+
+    /// <summary>True when the cell belongs to this room.</summary>
+    public bool Contains(Vector2Int cell) => _lookup.Contains(cell);
+
+    private static List<Vector2Int> CellsOf(RectInt bounds)
+    {
+        var cells = new List<Vector2Int>(bounds.width * bounds.height);
+        for (int y = bounds.yMin; y < bounds.yMax; y++)
+        {
+            for (int x = bounds.xMin; x < bounds.xMax; x++)
+                cells.Add(new Vector2Int(x, y));
+        }
+        return cells;
+    }
+
+    private static RectInt ComputeBounds(List<Vector2Int> cells)
+    {
+        int minX = int.MaxValue, minY = int.MaxValue;
+        int maxX = int.MinValue, maxY = int.MinValue;
+
+        foreach (Vector2Int cell in cells)
+        {
+            if (cell.x < minX) minX = cell.x;
+            if (cell.y < minY) minY = cell.y;
+            if (cell.x > maxX) maxX = cell.x;
+            if (cell.y > maxY) maxY = cell.y;
+        }
+
+        return new RectInt(minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
+    /// <summary>
+    /// The cell closest to the arithmetic centre of the room. Ties are broken by
+    /// coordinate so the result cannot depend on the order the cells were produced in.
+    /// </summary>
+    private static Vector2Int ComputeMedoid(List<Vector2Int> cells)
+    {
+        long sumX = 0, sumY = 0;
+        foreach (Vector2Int cell in cells)
+        {
+            sumX += cell.x;
+            sumY += cell.y;
+        }
+
+        var centroid = new Vector2Int(
+            Mathf.RoundToInt(sumX / (float)cells.Count),
+            Mathf.RoundToInt(sumY / (float)cells.Count));
+
+        Vector2Int best = cells[0];
+        int bestDistance = int.MaxValue;
+
+        foreach (Vector2Int cell in cells)
+        {
+            int distance = Mathf.Abs(cell.x - centroid.x) + Mathf.Abs(cell.y - centroid.y);
+            if (distance > bestDistance) continue;
+
+            if (distance < bestDistance ||
+                cell.y < best.y || (cell.y == best.y && cell.x < best.x))
+            {
+                bestDistance = distance;
+                best = cell;
+            }
+        }
+
+        return best;
     }
 }
 
@@ -90,6 +238,8 @@ public sealed class DungeonLayout
     private readonly CellType[,] _cells;
     private readonly List<Room> _rooms;
     private readonly List<RoomLink> _links;
+    private readonly List<Vector2Int> _alcoves = new List<Vector2Int>();
+    private readonly List<Vector2Int> _chokepoints = new List<Vector2Int>();
 
     public int Width { get; }
     public int Height { get; }
@@ -102,6 +252,19 @@ public sealed class DungeonLayout
 
     public IReadOnlyList<Room> Rooms => _rooms;
     public IReadOnlyList<RoomLink> Links => _links;
+
+    /// <summary>
+    /// Blind pockets carved off the sides of corridors. Recorded rather than rediscovered
+    /// later by heuristics, because they are the layout's ready-made ambush slots: a spot
+    /// the player walks past without being able to look into it.
+    /// </summary>
+    public IReadOnlyList<Vector2Int> Alcoves => _alcoves;
+
+    /// <summary>
+    /// Cells whose removal would split the dungeon in two — the places where a fight
+    /// cannot be walked away from. Populated by <see cref="Chokepoints"/> analysis.
+    /// </summary>
+    public IReadOnlyList<Vector2Int> Chokepoints => _chokepoints;
 
     public DungeonLayout(string seed, int width, int height, List<Room> rooms, List<RoomLink> links)
     {
@@ -132,13 +295,27 @@ public sealed class DungeonLayout
         return x >= 0 && x < Width && y >= 0 && y < Height;
     }
 
-    /// <summary>True when the cell can be walked on — anything that is not a wall.</summary>
+    /// <summary>
+    /// True when the cell can be walked on. Stated as an explicit allow-list rather than
+    /// "not wall": pillars and rubble are open ground's opposite, and a rule phrased the
+    /// other way round would silently let every new solid cell type become walkable.
+    /// </summary>
     public bool IsWalkable(int x, int y)
     {
-        return this[x, y] != CellType.Wall;
+        CellType cell = this[x, y];
+        return cell == CellType.Floor || cell == CellType.Door;
     }
 
     public bool IsWalkable(Vector2Int cell) => IsWalkable(cell.x, cell.y);
+
+    /// <summary>
+    /// True when the cell stops a line of sight. Identical to "not walkable" today, and
+    /// kept separate anyway because the two answers are asked by different systems and
+    /// will not stay identical the first time a grate or a low railing shows up.
+    /// </summary>
+    public bool BlocksVision(int x, int y) => !IsWalkable(x, y);
+
+    public bool BlocksVision(Vector2Int cell) => BlocksVision(cell.x, cell.y);
 
     /// <summary>Returns the room containing the cell, or null when it is a corridor or wall.</summary>
     public Room RoomAt(Vector2Int cell)
@@ -150,7 +327,7 @@ public sealed class DungeonLayout
         return null;
     }
 
-    /// <summary>Number of non-wall cells; used by the metrics overlay and by tests.</summary>
+    /// <summary>Number of walkable cells; used by the metrics overlay and by tests.</summary>
     public int CountWalkable()
     {
         int count = 0;
@@ -158,10 +335,18 @@ public sealed class DungeonLayout
         {
             for (int x = 0; x < Width; x++)
             {
-                if (_cells[x, y] != CellType.Wall) count++;
+                if (IsWalkable(x, y)) count++;
             }
         }
         return count;
+    }
+
+    internal void AddAlcove(Vector2Int cell) => _alcoves.Add(cell);
+
+    internal void SetChokepoints(IEnumerable<Vector2Int> cells)
+    {
+        _chokepoints.Clear();
+        _chokepoints.AddRange(cells);
     }
 
     /// <summary>
@@ -199,6 +384,8 @@ public sealed class DungeonLayout
                 {
                     CellType.Floor => '.',
                     CellType.Door => '+',
+                    CellType.Pillar => 'o',
+                    CellType.Rubble => '%',
                     _ => '#'
                 });
             }

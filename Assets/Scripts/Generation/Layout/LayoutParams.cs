@@ -21,7 +21,13 @@ public struct LayoutParams
     public int PlacementAttemptsPerRoom;
 
     public int CorridorWidth;
+    public int MaxCorridorWidth;
     public float ExtraLoopChance;
+    public float DoubleBendChance;
+    public float AlcoveChance;
+
+    public float ShapedRoomChance;
+    public float InteriorDensity;
 
     public int MaxGenerationAttempts;
 
@@ -37,7 +43,12 @@ public struct LayoutParams
         RoomSpacing = 3,
         PlacementAttemptsPerRoom = 40,
         CorridorWidth = 1,
+        MaxCorridorWidth = 3,
         ExtraLoopChance = 0.25f,
+        DoubleBendChance = 0.35f,
+        AlcoveChance = 0.04f,
+        ShapedRoomChance = 0.6f,
+        InteriorDensity = 0.5f,
         MaxGenerationAttempts = 12
     };
 
@@ -57,8 +68,15 @@ public struct LayoutParams
         p.MinRoomCount = Mathf.Clamp(p.MinRoomCount, 2, p.TargetRoomCount);
         p.PlacementAttemptsPerRoom = Mathf.Max(1, p.PlacementAttemptsPerRoom);
         p.CorridorWidth = Mathf.Max(1, p.CorridorWidth);
+        p.MaxCorridorWidth = Mathf.Max(p.CorridorWidth, p.MaxCorridorWidth);
         p.ExtraLoopChance = Mathf.Clamp01(p.ExtraLoopChance);
+        p.DoubleBendChance = Mathf.Clamp01(p.DoubleBendChance);
+        p.ShapedRoomChance = Mathf.Clamp01(p.ShapedRoomChance);
+        p.InteriorDensity = Mathf.Clamp01(p.InteriorDensity);
         p.MaxGenerationAttempts = Mathf.Max(1, p.MaxGenerationAttempts);
+
+        // Rolled per corridor cell, so even a modest value covers a map in pockets.
+        p.AlcoveChance = Mathf.Clamp(p.AlcoveChance, 0f, 0.25f);
 
         // A room must leave room for its spacing ring and the one-cell map border.
         int usable = Mathf.Min(p.MapWidth, p.MapHeight) - 2 * (p.RoomSpacing + 1);

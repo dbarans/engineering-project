@@ -28,6 +28,15 @@ public class DungeonPainter : MonoBehaviour
              "camera. Without it the dungeon reads as a floor plan rather than as rooms.")]
     [SerializeField] private TileBase wallFaceTile;
 
+    [Tooltip("Optional. Free-standing pillars and partition walls inside rooms; falls back " +
+             "to the wall tile. Painted into the wall tilemap, so it blocks vision and " +
+             "movement exactly like bedrock — which is the entire point of it.")]
+    [SerializeField] private TileBase pillarTile;
+
+    [Tooltip("Optional. Collapsed masonry; falls back to the wall tile. Solid like a wall " +
+             "despite reading as debris.")]
+    [SerializeField] private TileBase rubbleTile;
+
     [Tooltip("Optional. Painted on doorway cells to make openings readable; falls back to the floor tile.")]
     [SerializeField] private TileBase doorwayTile;
 
@@ -74,6 +83,8 @@ public class DungeonPainter : MonoBehaviour
 
         TileBase doorway = doorwayTile != null ? doorwayTile : floorTiles[0];
         TileBase wallFace = wallFaceTile != null ? wallFaceTile : wallTile;
+        TileBase pillar = pillarTile != null ? pillarTile : wallTile;
+        TileBase rubble = rubbleTile != null ? rubbleTile : wallTile;
         uint seedHash = DeterministicRandom.Hash(layout.Seed);
 
         for (int y = 0; y < layout.Height; y++)
@@ -87,16 +98,30 @@ public class DungeonPainter : MonoBehaviour
                 // collider leaves would show the empty background.
                 floors[row + x] = cell == CellType.Door ? doorway : PickFloor(seedHash, x, y);
 
-                if (cell != CellType.Wall)
+                // Pillars and rubble go into the wall tilemap, not the floor one. That is
+                // what puts them in the composite collider, and the collider is what both
+                // pathfinding and the vision cone actually read — a pillar painted onto
+                // the floor layer would look solid and stop nothing.
+                switch (cell)
                 {
-                    walls[row + x] = null;
-                    continue;
-                }
+                    case CellType.Pillar:
+                        walls[row + x] = pillar;
+                        continue;
 
-                // A wall with open ground to its south shows its face to the camera;
-                // one buried in rock only ever shows its top.
-                bool facingCamera = layout[x, y - 1] != CellType.Wall;
-                walls[row + x] = facingCamera ? wallFace : wallTile;
+                    case CellType.Rubble:
+                        walls[row + x] = rubble;
+                        continue;
+
+                    case CellType.Wall:
+                        // A wall with open ground to its south shows its face to the
+                        // camera; one buried in rock only ever shows its top.
+                        walls[row + x] = layout[x, y - 1] != CellType.Wall ? wallFace : wallTile;
+                        continue;
+
+                    default:
+                        walls[row + x] = null;
+                        continue;
+                }
             }
         }
 

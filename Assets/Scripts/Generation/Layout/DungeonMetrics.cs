@@ -29,8 +29,38 @@ public readonly struct DungeonMetrics
     /// <summary>Rooms the corridor graph never reaches; must be 0 in a valid layout.</summary>
     public readonly int UnreachableRooms;
 
+    /// <summary>Rooms that were cut to something other than a plain rectangle.</summary>
+    public readonly int ShapedRooms;
+
+    /// <summary>Pillar and rubble cells placed inside rooms by the interior pass.</summary>
+    public readonly int InteriorSolids;
+
+    /// <summary>Blind pockets opened off corridor sides.</summary>
+    public readonly int Alcoves;
+
+    /// <summary>
+    /// Walkable cells whose removal would split the dungeon. Some are wanted — they are
+    /// where a fight becomes unavoidable — but a high count means there is nowhere to run.
+    /// </summary>
+    public readonly int ChokepointCells;
+
+    /// <summary>
+    /// Mean share of a room visible from its own doorways, 0..1, over every room.
+    ///
+    /// The headline number for how oppressive the dungeon reads. Empty rectangles sit
+    /// near 0.95: the room gives itself away on the first step in and holds nothing back.
+    /// Shaping and interior structure pull it down, and the lower it goes the more of the
+    /// dungeon has to be learned by walking into it.
+    /// </summary>
+    public readonly float MeanRoomVisibility;
+
+    /// <summary>The most exposed room on the map — the weakest link, not the average.</summary>
+    public readonly float WorstRoomVisibility;
+
     public DungeonMetrics(int rooms, int corridors, int loops, int deadEnds, int doorways,
-        int walkableCells, int totalCells, int maxDepth, int unreachableRooms)
+        int walkableCells, int totalCells, int maxDepth, int unreachableRooms,
+        int shapedRooms, int interiorSolids, int alcoves, int chokepointCells,
+        float meanRoomVisibility, float worstRoomVisibility)
     {
         Rooms = rooms;
         Corridors = corridors;
@@ -41,6 +71,12 @@ public readonly struct DungeonMetrics
         TotalCells = totalCells;
         MaxDepth = maxDepth;
         UnreachableRooms = unreachableRooms;
+        ShapedRooms = shapedRooms;
+        InteriorSolids = interiorSolids;
+        Alcoves = alcoves;
+        ChokepointCells = chokepointCells;
+        MeanRoomVisibility = meanRoomVisibility;
+        WorstRoomVisibility = worstRoomVisibility;
     }
 
     /// <summary>Share of the map that is open ground, 0..1.</summary>
@@ -49,6 +85,16 @@ public readonly struct DungeonMetrics
     /// <summary>Cycles per room. Around 0.2-0.4 gives escape routes without a maze.</summary>
     public float LoopRatio => Rooms > 0 ? Loops / (float)Rooms : 0f;
 
+    /// <summary>Share of rooms that are not plain rectangles.</summary>
+    public float ShapedRatio => Rooms > 0 ? ShapedRooms / (float)Rooms : 0f;
+
+    /// <summary>
+    /// Sight radius the visibility figures are measured at, in cells. Matches the
+    /// player's default view radius — measured without a limit, every large room would
+    /// score as unreadable no matter what is in it, and the number would say nothing.
+    /// </summary>
+    private const int SightRadius = 10;
+
     public static DungeonMetrics Measure(DungeonLayout layout)
     {
         if (layout == null) return default;
@@ -56,20 +102,36 @@ public readonly struct DungeonMetrics
         int deadEnds = 0;
         int maxDepth = 0;
         int unreachable = 0;
+        int shaped = 0;
+        float visibilityTotal = 0f;
+        float worstVisibility = 1f;
+        int measured = 0;
+
         foreach (var room in layout.Rooms)
         {
             if (room.Degree <= 1) deadEnds++;
+            if (room.Shape != RoomShape.Rectangle) shaped++;
 
             // Unreachable rooms carry int.MaxValue and would swamp the maximum.
             if (room.DepthFromStart == int.MaxValue) unreachable++;
             else maxDepth = Mathf.Max(maxDepth, room.DepthFromStart);
+
+            float visible = VisibilityAnalysis.VisibleFractionFromEntrances(layout, room, SightRadius);
+            visibilityTotal += visible;
+            worstVisibility = Mathf.Min(worstVisibility, visible);
+            measured++;
         }
 
         int doorways = 0;
+        int interiorSolids = 0;
         for (int y = 0; y < layout.Height; y++)
         {
             for (int x = 0; x < layout.Width; x++)
-                if (layout[x, y] == CellType.Door) doorways++;
+            {
+                CellType cell = layout[x, y];
+                if (cell == CellType.Door) doorways++;
+                else if (cell == CellType.Pillar || cell == CellType.Rubble) interiorSolids++;
+            }
         }
 
         int loops = Mathf.Max(0, layout.Links.Count - Mathf.Max(0, layout.Rooms.Count - 1));
@@ -83,19 +145,31 @@ public readonly struct DungeonMetrics
             layout.CountWalkable(),
             layout.Width * layout.Height,
             maxDepth,
-            unreachable);
+            unreachable,
+            shaped,
+            interiorSolids,
+            layout.Alcoves.Count,
+            layout.Chokepoints.Count,
+            measured > 0 ? visibilityTotal / measured : 0f,
+            measured > 0 ? worstVisibility : 0f);
     }
 
-    /// <summary>Two-line human-readable summary for the preview window and logs.</summary>
+    /// <summary>Human-readable summary for the preview window and logs.</summary>
     public string ToReport()
     {
         var builder = new StringBuilder();
         builder.AppendLine(
             $"rooms {Rooms}   corridors {Corridors}   loops {Loops} ({LoopRatio:F2}/room)   " +
             $"dead ends {DeadEnds}   doors {Doorways}");
-        builder.Append(
+        builder.AppendLine(
             $"open cells {WalkableCells}/{TotalCells} ({OpenRatio * 100f:F1}%)   " +
             $"deepest room {MaxDepth} hops from start");
+        builder.AppendLine(
+            $"shaped rooms {ShapedRooms}/{Rooms} ({ShapedRatio * 100f:F0}%)   " +
+            $"interior solids {InteriorSolids}   alcoves {Alcoves}   chokepoints {ChokepointCells}");
+        builder.Append(
+            $"room visibility mean {MeanRoomVisibility:F2}   worst {WorstRoomVisibility:F2}   " +
+            "(1.00 = the room is read in one glance)");
 
         if (UnreachableRooms > 0)
             builder.Append($"   UNREACHABLE ROOMS: {UnreachableRooms}");

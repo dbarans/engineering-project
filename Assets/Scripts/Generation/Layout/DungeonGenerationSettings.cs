@@ -29,12 +29,36 @@ public class DungeonGenerationSettings : ScriptableObject
     [Tooltip("Placement tries per room before giving up on it. Higher = denser maps, slower.")]
     [Min(1)] public int placementAttemptsPerRoom = 40;
 
+    [Header("Room shape")]
+    [Tooltip("Chance a room is cut to a non-rectangular plan — an L, a T, a ring or a " +
+             "cavern. A rectangle is read in one glance from the doorway; a shaped room " +
+             "has to be walked. 0 = every room stays a rectangle.")]
+    [Range(0f, 1f)] public float shapedRoomChance = 0.6f;
+
+    [Tooltip("How hard the interior pass works to break a room's sightlines with pillars, " +
+             "partitions and rubble. 0 = leave rooms empty. Raising it lowers the share of " +
+             "a room the player can see from its doorway, which the metrics report.")]
+    [Range(0f, 1f)] public float interiorDensity = 0.5f;
+
     [Header("Corridors")]
+    [Tooltip("Narrowest corridor, and the width used at every doorway.")]
     [Min(1)] public int corridorWidth = 1;
+
+    [Tooltip("Widest a corridor segment may open out to. Corridors vary along their " +
+             "length so some stretches are rooms to fight in and others are pinches.")]
+    [Min(1)] public int maxCorridorWidth = 3;
 
     [Tooltip("Chance to keep a corridor that the spanning tree discarded. Loops give " +
              "escape routes, which the stealth and noise systems depend on. 0 = a pure tree.")]
     [Range(0f, 1f)] public float extraLoopChance = 0.25f;
+
+    [Tooltip("Chance a corridor takes two turns instead of one. An L can be seen down " +
+             "from its corner; a Z cannot be seen down from anywhere.")]
+    [Range(0f, 1f)] public float doubleBendChance = 0.35f;
+
+    [Tooltip("Per-cell chance of opening a blind pocket off a corridor. These are the " +
+             "layout's ambush slots — somewhere the player walks past without looking in.")]
+    [Range(0f, 0.25f)] public float alcoveChance = 0.04f;
 
     [Header("Validation")]
     [Tooltip("Retries with a derived seed when a layout fails validation.")]
@@ -54,7 +78,12 @@ public class DungeonGenerationSettings : ScriptableObject
             RoomSpacing = roomSpacing,
             PlacementAttemptsPerRoom = placementAttemptsPerRoom,
             CorridorWidth = corridorWidth,
+            MaxCorridorWidth = maxCorridorWidth,
             ExtraLoopChance = extraLoopChance,
+            DoubleBendChance = doubleBendChance,
+            AlcoveChance = alcoveChance,
+            ShapedRoomChance = shapedRoomChance,
+            InteriorDensity = interiorDensity,
             MaxGenerationAttempts = maxGenerationAttempts
         }.Sanitized();
     }
@@ -67,6 +96,7 @@ public class DungeonGenerationSettings : ScriptableObject
     {
         if (maxRoomSize < minRoomSize) maxRoomSize = minRoomSize;
         if (minRoomCount > targetRoomCount) minRoomCount = targetRoomCount;
+        if (maxCorridorWidth < corridorWidth) maxCorridorWidth = corridorWidth;
 
         // A room plus its spacing ring has to fit the map twice over, otherwise
         // rejection sampling can never reach the target count.

@@ -13,6 +13,7 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 3 — Population | done | `feat: [GU-0051] populate generated dungeons with content` |
 | 4 — Save integration | done | `feat: [GU-0051] seed-based save integration` |
 | 5 — Polish | metrics + room templates done; Rule Tiles / floors / biomes deferred, see below | `feat: [GU-0051] generation metrics and room templates` |
+| 6 — Spatial design | done (layout side); needs an editor pass | see §6 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -169,13 +170,107 @@ Turns a walkable maze into a playable level. Expect the most iteration here.
 
 ---
 
+## Stage 6 — Spatial design for a survival horror dungeon
+
+Stages 0-5 produce a *correct* dungeon: connected, seeded, populated, saveable. They do
+not produce an *oppressive* one. A room that is a bare rectangle is read in a single
+glance from its doorway and is then spent — there is nothing left to learn by walking
+into it, and the view cone has nothing to work against. This stage is about the shape of
+the space rather than about what is in it.
+
+### The measurement that drives it
+
+`VisibilityAnalysis.VisibleFraction` answers "what share of this room can be seen from
+here", by symmetric shadowcasting over the cell grid — engine-free, so it runs in the
+test assembly and during generation, long before any collider exists. Symmetric matters:
+if A sees B then B sees A, and asymmetric vision in a stealth game reads as a bug.
+
+`VisibleFractionFromEntrances` averages it over the room's doorways, which is what the
+player actually experiences. **1.00 means the room gives itself away completely on the
+first step in.** That single number turns "the dungeons feel too open" from an
+impression into something that can be tuned and reported.
+
+### What was added
+
+| Piece | File | What it does |
+|---|---|---|
+| Rooms as cell sets | `DungeonLayout.cs` | `Room` is no longer a `RectInt`. `Bounds` survives as the bounding box for placement and templates; `Cells` is the real shape, `Center` is the medoid (the box centre of an L-shaped room is inside solid rock, and corridors are routed between centres) |
+| Non-rectangular plans | `RoomShaper.cs` | Ell, Tee and Ring from composite rectangles — orthogonal, so the dungeon still reads as built rather than as geology. Cavern from cellular automata, filtered to its largest component so no unreachable pockets survive |
+| Interior structure | `RoomInteriorDecorator.cs` | Colonnade / Partitions / Island / Collapse, placed in batches and **measured after each batch**, stopping once the room is under a size-scaled visibility target. Any batch that would cut the room in two is rolled back |
+| Corridor variety | `CorridorCarver.cs` | Width varies per segment and always pinches to one cell at doorways; optional second bend (a Z cannot be seen down from anywhere, an L can); blind alcoves recorded on the layout as ready-made ambush slots |
+| Chokepoints | `Chokepoints.cs` | Hopcroft-Tarjan articulation points over the walkable cells — the places a fight cannot be walked away from. Iterative, because the recursive form overflows the stack on a 96×96 map |
+
+Two new cell types, `Pillar` and `Rubble`, carry the interior structure. **They are cells,
+not prop prefabs, and that is not an implementation detail.** This project's convention is
+that props never block vision or pathfinding, so a pillar spawned as a prop would look
+like cover while rays and enemies passed straight through it. As cells they land in the
+wall tilemap, join the composite collider, and are seen by `FieldOfView` and
+`PathfindingGrid` with zero changes to either — the same argument as decision D1.
+`IsWalkable` was rewritten as an explicit allow-list (`Floor | Door`) rather than
+"not `Wall`", so the next solid cell type cannot silently become walkable.
+
+### Measured result
+
+500 seeds per configuration, run outside Unity. Zero validation failures, zero retries,
+and every walkable cell reachable from spawn in every layout.
+
+| Configuration | Mean room visibility | Worst room | Interior solids | ms/dungeon |
+|---|---|---|---|---|
+| Stage 5 behaviour (rectangles, empty) | **0.913** | 0.726 | 0 | 3.5 |
+| Stage 6 defaults | **0.740** | 0.458 | 113 | 6.9 |
+
+The `interiorDensity` knob moves the figure monotonically and predictably, which is the
+evidence that the feedback loop converges rather than just scattering more clutter:
+
+| `interiorDensity` | 0.00 | 0.25 | 0.50 | 0.75 | 1.00 |
+|---|---|---|---|---|---|
+| mean visibility | 0.887 | 0.769 | 0.736 | 0.711 | 0.693 |
+| worst room | 0.609 | 0.506 | 0.456 | 0.407 | 0.364 |
+
+**`shapedRoomChance` does not move visibility at all** (0.730 / 0.737 / 0.735 at 0 / 0.5 /
+1.0) — and that is the loop working as designed rather than a bug. A shaped room already
+occludes itself, so the decorator hits the target with fewer solids (141 → 99). Shape is a
+**variety** knob; density is the **oppression** knob. Worth knowing before tuning either.
+
+Start and Camp rooms are deliberately left legible (camp measures ~0.95). A safe room the
+player cannot verify is empty is not a safe room, and the first room of a run is the worst
+possible place to hide something.
+
+### Not done
+
+- **Chokepoint-aware population.** The chokepoints are detected and stored but nothing
+  reads them yet. The intended use is placing the heaviest enemy *beside* one rather than
+  *on* it, so passing becomes a decision instead of a wall.
+- **Alcove-aware population.** `layout.Alcoves` is likewise recorded and unused; it is the
+  natural spawn list for something that should be behind the player before they see it.
+- **Cost of a colonnade on the FOV mesh.** Every pillar adds four silhouette edges inside
+  the view cone, and `OcclusionMeshBuilder` refines edges on top of that. The densest
+  rooms have not been profiled in play mode. If frame time suffers, the lever is
+  `interiorDensity`, not the mesh builder.
+
+### In-editor checklist for this stage
+
+1. **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** again — it now also creates `PillarTile` and
+   `RubbleTile` and wires them to the painter. Existing art is not overwritten.
+2. **Tools ▸ Dungeon ▸ Layout Preview** ▸ Generate. The report gained two lines: shaped
+   room share, interior solids, alcoves, chokepoints, and the visibility pair.
+3. Generate in the scene and confirm the thing this whole stage rests on: **standing in a
+   colonnade, the pillars cast moving shadows and hide the far side of the room.** If they
+   do not, they were painted into the floor tilemap instead of the wall one, or the
+   composite collider did not regenerate.
+4. Walk a corridor and confirm the width changes along it and pinches at doorways.
+
+---
+
 ## Risk register
 
 | Risk | Severity | Mitigation |
 |------|----------|-----------|
 | Composite collider regenerated after the pathfinding grid → invisible walls for A* | High | Explicit ordering in `DungeonBuilder`, asserted in Stage 2 |
 | `string.GetHashCode()` instability breaks seed reproducibility | High | Own FNV-1a hash (D4), covered by a determinism test |
-| Generated layouts are technically valid but boring | Medium | Stage 5.3 room templates; metrics overlay to spot degenerate layouts early |
+| Generated layouts are technically valid but boring | Medium | Stage 5.3 room templates; Stage 6 shaping and interior structure, with the visibility metric as the checkable target; metrics overlay to spot degenerate layouts early |
+| Interior structure seals off part of a room, wasting a whole generation attempt | Medium | The decorator rolls back any batch that splits the room, checked room-locally by flood fill — far cheaper than letting the map-wide validator discard the dungeon |
+| Dense colonnades cost too much in the FOV mesh rebuild | Medium | Not yet profiled; `interiorDensity` is the lever if it bites |
 | Spawn placement collides with geometry | Medium | Per-room occupancy set, editor-time assertions |
 | Guid collisions between generated and scene-authored entities | Low | Generated guids are namespaced by seed prefix, which no editor-assigned guid can produce |
 

@@ -41,18 +41,25 @@ public static class DungeonSceneSetup
     /// <summary>Tile texture side in pixels; imported at the same PPU so one tile is one world unit.</summary>
     private const int TilePixels = 32;
 
-    private static readonly Color FloorColor = new Color32(0x2A, 0x26, 0x22, 0xFF);
-    private static readonly Color FloorEdgeColor = new Color32(0x22, 0x1F, 0x1B, 0xFF);
-    private static readonly Color WallColor = new Color32(0x4A, 0x44, 0x3C, 0xFF);
-    private static readonly Color WallEdgeColor = new Color32(0x30, 0x2C, 0x26, 0xFF);
+    /// <summary>How many floor variants are generated; more of them hides the grid better.</summary>
+    private const int FloorVariantCount = 3;
+
+    private static readonly Color FloorColor = new Color32(0x2E, 0x29, 0x24, 0xFF);
+    private static readonly Color FloorSpeckleColor = new Color32(0x24, 0x20, 0x1C, 0xFF);
+    private static readonly Color WallTopColor = new Color32(0x5A, 0x51, 0x48, 0xFF);
+    private static readonly Color WallJointColor = new Color32(0x46, 0x3F, 0x38, 0xFF);
+    private static readonly Color WallCapColor = new Color32(0x6B, 0x60, 0x55, 0xFF);
+    private static readonly Color WallFaceColor = new Color32(0x3C, 0x35, 0x2E, 0xFF);
+    private static readonly Color WallFaceShadowColor = new Color32(0x24, 0x1F, 0x1A, 0xFF);
 
     [MenuItem("Tools/Dungeon/Setup Scene Tilemaps")]
     public static void Setup()
     {
         EnsureFolders();
 
-        Tile floorTile = EnsureTile("FloorTile", FloorColor, FloorEdgeColor, Tile.ColliderType.None);
-        Tile wallTile = EnsureTile("WallTile", WallColor, WallEdgeColor, Tile.ColliderType.Grid);
+        Tile[] floorTiles = EnsureFloorTiles();
+        Tile wallTile = EnsureTile("WallTile", TileStyle.WallTop, Tile.ColliderType.Grid);
+        Tile wallFaceTile = EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid);
         PrefabRegistry registry = EnsureRegistry();
         EnsureRegistryEntries(registry);
         DungeonGenerationSettings settings = EnsureSettings();
@@ -63,7 +70,8 @@ public static class DungeonSceneSetup
         Tilemap walls = EnsureWallTilemap(grid);
 
         WarnOnCellSizeMismatch(grid);
-        WireGenerator(grid, floor, walls, floorTile, wallTile, settings, contentSettings, registry);
+        WireGenerator(grid, floor, walls, floorTiles, wallTile, wallFaceTile,
+            settings, contentSettings, registry);
 
         EditorSceneManager.MarkSceneDirty(grid.gameObject.scene);
         AssetDatabase.SaveAssets();
@@ -154,7 +162,7 @@ public static class DungeonSceneSetup
     /// missing inspector reference.
     /// </summary>
     private static void WireGenerator(Grid grid, Tilemap floor, Tilemap walls,
-        Tile floorTile, Tile wallTile, DungeonGenerationSettings settings,
+        Tile[] floorTiles, Tile wallTile, Tile wallFaceTile, DungeonGenerationSettings settings,
         RoomContentSettings contentSettings, PrefabRegistry registry)
     {
         var root = grid.gameObject;
@@ -162,8 +170,9 @@ public static class DungeonSceneSetup
         var painter = EditorSetupUtility.EnsureComponent<DungeonPainter>(root);
         SetRef(painter, "floorTilemap", floor);
         SetRef(painter, "wallTilemap", walls);
-        SetRef(painter, "floorTile", floorTile);
+        SetArray(painter, "floorTiles", floorTiles);
         SetRef(painter, "wallTile", wallTile);
+        SetRef(painter, "wallFaceTile", wallFaceTile);
 
         var builder = EditorSetupUtility.EnsureComponent<DungeonBuilder>(root);
         SetRef(builder, "settings", settings);
@@ -204,17 +213,19 @@ public static class DungeonSceneSetup
     // ---------------------------------------------------------------- assets
 
     /// <summary>
-    /// Placeholder tile: a flat square with a darker one-pixel border so tile seams stay
-    /// readable while iterating on layouts. Replaced by Rule Tiles in Stage 5.
+    /// Creates (or reuses) one placeholder tile asset. The texture is only written when
+    /// missing, so art swapped in by hand survives a re-run; <see cref="RegenerateTiles"/>
+    /// is the explicit way to get the generated art back.
     /// </summary>
-    private static Tile EnsureTile(string name, Color fill, Color edge, Tile.ColliderType colliderType)
+    private static Tile EnsureTile(string name, TileStyle style, Tile.ColliderType colliderType,
+        bool overwrite = false)
     {
         string texturePath = $"{TilesFolder}/{name}.png";
         string tilePath = $"{TilesFolder}/{name}.asset";
 
-        if (!File.Exists(texturePath))
+        if (overwrite || !File.Exists(texturePath))
         {
-            File.WriteAllBytes(texturePath, BuildTileTexture(fill, edge));
+            File.WriteAllBytes(texturePath, BuildTileTexture(style, name));
             AssetDatabase.ImportAsset(texturePath, ImportAssetOptions.ForceSynchronousImport);
             ConfigureTextureImporter(texturePath);
         }
@@ -239,19 +250,43 @@ public static class DungeonSceneSetup
         return tile;
     }
 
-    private static byte[] BuildTileTexture(Color fill, Color edge)
+    /// <summary>Which of the three placeholder looks to draw.</summary>
+    private enum TileStyle
     {
+        /// <summary>Flat ground: base colour plus grain and the odd darker speckle.</summary>
+        Floor,
+
+        /// <summary>Wall seen from above: lighter stone, broken into courses.</summary>
+        WallTop,
+
+        /// <summary>Wall seen face-on: darker, with a lit cap along the top edge.</summary>
+        WallFace
+    }
+
+    /// <summary>
+    /// Draws a placeholder tile as a PNG.
+    ///
+    /// Flat colour was enough to judge layouts but reads as a spreadsheet on screen. Two
+    /// cheap tricks do most of the work: per-pixel grain, which kills the flatness, and
+    /// a lit cap on the wall face, which is what makes a top-down scene read as rooms
+    /// with height rather than as a floor plan.
+    ///
+    /// The noise is seeded from the tile name, so re-running produces byte-identical
+    /// files and does not churn the repository.
+    /// </summary>
+    private static byte[] BuildTileTexture(TileStyle style, string seed)
+    {
+        var random = new DeterministicRandom(seed);
         var texture = new Texture2D(TilePixels, TilePixels, TextureFormat.RGBA32, false);
+
         try
         {
             for (int y = 0; y < TilePixels; y++)
             {
                 for (int x = 0; x < TilePixels; x++)
-                {
-                    bool border = x == 0 || y == 0 || x == TilePixels - 1 || y == TilePixels - 1;
-                    texture.SetPixel(x, y, border ? edge : fill);
-                }
+                    texture.SetPixel(x, y, PixelColor(style, x, y, random));
             }
+
             texture.Apply();
             return texture.EncodeToPNG();
         }
@@ -259,6 +294,53 @@ public static class DungeonSceneSetup
         {
             Object.DestroyImmediate(texture);
         }
+    }
+
+    private static Color PixelColor(TileStyle style, int x, int y, DeterministicRandom random)
+    {
+        switch (style)
+        {
+            case TileStyle.WallTop:
+            {
+                // Horizontal courses with staggered vertical joints, so the wall reads as
+                // masonry instead of a single slab.
+                int course = y / (TilePixels / 4);
+                bool jointRow = y % (TilePixels / 4) == 0;
+                bool jointColumn = (x + (course % 2) * (TilePixels / 4)) % (TilePixels / 2) == 0;
+
+                Color color = jointRow || jointColumn ? WallJointColor : WallTopColor;
+                return Jitter(color, 0.02f, random);
+            }
+
+            case TileStyle.WallFace:
+            {
+                // The top rows catch the light; everything below falls away into shadow.
+                const int capHeight = 6;
+                if (y >= TilePixels - capHeight) return Jitter(WallCapColor, 0.02f, random);
+
+                float depth = 1f - y / (float)(TilePixels - capHeight);
+                Color color = Color.Lerp(WallFaceColor, WallFaceShadowColor, depth * 0.6f);
+                return Jitter(color, 0.025f, random);
+            }
+
+            default:
+            {
+                // Occasional darker speckles read as grit and break up the grain.
+                Color color = random.Chance(0.04f) ? FloorSpeckleColor : FloorColor;
+                return Jitter(color, 0.03f, random);
+            }
+        }
+    }
+
+    /// <summary>Nudges a colour by a symmetric random amount, keeping it in range.</summary>
+    private static Color Jitter(Color color, float amount, DeterministicRandom random)
+    {
+        float delta = (random.NextFloat() * 2f - 1f) * amount;
+        return new Color(
+            Mathf.Clamp01(color.r + delta),
+            Mathf.Clamp01(color.g + delta),
+            Mathf.Clamp01(color.b + delta),
+            1f);
     }
 
     /// <summary>Point filtering and PPU = tile size, so one tile covers exactly one world unit.</summary>
@@ -401,6 +483,51 @@ public static class DungeonSceneSetup
         });
     }
 
+    /// <summary>
+    /// The floor variants. Cells pick between them from the dungeon seed, which is what
+    /// stops a large room looking like tiled wallpaper.
+    /// </summary>
+    private static Tile[] EnsureFloorTiles()
+    {
+        var tiles = new Tile[FloorVariantCount];
+        for (int i = 0; i < tiles.Length; i++)
+        {
+            // Suffixed rather than numbered from 0, so the first one keeps the name the
+            // earlier setup runs already created.
+            string name = i == 0 ? "FloorTile" : $"FloorTile{(char)('A' + i)}";
+            tiles[i] = EnsureTile(name, TileStyle.Floor, Tile.ColliderType.None);
+        }
+        return tiles;
+    }
+
+    /// <summary>
+    /// Redraws the placeholder textures over the existing assets. Separate from
+    /// <see cref="Setup"/>, which never overwrites, so that art replaced by hand is not
+    /// silently thrown away by a routine re-run.
+    /// </summary>
+    [MenuItem("Tools/Dungeon/Regenerate Placeholder Tiles")]
+    public static void RegenerateTiles()
+    {
+        if (!EditorUtility.DisplayDialog("Regenerate Placeholder Tiles",
+                "Redraw the generated placeholder art, overwriting the PNGs in " +
+                TilesFolder + ".\n\nAny tile art you replaced by hand will be lost.",
+                "Regenerate", "Cancel"))
+            return;
+
+        EnsureFolders();
+
+        for (int i = 0; i < FloorVariantCount; i++)
+        {
+            string name = i == 0 ? "FloorTile" : $"FloorTile{(char)('A' + i)}";
+            EnsureTile(name, TileStyle.Floor, Tile.ColliderType.None, overwrite: true);
+        }
+        EnsureTile("WallTile", TileStyle.WallTop, Tile.ColliderType.Grid, overwrite: true);
+        EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid, overwrite: true);
+
+        AssetDatabase.SaveAssets();
+        Debug.Log($"[DungeonSetup] Placeholder tiles redrawn in '{TilesFolder}'.");
+    }
+
     /// <summary>Sets a private serialized field by name, the way the other setup tools do.</summary>
     private static void SetRef(Object component, string field, Object value)
     {
@@ -412,6 +539,26 @@ public static class DungeonSceneSetup
             return;
         }
         property.objectReferenceValue = value;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>Fills a private serialized object array by name.</summary>
+    private static void SetArray(Object component, string field, Object[] values)
+    {
+        var serialized = new SerializedObject(component);
+        var property = serialized.FindProperty(field);
+        if (property == null)
+        {
+            Debug.LogWarning($"[DungeonSetup] Field '{field}' not found on {component.GetType().Name}.");
+            return;
+        }
+
+        property.ClearArray();
+        for (int i = 0; i < values.Length; i++)
+        {
+            property.InsertArrayElementAtIndex(i);
+            property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+        }
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 

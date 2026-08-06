@@ -61,6 +61,30 @@ public sealed class DeterministicRandom
         return hash;
     }
 
+    /// <summary>
+    /// Position-stable hash of a cell, for per-cell choices that must not depend on the
+    /// order cells are visited — tile variants, for instance. Allocation-free, unlike
+    /// hashing an interpolated string, which matters at one call per cell of the map.
+    ///
+    /// Because it is derived from the coordinates rather than a running stream, a cell
+    /// keeps its variant even when the map around it changes size.
+    /// </summary>
+    public static uint Hash(uint seed, int x, int y)
+    {
+        unchecked
+        {
+            uint hash = FnvOffsetBasis ^ seed;
+            hash = (hash ^ (uint)x) * FnvPrime;
+            hash = (hash ^ (uint)y) * FnvPrime;
+            // Final avalanche: without it, neighbouring cells map to neighbouring
+            // buckets and the variants come out in visible diagonal stripes.
+            hash ^= hash >> 15;
+            hash *= 0x2545F491;
+            hash ^= hash >> 13;
+            return hash;
+        }
+    }
+
     /// <summary>Next raw 32-bit value.</summary>
     public uint NextUInt()
     {

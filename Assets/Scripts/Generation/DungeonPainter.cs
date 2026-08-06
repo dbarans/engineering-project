@@ -17,8 +17,16 @@ public class DungeonPainter : MonoBehaviour
     [SerializeField] private Tilemap wallTilemap;
 
     [Header("Tiles")]
-    [SerializeField] private TileBase floorTile;
+    [Tooltip("Floor variants. More than one breaks up the wallpaper effect; the variant " +
+             "for a cell is chosen from the dungeon seed, so it is stable across rebuilds.")]
+    [SerializeField] private TileBase[] floorTiles;
+
+    [Tooltip("Wall seen from above.")]
     [SerializeField] private TileBase wallTile;
+
+    [Tooltip("Optional. Wall whose south side is exposed, i.e. the face turned towards the " +
+             "camera. Without it the dungeon reads as a floor plan rather than as rooms.")]
+    [SerializeField] private TileBase wallFaceTile;
 
     [Tooltip("Optional. Painted on doorway cells to make openings readable; falls back to the floor tile.")]
     [SerializeField] private TileBase doorwayTile;
@@ -63,7 +71,10 @@ public class DungeonPainter : MonoBehaviour
 
         var floors = new TileBase[count];
         var walls = new TileBase[count];
-        TileBase doorway = doorwayTile != null ? doorwayTile : floorTile;
+
+        TileBase doorway = doorwayTile != null ? doorwayTile : floorTiles[0];
+        TileBase wallFace = wallFaceTile != null ? wallFaceTile : wallTile;
+        uint seedHash = DeterministicRandom.Hash(layout.Seed);
 
         for (int y = 0; y < layout.Height; y++)
         {
@@ -71,10 +82,21 @@ public class DungeonPainter : MonoBehaviour
             for (int x = 0; x < layout.Width; x++)
             {
                 CellType cell = layout[x, y];
+
                 // Floor is painted under walls too: without it, any gap the wall
                 // collider leaves would show the empty background.
-                floors[row + x] = cell == CellType.Door ? doorway : floorTile;
-                walls[row + x] = cell == CellType.Wall ? wallTile : null;
+                floors[row + x] = cell == CellType.Door ? doorway : PickFloor(seedHash, x, y);
+
+                if (cell != CellType.Wall)
+                {
+                    walls[row + x] = null;
+                    continue;
+                }
+
+                // A wall with open ground to its south shows its face to the camera;
+                // one buried in rock only ever shows its top.
+                bool facingCamera = layout[x, y - 1] != CellType.Wall;
+                walls[row + x] = facingCamera ? wallFace : wallTile;
             }
         }
 
@@ -85,6 +107,19 @@ public class DungeonPainter : MonoBehaviour
 
         RebuildColliders();
         return true;
+    }
+
+    /// <summary>
+    /// Floor variant for a cell, chosen from the seed and the coordinates so the same
+    /// dungeon always looks the same — the map is rebuilt from its seed on every load,
+    /// and a floor that reshuffled each time would be visibly wrong.
+    /// </summary>
+    private TileBase PickFloor(uint seedHash, int x, int y)
+    {
+        if (floorTiles.Length == 1) return floorTiles[0];
+
+        uint hash = DeterministicRandom.Hash(seedHash, x, y);
+        return floorTiles[hash % (uint)floorTiles.Length];
     }
 
     /// <summary>
@@ -117,9 +152,15 @@ public class DungeonPainter : MonoBehaviour
             return false;
         }
 
-        if (floorTile == null || wallTile == null)
+        if (floorTiles == null || floorTiles.Length == 0 || floorTiles[0] == null)
         {
-            Debug.LogError("[DungeonPainter] Floor or wall tile asset is not assigned.", this);
+            Debug.LogError("[DungeonPainter] No floor tile assigned.", this);
+            return false;
+        }
+
+        if (wallTile == null)
+        {
+            Debug.LogError("[DungeonPainter] No wall tile assigned.", this);
             return false;
         }
 

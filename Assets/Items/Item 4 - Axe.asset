@@ -18,3 +18,4 @@ MonoBehaviour:
   value: 150
   maxStack: 1
   weaponType: 1
+  maxDurability: 9

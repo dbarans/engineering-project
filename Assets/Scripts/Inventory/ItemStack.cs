@@ -11,8 +11,29 @@ public class ItemStack
     public ItemData item;
     public int count = 1;
 
+    /// <summary>
+    /// Remaining durability for a durable item (see <see cref="ItemData.maxDurability"/>).
+    /// <c>-1</c> means "undamaged": the stack reads as full without having to be seeded when
+    /// the item is created, moved, or restored. Read through <see cref="CurrentDurability"/>,
+    /// which resolves the sentinel to the item's max.
+    /// </summary>
+    public int durability = -1;
+
     /// <summary>True when this stack holds no item (or a non-positive count).</summary>
     public bool IsEmpty => item == null || count <= 0;
+
+    /// <summary>True when the held item wears out with use (its <see cref="ItemData.maxDurability"/> is positive).</summary>
+    public bool HasDurability => item != null && item.maxDurability > 0;
+
+    /// <summary>The held item's durability ceiling (0 when empty or not a durable item).</summary>
+    public int MaxDurability => item != null ? Mathf.Max(0, item.maxDurability) : 0;
+
+    /// <summary>
+    /// Remaining durability in the range 0..<see cref="MaxDurability"/>, resolving the
+    /// "undamaged" sentinel (<c>-1</c>) to a full bar. 0 for non-durable or empty stacks.
+    /// </summary>
+    public int CurrentDurability =>
+        HasDurability ? (durability < 0 ? MaxDurability : Mathf.Clamp(durability, 0, MaxDurability)) : 0;
 
     /// <summary>The stack ceiling for the held item (at least 1), or 1 when empty.</summary>
     public int MaxStack => item != null ? Mathf.Max(1, item.maxStack) : 1;
@@ -28,6 +49,7 @@ public class ItemStack
     {
         item = null;
         count = 0;
+        durability = -1;
     }
 
     /// <summary>

@@ -98,12 +98,13 @@ public class HeldItemController : MonoBehaviour
         // Capture slot data up front — container.Clear/Set mutates the live stack in place.
         ItemData slotItem = stack.item;
         int slotCount = stack.count;
+        int slotDurability = stack.CurrentDurability;
         bool slotEmpty = stack.IsEmpty;
 
         // Ctrl -> take a single unit from the clicked stack onto the cursor (repeatable).
         if (IsTakeOneModifierHeld())
         {
-            TakeOne(slot, container, index, slotItem, slotCount, slotEmpty);
+            TakeOne(slot, container, index, slotItem, slotCount, slotDurability, slotEmpty);
             return;
         }
 
@@ -119,19 +120,20 @@ public class HeldItemController : MonoBehaviour
                 var half = slot.Detach();
                 container.Set(index, slotItem, leave); // Refresh spawns a fresh entity for the remainder
                 Adopt(half);
-                if (_heldItem != null) _heldItem.SetStack(slotItem, take);
+                if (_heldItem != null) _heldItem.SetStack(slotItem, take, slotDurability);
                 return;
             }
 
             var picked = slot.Detach();
             container.Clear(index);            // Refresh sees empty + detached -> no-op
             Adopt(picked);
-            if (_heldItem != null) _heldItem.SetStack(slotItem, slotCount);
+            if (_heldItem != null) _heldItem.SetStack(slotItem, slotCount, slotDurability);
             return;
         }
 
         ItemData heldItem = _heldItem.Item;
         int heldCount = _heldItem.Count;
+        int heldDurability = _heldItem.Durability;
 
         if (slotEmpty)
         {
@@ -139,7 +141,7 @@ public class HeldItemController : MonoBehaviour
             var dropped = _heldItem;
             _heldItem = null;
             slot.Attach(dropped);
-            container.Set(index, heldItem, heldCount); // Refresh updates the now-attached entity
+            container.Set(index, heldItem, heldCount, heldDurability); // Refresh updates the now-attached entity
             return;
         }
 
@@ -159,7 +161,7 @@ public class HeldItemController : MonoBehaviour
                 }
                 else
                 {
-                    _heldItem.SetStack(heldItem, remainder);
+                    _heldItem.SetStack(heldItem, remainder, heldDurability);
                 }
                 return;
             }
@@ -170,9 +172,9 @@ public class HeldItemController : MonoBehaviour
         var fromSlot = slot.Detach();
         var fromHand = _heldItem;
         slot.Attach(fromHand);
-        container.Set(index, heldItem, heldCount);     // Refresh updates the slot's new entity
+        container.Set(index, heldItem, heldCount, heldDurability); // Refresh updates the slot's new entity
         Adopt(fromSlot);
-        if (_heldItem != null) _heldItem.SetStack(slotItem, slotCount);
+        if (_heldItem != null) _heldItem.SetStack(slotItem, slotCount, slotDurability);
     }
 
     /// <summary>True while a Shift key is held (used to split a stack in half on pick-up).</summary>
@@ -196,7 +198,7 @@ public class HeldItemController : MonoBehaviour
     /// held item.
     /// </summary>
     private void TakeOne(SlotView slot, ItemContainer container, int index,
-        ItemData slotItem, int slotCount, bool slotEmpty)
+        ItemData slotItem, int slotCount, int slotDurability, bool slotEmpty)
     {
         if (slotEmpty) return;
 
@@ -205,7 +207,7 @@ public class HeldItemController : MonoBehaviour
             var entity = slot.Detach();
             container.Set(index, slotItem, slotCount - 1); // 0 -> clears; >0 -> respawns remainder
             Adopt(entity);
-            if (_heldItem != null) _heldItem.SetStack(slotItem, 1);
+            if (_heldItem != null) _heldItem.SetStack(slotItem, 1, slotDurability);
             return;
         }
 
@@ -213,7 +215,7 @@ public class HeldItemController : MonoBehaviour
         if (_heldItem.Count >= Mathf.Max(1, slotItem.maxStack)) return; // cursor full
 
         container.Set(index, slotItem, slotCount - 1);
-        _heldItem.SetStack(slotItem, _heldItem.Count + 1);
+        _heldItem.SetStack(slotItem, _heldItem.Count + 1, _heldItem.Durability);
     }
 
     /// <summary>Re-parents an entity onto the cursor.</summary>

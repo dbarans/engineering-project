@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Controls interactive door mechanics: entities push doors away from themselves to avoid collision overlap, with two-way sprint breaching.
+/// Controls interactive door mechanics: entities push doors away from themselves, with support for key locks, manual locking, and two-way sprint breaching.
 /// </summary>
 public class SimpleDoor : MonoBehaviour
 {
@@ -16,6 +16,10 @@ public class SimpleDoor : MonoBehaviour
     [Header("Lock Settings")]
     [SerializeField] private bool isLocked = false;
     [SerializeField] private bool lockOnlyFromOutside = true;
+
+    [Header("Key System")]
+    [SerializeField] private bool requiresKeyToOpen = false;
+    [SerializeField] private ItemData requiredKeyItem;
 
     [Header("Sprint Ramming")]
     [SerializeField] private float staminaCostForRamming = 25f;
@@ -114,18 +118,61 @@ public class SimpleDoor : MonoBehaviour
     }
 
     /// <summary>
-    /// Toggles the door state: dynamically pushes the door away from the opener.
+    /// Toggles the door state: consumes a key if required, checks for locks, and pushes the door away from the opener.
     /// </summary>
     /// <param name="opener">The transform of the entity opening the door (Player or Enemy).</param>
     public void ToggleDoor(Transform opener = null)
     {
         if (isDestroyed) return;
 
+        if (requiresKeyToOpen && !isOpen)
+        {
+            if (opener != null && requiredKeyItem != null)
+            {
+                SlotInventory inventory = opener.GetComponent<SlotInventory>();
+                if (inventory != null)
+                {
+                    bool keyUsed = false;
+
+                    if (inventory.Backpack.TryRemove(requiredKeyItem, 1) > 0)
+                    {
+                        keyUsed = true;
+                    }
+                    else if (inventory.Hotbar.TryRemove(requiredKeyItem, 1) > 0)
+                    {
+                        keyUsed = true;
+                    }
+
+                    if (keyUsed)
+                    {
+                        requiresKeyToOpen = false;
+                        Debug.Log($"[Door] Unlocked and opened using key: {requiredKeyItem.itemName}!");
+                    }
+                    else
+                    {
+                        Debug.Log("[Door] Cannot open, missing required key item!");
+                        return;
+                    }
+                }
+                else
+                {
+                    Debug.Log("[Door] Opener has no SlotInventory component!");
+                    return;
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[Door] Requires key, but no key item is assigned in Inspector or opener is null!");
+                return;
+            }
+        }
+
         if (isLocked)
         {
             Debug.Log("[Door] Cannot open, door is locked!");
             return;
         }
+
         isOpen = !isOpen;
 
         if (isOpen)
@@ -186,10 +233,18 @@ public class SimpleDoor : MonoBehaviour
 
     /// <summary>
     /// Applies damage to the door and triggers destruction if health reaches zero.
+    /// Key-locked doors are immune to physical damage.
     /// </summary>
     public void TakeDamage(float damageAmount)
     {
         if (isDestroyed) return;
+
+        if (requiresKeyToOpen)
+        {
+            Debug.Log("[Door] This door is too sturdy! Melee attacks deal no damage.");
+            return;
+        }
+
         currentHealth -= damageAmount;
         Debug.Log($"[Door] Received {damageAmount} damage! Remaining HP: {currentHealth}/{maxHealth}");
 
@@ -229,6 +284,12 @@ public class SimpleDoor : MonoBehaviour
     private void CheckRamming(Collision2D collision)
     {
         if (isOpen || isDestroyed) return;
+
+        if (requiresKeyToOpen)
+        {
+            Debug.Log("[Door] This door is key-locked and reinforced. Ramming is impossible — you need a key!");
+            return;
+        }
 
         GameObject hittingObject = collision.gameObject;
 

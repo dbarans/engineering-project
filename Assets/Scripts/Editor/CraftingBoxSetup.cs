@@ -70,6 +70,7 @@ public static class CraftingBoxSetup
         SetRef(box, "backpack", backpack);
         SetRef(box, "slotPrefab", slotPrefab);
         SetRecipeList(box, recipes);
+        WireRepairButton(box, slotInventory);
 
         // Bake one crafting slot per recipe under the box's grid.
         var slotsContainer = new SerializedObject(box).FindProperty("slotsContainer").objectReferenceValue as Transform;
@@ -99,6 +100,22 @@ public static class CraftingBoxSetup
             else Debug.LogWarning($"[CraftingBox] Recipe not found at '{path}'.");
         }
         return list;
+    }
+
+    /// <summary>
+    /// Wires the repair button's scrap item + inventory so a re-run keeps them authored.
+    /// The <see cref="WeaponRepairButton"/> also resolves both at runtime, so this is only a
+    /// convenience for inspecting the wiring in the editor.
+    /// </summary>
+    private static void WireRepairButton(CraftingBoxUI box, SlotInventory slotInventory)
+    {
+        var buttonRoot = new SerializedObject(box).FindProperty("repairButtonRoot").objectReferenceValue as GameObject;
+        var repair = buttonRoot != null ? buttonRoot.GetComponent<WeaponRepairButton>() : null;
+        if (repair == null) return;
+
+        var scrap = AssetDatabase.LoadAssetAtPath<ItemData>("Assets/Items/Item 8 - Scrap.asset");
+        if (scrap != null) SetRef(repair, "scrapItem", scrap);
+        SetRef(repair, "inventory", slotInventory);
     }
 
     private static void SetRecipeList(CraftingBoxUI box, List<RecipeData> recipes)

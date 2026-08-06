@@ -10,6 +10,11 @@ using UnityEngine;
 /// Walls and trees on the obstacle mask cut the light, so a lamp does not shine through a wall.
 /// Small props never block it, per the project's vision-blocking convention.
 ///
+/// Brightness over time is not this component's job: add an <see cref="ILightIntensity"/>
+/// component next to it (<see cref="FlameFlicker"/> for a living flame, <see cref="BrokenLightFlicker"/>
+/// for a failing one) and the light is scaled by it. That never changes the shape of the lit area
+/// (the raycast mesh), only how bright the shader draws it.
+///
 /// Attach to the lamp GameObject and assign the same VisionMaskWriter material the player's
 /// FieldOfView uses; the mesh itself is drawn by a generated child on the vision mask layer.
 /// </summary>
@@ -43,12 +48,17 @@ public class StationaryLightSource : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private GizmoDebugSettings gizmoDebugSettings;
 
+    private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
+
     private Mesh lightMesh;
     private MeshRenderer meshRenderer;
+    private MaterialPropertyBlock propertyBlock;
     private OcclusionMeshBuilder meshBuilder;
     private ILightFuel fuel;
     private float nextRebuildTime;
     private bool wasLit;
+    private ILightIntensity intensitySource;
+    private float lastAppliedIntensity = -1f;
 
     private readonly List<float> angleBuffer = new List<float>(256);
     private System.Func<float, float> reachForAngle;
@@ -65,6 +75,8 @@ public class StationaryLightSource : MonoBehaviour
         meshBuilder = new OcclusionMeshBuilder(edgeDistanceThreshold, edgeResolveIterations);
         reachForAngle = _ => lightRadius;
         fuel = GetComponent<ILightFuel>();
+        intensitySource = GetComponent<ILightIntensity>();
+        propertyBlock = new MaterialPropertyBlock();
 
         // Drawn by a child on the vision mask layer, so the lamp GameObject keeps whatever layer
         // it needs for physics and interaction.
@@ -83,10 +95,28 @@ public class StationaryLightSource : MonoBehaviour
 
         if (!lit) return;
 
+        ApplyIntensity();
+
         if (Time.time < nextRebuildTime) return;
         nextRebuildTime = Time.time + Mathf.Max(0f, rebuildInterval);
 
         BuildMesh();
+    }
+
+    /// <summary>
+    /// Scales the light by its <see cref="ILightIntensity"/> component, if it has one. Runs every
+    /// frame — far cheaper than <see cref="rebuildInterval"/>, which paces the raycast re-trace —
+    /// so a flicker stays smooth even while the mesh itself is retraced rarely. Only pushes to the
+    /// renderer when the value actually changed.
+    /// </summary>
+    private void ApplyIntensity()
+    {
+        float intensity = intensitySource != null ? Mathf.Clamp01(intensitySource.Intensity) : 1f;
+        if (Mathf.Approximately(intensity, lastAppliedIntensity)) return;
+
+        lastAppliedIntensity = intensity;
+        propertyBlock.SetFloat(IntensityId, intensity);
+        meshRenderer.SetPropertyBlock(propertyBlock);
     }
 
     /// <summary>

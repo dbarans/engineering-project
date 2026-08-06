@@ -157,6 +157,8 @@ MonoBehaviour:
   interactDistance: 4
   isLocked: 0
   lockOnlyFromOutside: 1
+  requiresKeyToOpen: 0
+  requiredKeyItem: {fileID: 11400000, guid: 6e99b352a93d14e4e9bc628196155ce9, type: 2}
   staminaCostForRamming: 40
   maxHealth: 100
   destroyedDoorVisual: {fileID: 0}

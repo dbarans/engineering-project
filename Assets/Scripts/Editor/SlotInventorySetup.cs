@@ -26,6 +26,7 @@ public static class SlotInventorySetup
     private const string Item3Path = "Assets/Items/Item 3 - Wood.asset";
     private const string Item4Path = "Assets/Items/Item 4 - Axe.asset";
     private const string Item5Path = "Assets/Items/Item 5 - Pistol.asset";
+    private const string Item8Path = "Assets/Items/Item 8 - Scrap.asset";
 
     [MenuItem("Tools/Slot Inventory/Build UI & Wire Scene")]
     public static void BuildAndWire()
@@ -100,6 +101,15 @@ public static class SlotInventorySetup
         var root = NewUI("InventoryItem", null);
         root.sizeDelta = new Vector2(64, 64);
 
+        // Red wear bar, created first so it draws behind the icon (durable items only).
+        // It is anchored/sized at runtime (bottom-up, height = fraction of hits spent).
+        var durability = NewUI("DurabilityFill", root);
+        Stretch(durability, 0);
+        var durabilityImg = durability.gameObject.AddComponent<Image>();
+        durabilityImg.raycastTarget = false;
+        durabilityImg.color = new Color(1f, 0.12f, 0.1f, 0.85f);
+        durabilityImg.enabled = false;
+
         var icon = NewUI("Icon", root);
         Stretch(icon, 7);
         var iconImg = icon.gameObject.AddComponent<Image>();
@@ -120,6 +130,7 @@ public static class SlotInventorySetup
         var item = root.gameObject.AddComponent<InventoryItem>();
         SetRef(item, "iconImage", iconImg);
         SetRef(item, "countLabel", countText);
+        SetRef(item, "durabilityFill", durabilityImg);
 
         Directory.CreateDirectory(Path.GetDirectoryName(ItemPrefabPath));
         var prefab = PrefabUtility.SaveAsPrefabAsset(root.gameObject, ItemPrefabPath);
@@ -314,7 +325,8 @@ public static class SlotInventorySetup
         var wood = AssetDatabase.LoadAssetAtPath<ItemData>(Item3Path);
         var axe = AssetDatabase.LoadAssetAtPath<ItemData>(Item4Path);
         var pistol = AssetDatabase.LoadAssetAtPath<ItemData>(Item5Path);
-        if (sword == null && mana == null && wood == null && axe == null && pistol == null) return;
+        var scrap = AssetDatabase.LoadAssetAtPath<ItemData>(Item8Path);
+        if (sword == null && mana == null && wood == null && axe == null && pistol == null && scrap == null) return;
 
         var fill = EditorSetupUtility.EnsureComponent<SlotInventoryDebugFill>(owner);
         var so = new SerializedObject(fill);
@@ -326,6 +338,7 @@ public static class SlotInventorySetup
         AddEntry(entries, axe, 1, false);
         AddEntry(entries, pistol, 1, false);
         AddEntry(entries, wood, 64, true);
+        AddEntry(entries, scrap, 6, true);
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 

@@ -36,6 +36,7 @@ public static class DungeonSceneSetup
 
     // World objects sit at sorting order 0..1, so both tilemaps must draw below them.
     private const int FloorSortingOrder = -100;
+    private const int DecalSortingOrder = -75;
     private const int WallSortingOrder = -50;
 
     /// <summary>Tile texture side in pixels; imported at the same PPU so one tile is one world unit.</summary>
@@ -44,17 +45,37 @@ public static class DungeonSceneSetup
     /// <summary>How many floor variants are generated; more of them hides the grid better.</summary>
     private const int FloorVariantCount = 3;
 
-    private static readonly Color FloorColor = new Color32(0x2E, 0x29, 0x24, 0xFF);
-    private static readonly Color FloorSpeckleColor = new Color32(0x24, 0x20, 0x1C, 0xFF);
-    private static readonly Color WallTopColor = new Color32(0x5A, 0x51, 0x48, 0xFF);
-    private static readonly Color WallJointColor = new Color32(0x46, 0x3F, 0x38, 0xFF);
-    private static readonly Color WallCapColor = new Color32(0x6B, 0x60, 0x55, 0xFF);
-    private static readonly Color WallFaceColor = new Color32(0x3C, 0x35, 0x2E, 0xFF);
-    private static readonly Color WallFaceShadowColor = new Color32(0x24, 0x1F, 0x1A, 0xFF);
-    private static readonly Color PillarColor = new Color32(0x63, 0x5A, 0x4F, 0xFF);
-    private static readonly Color PillarShadowColor = new Color32(0x33, 0x2D, 0x27, 0xFF);
-    private static readonly Color RubbleColor = new Color32(0x44, 0x3D, 0x35, 0xFF);
-    private static readonly Color RubbleChunkColor = new Color32(0x57, 0x4E, 0x44, 0xFF);
+    // Cool and desaturated, and — the part that matters — the floor is the *lightest*
+    // thing on screen and the stone is darker than it.
+    //
+    // The first pass had this the other way round, which put a bright mass of masonry
+    // around small dark rooms: the eye read the wall as the subject and the room as a
+    // hole in it. The concept art does the opposite, and it has to, because the only
+    // thing the player ever sees is the inside of their own vision cone. Everything
+    // outside is taken to black by DarknessOverlay regardless of what colour it is, so
+    // all the tonal range there is has to be spent on the lit floor.
+    private static readonly Color FloorColor = new Color32(0x5E, 0x6A, 0x66, 0xFF);
+    private static readonly Color FloorSpeckleColor = new Color32(0x53, 0x5E, 0x5B, 0xFF);
+    private static readonly Color WallTopColor = new Color32(0x3B, 0x44, 0x42, 0xFF);
+    private static readonly Color WallJointColor = new Color32(0x27, 0x2E, 0x2D, 0xFF);
+    private static readonly Color WallCapColor = new Color32(0x6E, 0x7A, 0x76, 0xFF);
+    private static readonly Color WallFaceColor = new Color32(0x2E, 0x36, 0x34, 0xFF);
+    private static readonly Color WallFaceShadowColor = new Color32(0x17, 0x1B, 0x1A, 0xFF);
+    private static readonly Color PillarColor = new Color32(0x6E, 0x7A, 0x76, 0xFF);
+    private static readonly Color PillarShadowColor = new Color32(0x25, 0x2B, 0x2A, 0xFF);
+    private static readonly Color RubbleColor = new Color32(0x39, 0x41, 0x3F, 0xFF);
+    private static readonly Color RubbleChunkColor = new Color32(0x4E, 0x58, 0x55, 0xFF);
+    private static readonly Color ThresholdColor = new Color32(0x4A, 0x54, 0x51, 0xFF);
+    private static readonly Color JambColor = new Color32(0x6B, 0x76, 0x72, 0xFF);
+    private static readonly Color CrackColor = new Color32(0x0F, 0x13, 0x12, 0xFF);
+    private static readonly Color StainColor = new Color32(0x16, 0x1A, 0x19, 0xFF);
+    private static readonly Color GritColor = new Color32(0x76, 0x82, 0x7E, 0xFF);
+
+    /// <summary>Fully transparent; the floor underneath shows through wherever a decal has nothing to say.</summary>
+    private static readonly Color Nothing = new Color(0f, 0f, 0f, 0f);
+
+    /// <summary>How many decal variants are generated.</summary>
+    private const int DecalVariantCount = 4;
 
     [MenuItem("Tools/Dungeon/Setup Scene Tilemaps")]
     public static void Setup()
@@ -66,6 +87,8 @@ public static class DungeonSceneSetup
         Tile wallFaceTile = EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid);
         Tile pillarTile = EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Grid);
         Tile rubbleTile = EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid);
+        Tile doorwayTile = EnsureTile("DoorwayTile", TileStyle.Doorway, Tile.ColliderType.None);
+        Tile[] decalTiles = EnsureDecalTiles();
         PrefabRegistry registry = EnsureRegistry();
         EnsureRegistryEntries(registry);
         DungeonGenerationSettings settings = EnsureSettings();
@@ -73,11 +96,12 @@ public static class DungeonSceneSetup
 
         Grid grid = EnsureGrid();
         Tilemap floor = EnsureFloorTilemap(grid);
+        Tilemap decals = EnsureDecalTilemap(grid);
         Tilemap walls = EnsureWallTilemap(grid);
 
         WarnOnCellSizeMismatch(grid);
-        WireGenerator(grid, floor, walls, floorTiles, wallTile, wallFaceTile,
-            pillarTile, rubbleTile, settings, contentSettings, registry);
+        WireGenerator(grid, floor, decals, walls, floorTiles, wallTile, wallFaceTile,
+            pillarTile, rubbleTile, doorwayTile, decalTiles, settings, contentSettings, registry);
 
         EditorSceneManager.MarkSceneDirty(grid.gameObject.scene);
         AssetDatabase.SaveAssets();
@@ -89,7 +113,7 @@ public static class DungeonSceneSetup
 
         EditorUtility.DisplayDialog("Dungeon Setup",
             "Scene prepared for procedural generation.\n\n" +
-            "• DungeonRoot ▸ Floor / Walls tilemaps\n" +
+            "• DungeonRoot ▸ Floor / Decals / Walls tilemaps\n" +
             "• Walls: TilemapCollider2D merged into a CompositeCollider2D, layer ObstacleStatic\n" +
             "• DungeonPainter + DungeonBuilder wired to the tilemaps and the PathfindingGrid\n" +
             "• Placeholder FloorTile / WallTile assets and a settings asset\n" +
@@ -120,6 +144,17 @@ public static class DungeonSceneSetup
     {
         Tilemap tilemap = EnsureTilemap(grid, "Floor");
         EditorSetupUtility.EnsureComponent<TilemapRenderer>(tilemap.gameObject).sortingOrder = FloorSortingOrder;
+        return tilemap;
+    }
+
+    /// <summary>
+    /// Wear layer. Sits between the floor and the walls and carries no collider, so a
+    /// crack painted across a doorway is scenery and nothing more.
+    /// </summary>
+    private static Tilemap EnsureDecalTilemap(Grid grid)
+    {
+        Tilemap tilemap = EnsureTilemap(grid, "Decals");
+        EditorSetupUtility.EnsureComponent<TilemapRenderer>(tilemap.gameObject).sortingOrder = DecalSortingOrder;
         return tilemap;
     }
 
@@ -167,21 +202,24 @@ public static class DungeonSceneSetup
     /// means the collider/grid ordering the builder depends on cannot be broken by a
     /// missing inspector reference.
     /// </summary>
-    private static void WireGenerator(Grid grid, Tilemap floor, Tilemap walls,
+    private static void WireGenerator(Grid grid, Tilemap floor, Tilemap decals, Tilemap walls,
         Tile[] floorTiles, Tile wallTile, Tile wallFaceTile, Tile pillarTile, Tile rubbleTile,
-        DungeonGenerationSettings settings,
+        Tile doorwayTile, Tile[] decalTiles, DungeonGenerationSettings settings,
         RoomContentSettings contentSettings, PrefabRegistry registry)
     {
         var root = grid.gameObject;
 
         var painter = EditorSetupUtility.EnsureComponent<DungeonPainter>(root);
         SetRef(painter, "floorTilemap", floor);
+        SetRef(painter, "decalTilemap", decals);
         SetRef(painter, "wallTilemap", walls);
+        SetArray(painter, "decalTiles", decalTiles);
         SetArray(painter, "floorTiles", floorTiles);
         SetRef(painter, "wallTile", wallTile);
         SetRef(painter, "wallFaceTile", wallFaceTile);
         SetRef(painter, "pillarTile", pillarTile);
         SetRef(painter, "rubbleTile", rubbleTile);
+        SetRef(painter, "doorwayTile", doorwayTile);
 
         var builder = EditorSetupUtility.EnsureComponent<DungeonBuilder>(root);
         SetRef(builder, "settings", settings);
@@ -278,7 +316,32 @@ public static class DungeonSceneSetup
         Pillar,
 
         /// <summary>Collapsed masonry: scattered lighter chunks over a dark bed.</summary>
-        Rubble
+        Rubble,
+
+        /// <summary>
+        /// Doorway threshold: a dark slab framed by two lit jamb blocks. The frame is the
+        /// whole point — an opening painted as plain floor reads as a hole knocked in a
+        /// wall, and the concept art's doorways are unmistakably built.
+        /// </summary>
+        Doorway,
+
+        /// <summary>Decal: a fracture running across the tile, with the odd branch off it.</summary>
+        Crack,
+
+        /// <summary>Decal: an irregular dark patch, as of damp or old spillage.</summary>
+        Stain,
+
+        /// <summary>Decal: loose chippings, lighter than the floor they lie on.</summary>
+        Grit
+    }
+
+    /// <summary>
+    /// Decals are drawn as a whole rather than pixel by pixel, because a crack is a path
+    /// across the tile and a path cannot be decided from one pixel's coordinates alone.
+    /// </summary>
+    private static bool IsDecal(TileStyle style)
+    {
+        return style == TileStyle.Crack || style == TileStyle.Stain || style == TileStyle.Grit;
     }
 
     /// <summary>
@@ -299,10 +362,17 @@ public static class DungeonSceneSetup
 
         try
         {
-            for (int y = 0; y < TilePixels; y++)
+            if (IsDecal(style))
             {
-                for (int x = 0; x < TilePixels; x++)
-                    texture.SetPixel(x, y, PixelColor(style, x, y, random));
+                DrawDecal(texture, style, random);
+            }
+            else
+            {
+                for (int y = 0; y < TilePixels; y++)
+                {
+                    for (int x = 0; x < TilePixels; x++)
+                        texture.SetPixel(x, y, PixelColor(style, x, y, random));
+                }
             }
 
             texture.Apply();
@@ -359,6 +429,22 @@ public static class DungeonSceneSetup
                 return Jitter(color, 0.025f, random);
             }
 
+            case TileStyle.Doorway:
+            {
+                // Jambs down the left and right edges; the slab between them is darker
+                // than the surrounding floor, so the threshold reads as a step through.
+                const int jambWidth = 5;
+                if (x < jambWidth || x >= TilePixels - jambWidth)
+                {
+                    // A dark seam where the jamb meets the threshold, so the two blocks
+                    // do not merge into one bar at small zoom.
+                    bool seam = x == jambWidth - 1 || x == TilePixels - jambWidth;
+                    return Jitter(seam ? WallJointColor : JambColor, 0.02f, random);
+                }
+
+                return Jitter(ThresholdColor, 0.025f, random);
+            }
+
             case TileStyle.Rubble:
             {
                 // Chunks on a 4px lattice with jittered membership: regular enough to read
@@ -377,7 +463,120 @@ public static class DungeonSceneSetup
         }
     }
 
-    /// <summary>Nudges a colour by a symmetric random amount, keeping it in range.</summary>
+    /// <summary>
+    /// Draws one decal over a transparent tile. Everything not marked stays transparent,
+    /// which is what lets the same decal sit on any of the floor variants.
+    /// </summary>
+    private static void DrawDecal(Texture2D texture, TileStyle style, DeterministicRandom random)
+    {
+        for (int y = 0; y < TilePixels; y++)
+        {
+            for (int x = 0; x < TilePixels; x++)
+                texture.SetPixel(x, y, Nothing);
+        }
+
+        switch (style)
+        {
+            case TileStyle.Crack:
+            {
+                // A drunk walk from one edge towards the far one. The wander is what makes
+                // it read as a fracture; a straight line reads as a seam between tiles.
+                bool horizontal = random.Chance(0.5f);
+                float drift = random.RangeInclusive(6, TilePixels - 7);
+
+                for (int i = 0; i < TilePixels; i++)
+                {
+                    drift += (random.NextFloat() * 2f - 1f) * 1.4f;
+                    drift = Mathf.Clamp(drift, 2f, TilePixels - 3f);
+                    int across = Mathf.RoundToInt(drift);
+
+                    PlotCrack(texture, horizontal, i, across, random);
+
+                    // A short spur every so often, so the fracture forks instead of
+                    // running the whole width as one unbroken stroke.
+                    if (!random.Chance(0.07f)) continue;
+
+                    int spur = random.RangeInclusive(2, 5);
+                    int direction = random.Chance(0.5f) ? 1 : -1;
+                    for (int s = 1; s <= spur; s++)
+                        PlotCrack(texture, horizontal, i + s * direction, across + s * direction, random);
+                }
+                return;
+            }
+
+            case TileStyle.Stain:
+            {
+                // Overlapping discs rather than one circle: a single disc reads as a dot,
+                // and the union of a few reads as something that soaked outwards.
+                int blobs = random.RangeInclusive(4, 7);
+                for (int b = 0; b < blobs; b++)
+                {
+                    float cx = random.RangeInclusive(8, TilePixels - 9);
+                    float cy = random.RangeInclusive(8, TilePixels - 9);
+                    float radius = random.RangeInclusive(4, 9);
+
+                    for (int y = 0; y < TilePixels; y++)
+                    {
+                        for (int x = 0; x < TilePixels; x++)
+                        {
+                            float dx = x - cx;
+                            float dy = y - cy;
+                            if (dx * dx + dy * dy > radius * radius) continue;
+
+                            // Edges fade, so the patch has no hard outline to give away
+                            // that it is a 32-pixel square laid over the floor.
+                            float edge = 1f - Mathf.Sqrt(dx * dx + dy * dy) / radius;
+                            float alpha = Mathf.Clamp01(edge * 0.75f);
+
+                            Color existing = texture.GetPixel(x, y);
+                            if (alpha <= existing.a) continue;
+
+                            texture.SetPixel(x, y, new Color(StainColor.r, StainColor.g, StainColor.b, alpha));
+                        }
+                    }
+                }
+                return;
+            }
+
+            default:
+            {
+                // Chippings: mostly single pixels with the occasional two-by-two lump.
+                int chips = random.RangeInclusive(18, 34);
+                for (int c = 0; c < chips; c++)
+                {
+                    int x = random.RangeInclusive(1, TilePixels - 3);
+                    int y = random.RangeInclusive(1, TilePixels - 3);
+                    int size = random.Chance(0.25f) ? 2 : 1;
+
+                    Color color = Jitter(GritColor, 0.05f, random);
+                    color.a = 0.55f + random.NextFloat() * 0.35f;
+
+                    for (int dy = 0; dy < size; dy++)
+                    {
+                        for (int dx = 0; dx < size; dx++)
+                            texture.SetPixel(x + dx, y + dy, color);
+                    }
+                }
+                return;
+            }
+        }
+    }
+
+    /// <summary>Plots one cell of a crack, given the run/across coordinates and its axis.</summary>
+    private static void PlotCrack(Texture2D texture, bool horizontal, int along, int across,
+        DeterministicRandom random)
+    {
+        if (along < 0 || along >= TilePixels || across < 0 || across >= TilePixels) return;
+
+        int x = horizontal ? along : across;
+        int y = horizontal ? across : along;
+
+        Color color = Jitter(CrackColor, 0.03f, random);
+        color.a = 0.65f + random.NextFloat() * 0.3f;
+        texture.SetPixel(x, y, color);
+    }
+
+    /// <summary>Nudges a colour by a symmetric random amount, keeping it in range and its alpha.</summary>
     private static Color Jitter(Color color, float amount, DeterministicRandom random)
     {
         float delta = (random.NextFloat() * 2f - 1f) * amount;
@@ -385,7 +584,7 @@ public static class DungeonSceneSetup
             Mathf.Clamp01(color.r + delta),
             Mathf.Clamp01(color.g + delta),
             Mathf.Clamp01(color.b + delta),
-            1f);
+            color.a);
     }
 
     /// <summary>Point filtering and PPU = tile size, so one tile covers exactly one world unit.</summary>
@@ -398,6 +597,10 @@ public static class DungeonSceneSetup
         importer.spriteImportMode = SpriteImportMode.Single;
         importer.spritePixelsPerUnit = TilePixels;
         importer.filterMode = FilterMode.Point;
+
+        // Decals are mostly transparent; without this Unity premultiplies them and the
+        // soft edges of a stain come out ringed in black.
+        importer.alphaIsTransparency = true;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         importer.mipmapEnabled = false;
         importer.SaveAndReimport();
@@ -546,6 +749,28 @@ public static class DungeonSceneSetup
     }
 
     /// <summary>
+    /// The decal variants: two fractures, a stain and a scatter of chippings. Four is
+    /// enough that a room does not visibly repeat, and few enough that each one stays
+    /// recognisable rather than dissolving into general texture.
+    /// </summary>
+    private static Tile[] EnsureDecalTiles(bool overwrite = false)
+    {
+        var styles = new (string name, TileStyle style)[]
+        {
+            ("DecalCrackA", TileStyle.Crack),
+            ("DecalCrackB", TileStyle.Crack),
+            ("DecalStain", TileStyle.Stain),
+            ("DecalGrit", TileStyle.Grit)
+        };
+
+        var tiles = new Tile[DecalVariantCount];
+        for (int i = 0; i < styles.Length && i < tiles.Length; i++)
+            tiles[i] = EnsureTile(styles[i].name, styles[i].style, Tile.ColliderType.None, overwrite);
+
+        return tiles;
+    }
+
+    /// <summary>
     /// Redraws the placeholder textures over the existing assets. Separate from
     /// <see cref="Setup"/>, which never overwrites, so that art replaced by hand is not
     /// silently thrown away by a routine re-run.
@@ -570,6 +795,8 @@ public static class DungeonSceneSetup
         EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid, overwrite: true);
         EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Grid, overwrite: true);
         EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid, overwrite: true);
+        EnsureTile("DoorwayTile", TileStyle.Doorway, Tile.ColliderType.None, overwrite: true);
+        EnsureDecalTiles(overwrite: true);
 
         AssetDatabase.SaveAssets();
         Debug.Log($"[DungeonSetup] Placeholder tiles redrawn in '{TilesFolder}'.");

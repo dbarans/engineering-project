@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -18,15 +18,20 @@ using UnityEngine;
 public static class CorridorCarver
 {
     /// <summary>
-    /// Corridors always narrow to this near a room, whatever the segment width says.
+    /// Width a run is held at for its first and last few cells, whatever the segment
+    /// width says. The pinch is doing real work in the middle of a corridor: a narrowing
+    /// is the moment the player has to commit, and the natural place for a fight to
+    /// become unavoidable.
     ///
-    /// The pinch at a doorway is doing real work: it is the moment the player has to
-    /// commit to entering, and it is the natural place for a fight to become unavoidable.
-    /// A corridor that opens straight into a room at full width loses that beat.
+    /// It is <em>not</em> what sets the width of a room's doorway, despite what this
+    /// constant used to be called. Runs go from room centre to room centre, so a run's
+    /// ends fall inside a room (where the cells are already floor and narrowing does
+    /// nothing) and at the bends — never at the boundary a corridor actually crosses into
+    /// a room. Doorway width is imposed afterwards by <see cref="DoorwayNormalizer"/>.
     /// </summary>
-    private const int DoorwayWidth = 1;
+    private const int PinchWidth = 1;
 
-    /// <summary>Cells at each end of a corridor held at <see cref="DoorwayWidth"/>.</summary>
+    /// <summary>Cells at each end of a run held at <see cref="PinchWidth"/>.</summary>
     private const int PinchLength = 3;
 
     /// <summary>Carves every link, then records the alcoves that were opened off them.</summary>
@@ -124,7 +129,7 @@ public static class CorridorCarver
         int length = Mathf.Abs(to.x - from.x) + Mathf.Abs(to.y - from.y);
         if (length == 0)
         {
-            CarveCross(layout, from, DoorwayWidth, step);
+            CarveCross(layout, from, PinchWidth, step);
             return;
         }
 
@@ -143,7 +148,7 @@ public static class CorridorCarver
 
             // Both ends pinch back down regardless of the segment's width.
             int effective = i < PinchLength || i > length - PinchLength
-                ? DoorwayWidth
+                ? PinchWidth
                 : width;
 
             CarveCross(layout, from + step * i, effective, step);

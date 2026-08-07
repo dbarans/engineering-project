@@ -12,14 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 047003eb616d43f488ec4f030809250f, type: 3}
   m_Name: DungeonGenerationSettings
   m_EditorClassIdentifier: Grave.Generation.Layout::DungeonGenerationSettings
-  mapWidth: 96
-  mapHeight: 96
-  targetRoomCount: 12
-  minRoomCount: 8
-  minRoomSize: 6
-  maxRoomSize: 14
-  roomSpacing: 3
-  placementAttemptsPerRoom: 40
-  corridorWidth: 1
+  mapWidth: 160
+  mapHeight: 160
+  targetRoomCount: 16
+  minRoomCount: 12
+  minRoomSize: 12
+  maxRoomSize: 22
+  roomSpacing: 5
+  placementAttemptsPerRoom: 120
+  shapedRoomChance: 0.6
+  interiorDensity: 0.5
+  corridorWidth: 2
+  maxCorridorWidth: 3
+  doorwayWidth: 1
   extraLoopChance: 0.25
+  doubleBendChance: 0.35
+  alcoveChance: 0.04
   maxGenerationAttempts: 12

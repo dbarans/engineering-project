@@ -22,6 +22,7 @@ public struct LayoutParams
 
     public int CorridorWidth;
     public int MaxCorridorWidth;
+    public int DoorwayWidth;
     public float ExtraLoopChance;
     public float DoubleBendChance;
     public float AlcoveChance;
@@ -44,6 +45,7 @@ public struct LayoutParams
         PlacementAttemptsPerRoom = 40,
         CorridorWidth = 1,
         MaxCorridorWidth = 3,
+        DoorwayWidth = 1,
         ExtraLoopChance = 0.25f,
         DoubleBendChance = 0.35f,
         AlcoveChance = 0.04f,
@@ -69,6 +71,11 @@ public struct LayoutParams
         p.PlacementAttemptsPerRoom = Mathf.Max(1, p.PlacementAttemptsPerRoom);
         p.CorridorWidth = Mathf.Max(1, p.CorridorWidth);
         p.MaxCorridorWidth = Mathf.Max(p.CorridorWidth, p.MaxCorridorWidth);
+
+        // One door prefab is spawned per doorway cell, so this is also how many doors end
+        // up side by side in one opening. Past a few it stops reading as a door and starts
+        // reading as a fence.
+        p.DoorwayWidth = Mathf.Clamp(p.DoorwayWidth, 1, 4);
         p.ExtraLoopChance = Mathf.Clamp01(p.ExtraLoopChance);
         p.DoubleBendChance = Mathf.Clamp01(p.DoubleBendChance);
         p.ShapedRoomChance = Mathf.Clamp01(p.ShapedRoomChance);

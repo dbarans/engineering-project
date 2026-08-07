@@ -48,6 +48,12 @@ public class DungeonGenerationSettings : ScriptableObject
              "length so some stretches are rooms to fight in and others are pinches.")]
     [Min(1)] public int maxCorridorWidth = 3;
 
+    [Tooltip("Width every room opening is cut down to before a door is hung in it. The " +
+             "door prefab is one cell wide, so an opening wider than this would get a " +
+             "door the player walks straight around. Openings that cannot be narrowed " +
+             "safely keep their full width and are left as open arches instead.")]
+    [Range(1, 4)] public int doorwayWidth = 1;
+
     [Tooltip("Chance to keep a corridor that the spanning tree discarded. Loops give " +
              "escape routes, which the stealth and noise systems depend on. 0 = a pure tree.")]
     [Range(0f, 1f)] public float extraLoopChance = 0.25f;
@@ -79,6 +85,7 @@ public class DungeonGenerationSettings : ScriptableObject
             PlacementAttemptsPerRoom = placementAttemptsPerRoom,
             CorridorWidth = corridorWidth,
             MaxCorridorWidth = maxCorridorWidth,
+            DoorwayWidth = doorwayWidth,
             ExtraLoopChance = extraLoopChance,
             DoubleBendChance = doubleBendChance,
             AlcoveChance = alcoveChance,

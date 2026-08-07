@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -76,7 +76,7 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
 
         CarveRooms(layout, rooms);
         CorridorCarver.CarveAll(layout, rooms, links, p, random.Derive("corridors"));
-        MarkDoors(layout, rooms);
+        DoorwayNormalizer.Apply(layout, rooms, p.DoorwayWidth);
 
         // Roles are assigned before the interior pass because that pass reads them: the
         // start room and the camp are deliberately left legible, and it cannot know which
@@ -226,126 +226,6 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
             foreach (Vector2Int cell in room.Cells)
                 layout[cell] = CellType.Floor;
         }
-    }
-
-    /// <summary>
-    /// A doorway is the corridor cell in a room's opening. Marking the corridor side
-    /// rather than the room side puts the door prefab in the gap, not inside the room.
-    ///
-    /// Openings are found by walking the room's border — the cells just outside it —
-    /// and grouping the open ones into connected clumps, one door per clump. Grouping
-    /// matters: a corridor running alongside a room would otherwise mark its whole
-    /// length and produce a row of doors where there is really one wide opening.
-    ///
-    /// Phrased against the room's cells rather than the four sides of its bounding box,
-    /// because a room is no longer necessarily a rectangle and an L-shaped one has
-    /// border cells inside its own bounding box.
-    /// </summary>
-    private static void MarkDoors(DungeonLayout layout, List<Room> rooms)
-    {
-        var candidates = new List<Vector2Int>();
-        var candidateSet = new HashSet<Vector2Int>();
-
-        foreach (var room in rooms)
-        {
-            candidates.Clear();
-            candidateSet.Clear();
-
-            foreach (Vector2Int cell in room.Cells)
-            {
-                for (int i = 0; i < Neighbours.Length; i++)
-                {
-                    Vector2Int next = cell + Neighbours[i];
-                    if (room.Contains(next) || !candidateSet.Add(next)) continue;
-
-                    if (IsDoorCandidate(layout, rooms, next)) candidates.Add(next);
-                    else candidateSet.Remove(next);
-                }
-            }
-
-            MarkOpeningCentres(layout, candidates, candidateSet);
-        }
-    }
-
-    /// <summary>
-    /// Splits the border cells into connected openings and marks the middle of each.
-    /// Iteration follows the candidate list rather than the set, so the result cannot
-    /// depend on hash ordering.
-    /// </summary>
-    private static void MarkOpeningCentres(DungeonLayout layout,
-        List<Vector2Int> candidates, HashSet<Vector2Int> remaining)
-    {
-        var opening = new List<Vector2Int>();
-        var queue = new Queue<Vector2Int>();
-
-        foreach (Vector2Int start in candidates)
-        {
-            if (!remaining.Remove(start)) continue;
-
-            opening.Clear();
-            queue.Clear();
-            queue.Enqueue(start);
-
-            while (queue.Count > 0)
-            {
-                Vector2Int cell = queue.Dequeue();
-                opening.Add(cell);
-
-                for (int i = 0; i < Neighbours.Length; i++)
-                {
-                    Vector2Int next = cell + Neighbours[i];
-                    if (remaining.Remove(next)) queue.Enqueue(next);
-                }
-            }
-
-            layout[Medoid(opening)] = CellType.Door;
-        }
-    }
-
-    /// <summary>The cell of a clump nearest its own centre, ties broken by coordinate.</summary>
-    private static Vector2Int Medoid(List<Vector2Int> cells)
-    {
-        long sumX = 0, sumY = 0;
-        foreach (Vector2Int cell in cells)
-        {
-            sumX += cell.x;
-            sumY += cell.y;
-        }
-
-        var centre = new Vector2Int(
-            Mathf.RoundToInt(sumX / (float)cells.Count),
-            Mathf.RoundToInt(sumY / (float)cells.Count));
-
-        Vector2Int best = cells[0];
-        int bestDistance = int.MaxValue;
-
-        foreach (Vector2Int cell in cells)
-        {
-            int distance = Mathf.Abs(cell.x - centre.x) + Mathf.Abs(cell.y - centre.y);
-            if (distance > bestDistance) continue;
-
-            if (distance < bestDistance ||
-                cell.y < best.y || (cell.y == best.y && cell.x < best.x))
-            {
-                bestDistance = distance;
-                best = cell;
-            }
-        }
-
-        return best;
-    }
-
-    private static bool IsDoorCandidate(DungeonLayout layout, List<Room> rooms, Vector2Int cell)
-    {
-        if (!layout.IsWalkable(cell)) return false;
-
-        // Corridors can clip a neighbouring room when two rooms nearly touch; a cell
-        // inside any room is never a doorway.
-        foreach (var room in rooms)
-        {
-            if (room.Contains(cell)) return false;
-        }
-        return true;
     }
 
     /// <summary>

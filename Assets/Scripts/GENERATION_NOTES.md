@@ -14,6 +14,7 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 4 — Save integration | done | `feat: [GU-0051] seed-based save integration` |
 | 5 — Polish | metrics + room templates done; Rule Tiles / floors / biomes deferred, see below | `feat: [GU-0051] generation metrics and room templates` |
 | 6 — Spatial design | done (layout side); needs an editor pass | see §6 below |
+| 7 — Concept-art pass | in progress: scale, void, thresholds, decals done; Rule Tiles blocked on art | see §7 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -259,6 +260,212 @@ possible place to hide something.
    do not, they were painted into the floor tilemap instead of the wall one, or the
    composite collider did not regenerate.
 4. Walk a corridor and confirm the width changes along it and pinches at doorways.
+
+---
+
+## Stage 7 — Closing the gap to the concept art
+
+Stages 0-6 made the dungeon *correct* and *interesting to move through*. Held next to the
+concept art it still read wrong, and the reasons turned out to be mostly renderer-side
+rather than layout-side.
+
+### What the concept art does that the generator did not
+
+| | Concept art | Was |
+|---|---|---|
+| Figure/ground | Built structure standing in **black void** | Uniform slab of grey rock with tunnels bored through it |
+| Wall | Masonry with courses, corners and a lit top edge | One flat top tile plus one face tile |
+| Doorway | A framed opening with jambs | An unmarked one-cell gap |
+| Floor | Cracks, stains, spilled grit, worn edges | Three flat variants picked per cell |
+| Scale | Two to four rooms fill the screen | Sixty cells across — the map read as a maze, not as architecture |
+
+### What was changed
+
+- **Void instead of bedrock.** `DungeonPainter.BuildWallShell` dilates outwards from the
+  open cells and paints only the rock within `wallShellThickness` (default 1). Everything
+  deeper is left unpainted, and the floor under it is left out too.
+
+  The thickness has to stay well under half the room spacing, and the first attempt did
+  not: thickness 2 against spacing 4 meant the rock between any two rooms was within the
+  shell from *both* sides, so all of it was painted and the only void left was the outline
+  around the whole dungeon. It looked exactly like the slab it was meant to replace. At
+  thickness 1 against spacing 5 each gap keeps three black cells and the rooms read as
+  separate structures, which is what the concept art does.
+
+  This is safe for one specific reason worth writing down: the shell is grown from *every*
+  open cell at once, so it fully encloses every walkable region. Nothing can see, path or
+  walk into the rock behind it, and the composite collider built from the shell alone
+  stops exactly what the full slab stopped. It is a rendering change with no gameplay
+  consequence — which is the only reason it is allowed to be this cheap.
+
+- **Doorways are a fixed width now, and this was a real bug, not a cosmetic one.**
+
+  `Door_System.prefab` has a 1×1 collider — one cell. The old `MarkDoors` found each
+  opening in a room's border, grouped it into a connected clump, and marked *the middle
+  cell of the clump* as `CellType.Door`. But nothing had ever constrained how wide that
+  clump was: corridor width varies from 1 to 3 along its length by design, so a room could
+  easily be entered through a three- or four-cell gap. `DungeonPopulator` then hung one
+  door prefab in the middle of it, and the player walked around the door. It was not a
+  door — it was scenery with a collider.
+
+  `CorridorCarver` looked like it already prevented this, and its own comment claimed it
+  did ("corridors always narrow to this near a room"). It does not. Runs are routed from
+  room *centre* to room centre, so a run's pinched ends land inside the room — where the
+  cells are already floor and narrowing is a no-op — and at the bends. The width where a
+  corridor crosses a room's boundary was never controlled at all, and cannot be without
+  routing between boundaries instead of centres. The constant is renamed `PinchWidth` and
+  its comment now says what it actually does.
+
+  New pass, `Layout/DoorwayNormalizer.cs`, replacing `MarkDoors`: it finds the same
+  opening clumps, and for each one walls up the excess so exactly `doorwayWidth` cells
+  survive, centred, then marks those as `Door`. One prefab per door cell, so the opening is
+  filled whatever the width is set to.
+
+  Two cases are deliberately left alone rather than forced:
+  - **Openings that wrap a corner.** Not a doorway at all — that is a room whose side is
+    open onto a corridor running past it. Narrowing it would leave a gap in a wall where
+    no door could plausibly hang.
+  - **Openings whose narrowing would disconnect the dungeon.** Checked by walling the
+    excess, running `CountReachable` against `CountWalkable`, and reverting if they
+    disagree. Cheaper than reasoning about which openings are load-bearing.
+
+  Both keep their full width and get **no** `Door` mark, so they read as open arches and
+  the populator never tries to hang a door in them. That is the answer to "one consistent
+  size if there are to be doors, otherwise it does not matter": a passage either is
+  door-width and has a door, or is an arch and has none. There is no in-between where a
+  door half-blocks a gap.
+
+- **Thresholds.** `DoorwayTile` is generated and wired at last (the painter had the field
+  and a floor-tile fallback, so doorways had been silently invisible). It is drawn with
+  jambs on its left and right, and `DungeonPainter.OrientDoorways` gives it a quarter turn
+  wherever the passage runs east-west, so the frame is always across the opening rather
+  than along it.
+
+- **Decal layer.** A third tilemap, `Decals`, between the floor and the walls, with no
+  collider. Cracks, a stain and loose chippings, scattered by
+  `DungeonPainter.PaintDecals` from the seed and the cell coordinates — so they survive a
+  rebuild-from-seed like the floor variants do — and biased by `decalWallBias` towards the
+  cells that touch something solid. Wear collects at the edges of a room; spread evenly it
+  reads as noise laid *over* the floor instead of damage *to* it.
+
+  A separate layer rather than more floor variants, because otherwise the floor tile set
+  is the product of the number of floors and the number of marks that can appear on one.
+
+- **Palette inverted.** The placeholder tiles were a light warm masonry around dark rooms.
+  On screen that reads as the wall being the subject and the room being a hole knocked in
+  it — the opposite of the concept art, and the opposite of what this renderer wants. See
+  the lighting note under "Not done" for why the floor has to carry the tonal range.
+
+- **Scale.** `DungeonGenerationSettings.asset` went from 96×96 / 12 rooms / 6-14 cells to
+  **160×160 / 16 rooms / 12-22 cells**, spacing 3→5, corridors 1→2 wide.
+
+  This landed in two steps and the first one was wrong in an instructive way. The initial
+  pass *shrank* the map to 64×64, on the reasoning that the old layouts read as a maze
+  rather than as architecture. They did — but the cause was the camera showing sixty cells
+  at once, not the map being sixty cells wide. Shrinking the map fixed the symptom by
+  making the dungeon too short to play. The camera is the lever for how much is on screen;
+  the map size is the lever for how long the run is. They are not substitutes.
+
+  Sizing the map is a packing problem, so it is worth writing the arithmetic down. Rooms
+  are placed by rejection sampling against a spacing ring, so they effectively tile with a
+  pitch of `average room side + spacing` — here 17 + 5 = 22 cells. A 160-cell map therefore
+  has about (160/22)² ≈ 49 room slots in a perfect grid, and random placement realistically
+  achieves 30-50% of a perfect packing, so 16 rooms is comfortable. At 144 it would have
+  been about 36 slots and 16 rooms would have sat right at the optimistic edge — which
+  shows up not as a crash but as `minRoomCount` failing, twelve reseeded attempts, and a
+  warning from `DungeonBuilder`.
+
+  `minRoomCount` is 12 rather than 16 for exactly that reason: the target is what placement
+  aims at, the minimum is what makes a layout unacceptable, and they should not be the same
+  number or every unlucky seed is thrown away.
+
+  The one cost that scales with map area is `PathfindingGrid.BuildGrid`, which runs a
+  `Physics2D.OverlapCircle` per cell: 25 600 of them at 160×160, against 9 216 at the
+  original 96×96. It is a one-off at dungeon build, not per frame, so it is not a concern —
+  but it is the thing to look at first if generation ever starts to feel slow.
+
+  The asset was also stale:
+  it predated `maxCorridorWidth`, `doubleBendChance`, `alcoveChance`, `shapedRoomChance`
+  and `interiorDensity`, so those had been running on their C# defaults rather than on
+  anything authored. They are written out explicitly now.
+
+  Corridor width 2 does not soften the doorway pinch: `CorridorCarver.DoorwayWidth` is a
+  constant 1 and independent of the setting, so the beat at the threshold survives the
+  wider halls.
+
+### Not done
+
+- **Rule Tiles for the walls.** This is the single largest remaining difference and it is
+  blocked on art, not on code: it needs a wall sheet cut into top, south face, four inner
+  and four outer corners. Until then walls are still two flat tiles and corners do not
+  turn. When it lands, `wallFaceTile` and the `layout[x, y - 1]` test in the painter both
+  go away — the rule tile subsumes them.
+- **Buttresses and chamfered corners** on room perimeters (`RoomShaper`), which is the
+  rhythm most visible in the concept art's wall runs.
+- **Doorway jamb cells** — the frame is currently painted, not built. Two `Pillar` cells
+  either side of each threshold would make it geometry the FOV can actually cast from.
+- **Floor medallions** in large rooms (`RoomInteriorDecorator`).
+- **Clustered props.** `DungeonPopulator` still scatters props uniformly; the concept art
+  groups them against walls and in corners.
+- **Lighting — and there is nothing to do here, which is worth writing down** so the next
+  person does not reach for the obvious wrong lever.
+
+  This project does not light the scene with URP 2D lights. It has its own screen-space
+  system: `Vision/VisionMaskRenderer.cs` draws the player's `FieldOfView` mesh and every
+  `StationaryLightSource` into a single offscreen `_VisionMask` with `BlendOp Max`, and
+  `Shaders/DarknessOverlay.shader` then takes every pixel to black in proportion to how
+  little of that mask reaches it (`_Darkness` 0.97). On top of that, occupants — enemies,
+  barrels — are hard-clipped at the vision boundary by the stencil prepass described in
+  `ENEMY_NOTES.md` §GU-0036.
+
+  Adding a URP `Global Light 2D` would fight all of it: it dims the inside of the vision
+  cone as much as the outside, while `DarknessOverlay` is already taking the outside to
+  near-black, so the only visible result is that the lit area gets muddier. The dungeon is
+  *already* almost entirely black at runtime.
+
+  Which means the atmosphere lever is not a light at all — it is **the tile palette**,
+  because the lit floor inside the cone is the only place any tonal range survives. That
+  is why the Stage 7 palette was inverted to a light floor against dark stone rather than
+  left as dark-on-light and dimmed afterwards. The remaining levers, in order of how much
+  they do: floor and wall colours, `DarknessOverlay._Darkness`, and placing
+  `StationaryLightSource` lamps through `DungeonPopulator` so rooms have their own pools
+  of light for the mask to pick up.
+
+### In-editor checklist for this stage
+
+1. **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** — required, not optional. It creates the
+   `Decals` tilemap, the `DoorwayTile` and the four decal tiles, and wires all of them.
+   Without it the painter has null decal references and simply skips that pass.
+   `PillarTile` and `RubbleTile` from Stage 6 have never been generated either, so pillars
+   and rubble are still falling back to the plain wall tile.
+2. **Tools ▸ Dungeon ▸ Regenerate Placeholder Tiles** — also required, and only because
+   the palette changed. `Setup` never overwrites an existing PNG (by design, so hand-made
+   art survives a re-run), so the old warm tiles stay on disk until this is run.
+3. Set the camera so roughly 28×16 cells fill the frame. This is the lever that makes the
+   dungeon read as architecture; the map size is not a substitute for it.
+4. **Tools ▸ Dungeon ▸ Layout Preview ▸ Generate, a dozen times.** The packing figures
+   above are arithmetic, not measurement — the layout assembly targets netstandard 2.1 and
+   will not load under the .NET Framework host, so it could not be exercised headlessly
+   from outside the editor this time. The preview reports the room count directly. Expect
+   14-16; a run of results at or below `minRoomCount` (12) means the map is too tight for
+   the target and wants either more area or a smaller `maxRoomSize`.
+5. Generate, and check the two things that could be wrong in a way compiling cannot catch:
+   **doorway tiles are turned the right way** (jambs across the opening, not along it),
+   and **no walkable area is open to the void** — if any is, `wallShellThickness` is being
+   read as 0 or the shell dilation is four-connected instead of eight.
+6. Confirm the void actually separates the rooms rather than only outlining the map. If it
+   does not, `wallShellThickness` has crept back up towards half the room spacing.
+7. Confirm decals sit *under* the walls and *over* the floor, and that nothing on the
+   decal layer blocks movement.
+8. **Walk up to a door and try to get past it.** This is the check the whole doorway pass
+   exists for: every opening that has a door prefab in it must be fully blocked by that
+   prefab. If any door can be walked around, its opening was not narrowed — look for a
+   corner-wrapping clump or a reverted narrowing.
+9. Confirm arches still appear. If *every* opening is door-width the pass is over-eager;
+   if none are, `doorwayWidth` is not reaching `LayoutParams` from the asset.
+10. **Judge the look in Play mode, not in the Scene view.** Everything outside the vision
+   cone is black at runtime and neither `DarknessOverlay` nor the FOV mesh exists outside
+   Play, so the Scene view shows a flat, fully-lit map that the player never sees.
 
 ---
 

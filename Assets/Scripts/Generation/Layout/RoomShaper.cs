@@ -231,9 +231,243 @@ public static class RoomShaper
         return next;
     }
 
+    // ---------------------------------------------------------------- perimeter detail
+
+    /// <summary>Shortest wall run worth breaking up; below this a buttress reads as damage.</summary>
+    private const int MinRunForButtress = 6;
+
+    /// <summary>Smallest room that can lose its corners and still read as a room.</summary>
+    private const int MinSideForChamfer = 8;
+
+    /// <summary>
+    /// Picks the cells of a room's outline to fill back in: the corners, bitten off
+    /// diagonally, and the odd cell of a long wall, pushed inwards.
+    ///
+    /// This is the rhythm the concept art has and a carved rectangle does not. A wall that
+    /// runs twenty cells without interruption reads as a boundary rather than as masonry,
+    /// and its corners read as a selection box. Neither survives contact with a room the
+    /// player is supposed to believe was built.
+    ///
+    /// Returns the cells to make solid rather than a trimmed room, and the difference
+    /// matters. The cells stay part of <see cref="Room.Cells"/> and only stop being
+    /// walkable, which keeps them out of <see cref="DoorwayNormalizer"/>'s search for
+    /// openings. Trimming them out of the room instead turned every notch into a candidate
+    /// doorway and put roughly one extra door on every room in the dungeon.
+    ///
+    /// The result is checked for connectivity and area, and comes back empty when the
+    /// detailing went far enough to start redesigning the room rather than decorating it.
+    /// </summary>
+    public static List<Vector2Int> PerimeterNotches(IReadOnlyList<Vector2Int> cells,
+        RoomShape shape, float detail, DeterministicRandom random)
+    {
+        var none = new List<Vector2Int>();
+        if (cells == null || cells.Count == 0 || detail <= 0f) return none;
+
+        // A cavern is geology, not masonry. Chamfering something that never had corners
+        // just eats it away.
+        if (shape == RoomShape.Cavern) return none;
+
+        var kept = new HashSet<Vector2Int>(cells);
+        var removed = new HashSet<Vector2Int>();
+
+        Chamfer(kept, removed, detail, random);
+        Buttress(kept, removed, detail, random);
+
+        if (removed.Count == 0) return none;
+
+        var survivors = new List<Vector2Int>(cells.Count - removed.Count);
+        foreach (Vector2Int cell in cells)
+        {
+            if (!removed.Contains(cell)) survivors.Add(cell);
+        }
+
+        // Half the room is the floor: past that the detail pass has stopped decorating the
+        // outline and started redesigning the room.
+        if (survivors.Count < cells.Count / 2) return none;
+        if (!IsConnected(survivors)) return none;
+
+        var notches = new List<Vector2Int>(removed);
+        notches.Sort(CompareCells);
+        return notches;
+    }
+
+    /// <summary>
+    /// Takes a diagonal bite out of every convex corner, so the room reads as octagonal
+    /// rather than as a box. Deeper on bigger rooms, because a one-cell bite disappears on
+    /// a twenty-cell wall.
+    /// </summary>
+    private static void Chamfer(HashSet<Vector2Int> kept, HashSet<Vector2Int> removed,
+        float detail, DeterministicRandom random)
+    {
+        RectInt bounds = BoundsOf(kept);
+        if (Mathf.Min(bounds.width, bounds.height) < MinSideForChamfer) return;
+
+        int depth = Mathf.Min(bounds.width, bounds.height) >= 14 ? 2 : 1;
+
+        // Collected before removing anything: chamfering one corner changes what counts as
+        // a corner next door, and a pass that reacted to its own output would eat inwards.
+        var corners = new List<Vector2Int>();
+        foreach (Vector2Int cell in kept)
+        {
+            if (IsConvexCorner(kept, cell)) corners.Add(cell);
+        }
+
+        // Sorted so the order cannot depend on the hash set's iteration order, which is
+        // not guaranteed stable and would break seed reproducibility.
+        corners.Sort(CompareCells);
+
+        foreach (Vector2Int corner in corners)
+        {
+            if (!random.Chance(detail)) continue;
+
+            Vector2Int inward = InwardFrom(kept, corner);
+
+            // The bite is the triangle within `depth` of the corner, measured diagonally.
+            for (int dy = 0; dy < depth; dy++)
+            {
+                for (int dx = 0; dx < depth - dy; dx++)
+                {
+                    var cell = new Vector2Int(
+                        corner.x + inward.x * dx,
+                        corner.y + inward.y * dy);
+
+                    if (kept.Contains(cell)) removed.Add(cell);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pushes a cell of the wall inwards at regular intervals along every long straight
+    /// run, which is what a buttress looks like from above.
+    /// </summary>
+    private static void Buttress(HashSet<Vector2Int> kept, HashSet<Vector2Int> removed,
+        float detail, DeterministicRandom random)
+    {
+        foreach (Vector2Int outward in Neighbours)
+        {
+            // Every cell of this face: one whose neighbour in `outward` is outside the room.
+            var face = new List<Vector2Int>();
+            foreach (Vector2Int cell in kept)
+            {
+                if (!kept.Contains(cell + outward)) face.Add(cell);
+            }
+            if (face.Count < MinRunForButtress) continue;
+
+            // Sorted along the wall, so a run is a block of consecutive entries.
+            bool horizontalFace = outward.y != 0;
+            face.Sort(horizontalFace ? CompareRowMajor : CompareColumnMajor);
+
+            int runStart = 0;
+            for (int i = 1; i <= face.Count; i++)
+            {
+                bool breaks = i == face.Count || !IsNextAlong(face[i - 1], face[i], horizontalFace);
+                if (!breaks) continue;
+
+                MarkRun(face, runStart, i - runStart, outward, kept, removed, detail, random);
+                runStart = i;
+            }
+        }
+    }
+
+    /// <summary>Places the buttresses along one uninterrupted stretch of wall.</summary>
+    private static void MarkRun(List<Vector2Int> face, int start, int length, Vector2Int outward,
+        HashSet<Vector2Int> kept, HashSet<Vector2Int> removed, float detail, DeterministicRandom random)
+    {
+        if (length < MinRunForButtress) return;
+
+        // Four to six cells apart. Closer reads as a serrated edge, further apart and a
+        // wall gets at most one and looks damaged rather than built.
+        int spacing = random.RangeInclusive(4, 6);
+        int phase = random.RangeInclusive(2, spacing + 1);
+
+        for (int offset = phase; offset < length - 2; offset += spacing)
+        {
+            if (!random.Chance(detail)) continue;
+
+            Vector2Int cell = face[start + offset];
+
+            // Never take a cell that is holding the wall together — one whose loss would
+            // leave the neighbours either side of it standing alone.
+            if (!kept.Contains(cell - outward)) continue;
+
+            removed.Add(cell);
+        }
+    }
+
+    /// <summary>
+    /// True when the cell has exactly two orthogonal neighbours inside the room and they
+    /// are at right angles — the definition of an outside corner.
+    /// </summary>
+    private static bool IsConvexCorner(HashSet<Vector2Int> kept, Vector2Int cell)
+    {
+        Vector2Int first = default;
+        int inside = 0;
+
+        for (int i = 0; i < Neighbours.Length; i++)
+        {
+            if (!kept.Contains(cell + Neighbours[i])) continue;
+
+            if (inside == 0) first = Neighbours[i];
+            else if (first + Neighbours[i] == Vector2Int.zero) return false; // opposite: a straight wall
+            inside++;
+        }
+
+        return inside == 2;
+    }
+
+    /// <summary>The diagonal pointing into the room from a convex corner.</summary>
+    private static Vector2Int InwardFrom(HashSet<Vector2Int> kept, Vector2Int corner)
+    {
+        var inward = Vector2Int.zero;
+        for (int i = 0; i < Neighbours.Length; i++)
+        {
+            if (kept.Contains(corner + Neighbours[i])) inward += Neighbours[i];
+        }
+        return inward;
+    }
+
+    private static bool IsNextAlong(Vector2Int a, Vector2Int b, bool horizontal)
+    {
+        return horizontal
+            ? a.y == b.y && b.x == a.x + 1
+            : a.x == b.x && b.y == a.y + 1;
+    }
+
+    private static RectInt BoundsOf(HashSet<Vector2Int> cells)
+    {
+        int minX = int.MaxValue, minY = int.MaxValue;
+        int maxX = int.MinValue, maxY = int.MinValue;
+
+        foreach (Vector2Int cell in cells)
+        {
+            if (cell.x < minX) minX = cell.x;
+            if (cell.y < minY) minY = cell.y;
+            if (cell.x > maxX) maxX = cell.x;
+            if (cell.y > maxY) maxY = cell.y;
+        }
+
+        return new RectInt(minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
+    private static int CompareCells(Vector2Int a, Vector2Int b)
+    {
+        int byY = a.y.CompareTo(b.y);
+        return byY != 0 ? byY : a.x.CompareTo(b.x);
+    }
+
+    private static int CompareRowMajor(Vector2Int a, Vector2Int b) => CompareCells(a, b);
+
+    private static int CompareColumnMajor(Vector2Int a, Vector2Int b)
+    {
+        int byX = a.x.CompareTo(b.x);
+        return byX != 0 ? byX : a.y.CompareTo(b.y);
+    }
+
     // ---------------------------------------------------------------- helpers
 
-    private static List<Vector2Int> RectangleCells(RectInt plot)
+    /// <summary>Every cell of a plain rectangular plot.</summary>
+    public static List<Vector2Int> RectangleCells(RectInt plot)
     {
         var cells = new List<Vector2Int>(plot.width * plot.height);
         for (int y = plot.yMin; y < plot.yMax; y++)

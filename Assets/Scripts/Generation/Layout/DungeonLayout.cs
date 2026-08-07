@@ -317,6 +317,22 @@ public sealed class DungeonLayout
 
     public bool BlocksVision(Vector2Int cell) => BlocksVision(cell.x, cell.y);
 
+    /// <summary>
+    /// True when any of the four neighbours is solid — the cell is against a wall, a
+    /// pillar or a pile of rubble rather than out in the open.
+    ///
+    /// Shared because two passes want the same notion of "at the edge of the room" for
+    /// opposite-looking reasons that are really the same one: wear collects along the
+    /// walls, and so do the things people leave standing.
+    /// </summary>
+    public bool TouchesSolid(int x, int y)
+    {
+        return !IsWalkable(x - 1, y) || !IsWalkable(x + 1, y) ||
+               !IsWalkable(x, y - 1) || !IsWalkable(x, y + 1);
+    }
+
+    public bool TouchesSolid(Vector2Int cell) => TouchesSolid(cell.x, cell.y);
+
     /// <summary>Returns the room containing the cell, or null when it is a corridor or wall.</summary>
     public Room RoomAt(Vector2Int cell)
     {

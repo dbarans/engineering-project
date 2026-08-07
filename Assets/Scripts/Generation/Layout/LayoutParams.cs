@@ -29,6 +29,7 @@ public struct LayoutParams
 
     public float ShapedRoomChance;
     public float InteriorDensity;
+    public float PerimeterDetail;
 
     public int MaxGenerationAttempts;
 
@@ -51,6 +52,7 @@ public struct LayoutParams
         AlcoveChance = 0.04f,
         ShapedRoomChance = 0.6f,
         InteriorDensity = 0.5f,
+        PerimeterDetail = 0.6f,
         MaxGenerationAttempts = 12
     };
 
@@ -80,6 +82,7 @@ public struct LayoutParams
         p.DoubleBendChance = Mathf.Clamp01(p.DoubleBendChance);
         p.ShapedRoomChance = Mathf.Clamp01(p.ShapedRoomChance);
         p.InteriorDensity = Mathf.Clamp01(p.InteriorDensity);
+        p.PerimeterDetail = Mathf.Clamp01(p.PerimeterDetail);
         p.MaxGenerationAttempts = Mathf.Max(1, p.MaxGenerationAttempts);
 
         // Rolled per corridor cell, so even a modest value covers a map in pockets.

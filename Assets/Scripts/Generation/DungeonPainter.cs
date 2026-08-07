@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Tilemaps;
 
 /// <summary>
@@ -204,7 +204,7 @@ public class DungeonPainter : MonoBehaviour
                 // anything on top of it stops the opening reading as an opening.
                 if (layout[x, y] == CellType.Door) continue;
 
-                float chance = decalChance * (TouchesSolid(layout, x, y) ? decalWallBias : 1f);
+                float chance = decalChance * (layout.TouchesSolid(x, y) ? decalWallBias : 1f);
 
                 // Two independent draws off one hash: the low half decides whether there
                 // is a mark, the high half which one, so raising the chance does not also
@@ -217,13 +217,6 @@ public class DungeonPainter : MonoBehaviour
         }
 
         decalTilemap.SetTilesBlock(bounds, decals);
-    }
-
-    /// <summary>True when any of the four neighbours is not open ground.</summary>
-    private static bool TouchesSolid(DungeonLayout layout, int x, int y)
-    {
-        return !layout.IsWalkable(x - 1, y) || !layout.IsWalkable(x + 1, y) ||
-               !layout.IsWalkable(x, y - 1) || !layout.IsWalkable(x, y + 1);
     }
 
     /// <summary>

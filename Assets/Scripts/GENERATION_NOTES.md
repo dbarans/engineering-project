@@ -15,6 +15,7 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 5 — Polish | metrics + room templates done; Rule Tiles / floors / biomes deferred, see below | `feat: [GU-0051] generation metrics and room templates` |
 | 6 — Spatial design | done (layout side); needs an editor pass | see §6 below |
 | 7 — Concept-art pass | in progress: scale, void, thresholds, decals done; Rule Tiles blocked on art | see §7 below |
+| 8 — Outline detail and placement | done (layout side, measured over 150 seeds); needs an editor pass | see §8 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -491,6 +492,121 @@ rather than layout-side.
 10. **Judge the look in Play mode, not in the Scene view.** Everything outside the vision
    cone is black at runtime and neither `DarknessOverlay` nor the FOV mesh exists outside
    Play, so the Scene view shows a flat, fully-lit map that the player never sees.
+
+---
+
+## Stage 8 — Outline detail and content placement
+
+Everything on the Stage 7 "Not done" list that was *not* waiting on art. Four of the five
+items were sitting next to the blocked one rather than behind it, and two of them were
+reading data the generator had been computing and throwing away since Stage 6.
+
+Unlike Stages 6 and 7, this one was **measured rather than reasoned about**: 150 seeds per
+configuration, through a headless harness (see below).
+
+### What was changed
+
+- **Room outlines have a rhythm.** `RoomShaper.PerimeterNotches` bites the corners off
+  diagonally and pushes about one cell in six of a long wall inwards. A wall that runs
+  twenty cells unbroken reads as a boundary, and its corners read as a selection box;
+  neither survives contact with a room the player is meant to believe was built. Applied to
+  plain rectangles as well as carved shapes, which is where it matters most. Tuned by
+  `perimeterDetail` on the settings asset, 0 restores square outlines.
+
+  **Where this runs is the whole design, and the first attempt had it wrong.** The obvious
+  place is inside `BuildRoom`, trimming the cell list before the `Room` is constructed.
+  Measured over 120 seeds that added roughly **one spurious door to every room**: a trimmed
+  cell is no longer a room cell, so every notch next to a corridor registered as its own
+  opening in `DoorwayNormalizer`. Doors per map went 47.6 → 65.3.
+
+  Moved to `RoomCorridorGenerator.DetailOutlines`, between carving the rooms and carving
+  the corridors, where it turns cells solid *without* removing them from `Room.Cells`. They
+  stop being walkable and stay part of the room, so the doorway search never sees them.
+  Doors per map: 47.6 → 47.5. A corridor carved afterwards simply punches back through any
+  notch in its way, which is the right precedence — the doorway beats the decoration.
+
+- **Doorways are framed.** `DoorwayNormalizer` was already walling up the excess when it
+  narrowed an opening; those cells are now `Pillar` instead of `Wall`. Mechanically
+  identical — both solid, both stop vision — but the painter gives `Pillar` its own tile,
+  so the cells flanking a door read as built jambs rather than as the bedrock the opening
+  was cut through. It is the cheapest possible version of the concept art's framed doorway,
+  because the frame is made of cells that were going to be filled in anyway. Measured at
+  **59.7 jamb cells against 47.8 doors**, so most openings get one.
+
+- **Props come in clusters.** The per-room budget is unchanged; only its distribution is.
+  `SpawnProps` now picks an anchor — biased hard towards a cell touching something solid —
+  and puts two to four of *the same* prop around it. Objects in a room were put there by
+  someone: barrels stand in threes against a wall, crates get stacked in a corner. One per
+  cell over the whole floor reads as scatter laid over the room rather than as its
+  contents. The wall bias does a second job for free: it keeps the middle of the room
+  clear, which is where the player has to fight.
+
+- **Alcoves and chokepoints are finally read.** Both have been detected and stored since
+  Stage 6 and nothing had ever looked at them. `SpawnCorridorAmbushes` places a small,
+  hard-capped number of enemies outside rooms:
+  - in **alcoves**, because an alcove is a pocket whose mouth is behind the player by the
+    time its interior enters their view cone — the layout's own ambush slot;
+  - **beside** a **chokepoint**, never on it. On it, the only route is blocked and the
+    player has no decision to make. Beside it, they have to decide whether getting through
+    is worth being seen.
+
+  Corridors have no depth of their own, so the nearest room's `DepthFromStart` is borrowed
+  for the enemy table's `minDepth` gating — without it every corridor would count as depth
+  zero and put late-game enemies in the first hallway. Anything at depth 0 is skipped
+  outright: an ambush in the corridor out of the start room is not a fair opening move.
+
+### Measured, over 150 seeds at the shipped settings
+
+| | `perimeterDetail` 0 | `perimeterDetail` 0.6 |
+|---|---|---|
+| Failed validation | 0/150 | 0/150 |
+| Maps with unreachable cells | 0/150 | 0/150 |
+| Rooms | 16.0 | 16.0 |
+| Walkable cells | 4773 | 4632 |
+| Outline notches | 0 | 154.3 |
+| Door cells | 47.8 | 47.8 |
+| Mean room visibility | 0.465 | 0.457 |
+| Worst room visibility | 0.288 | 0.262 |
+
+Outline detail costs about 3% of the floor, leaves doorway counts untouched, and moves
+both visibility figures slightly *down* — which is the direction Stage 6 established as
+better, since a room that cannot be read in one glance from its doorway still has
+something to find out.
+
+### The headless harness — worth knowing about
+
+Stage 7's numbers were arithmetic because the layout assembly targets netstandard 2.1 and
+will not load under the .NET Framework host, and the obvious workarounds all failed. The
+way through is not to reference `Grave.Generation.Layout.dll` at all: compile
+`Assets/Scripts/Generation/Layout/*.cs` **directly** into a `net8.0` console project that
+references only `UnityEngine.CoreModule.dll`. The layout code touches nothing but
+`Vector2Int`, `RectInt` and `Mathf`, all of which are pure managed structs, so it runs
+outside Unity exactly as it does inside. That is what made this stage measurable, and it is
+how any future generator change should be checked before it reaches the editor.
+
+### Not done
+
+- **Cost of a colonnade on the FOV mesh** — still unprofiled, and now more relevant, since
+  jamb pillars add silhouette edges at every doorway. Needs Play mode; cannot be measured
+  headlessly.
+- Everything in Stage 7 that is genuinely blocked on art: Rule Tiles and biomes.
+- **Floor medallions** in large rooms — deferred with Rule Tiles, since it wants its own
+  sprite rather than a recoloured floor variant.
+
+### In-editor checklist for this stage
+
+1. **Tools ▸ Dungeon ▸ Layout Preview ▸ Generate** a few times and read the shaped-room
+   and visibility lines; they should sit near the table above.
+2. Generate in the scene and look at a room's **outline**: corners cut diagonally, the odd
+   cell of each long wall pushed in. If every wall is dead straight, `perimeterDetail` did
+   not reach `LayoutParams` from the asset.
+3. Look at a **doorway**: it should have a pillar cell to one or both sides. These cast FOV
+   shadows, unlike the painted threshold tile, so standing off to one side of a door should
+   now hide part of the room beyond it.
+4. Check that **props stand in groups against walls**, not spread evenly over the floor,
+   and that the middle of a room is clear.
+5. Walk a corridor and confirm the ambushes read as intended: something waiting in a side
+   pocket, and something posted next to a pinch rather than blocking it.
 
 ---
 

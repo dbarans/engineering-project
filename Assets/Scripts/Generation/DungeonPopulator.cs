@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -86,6 +86,7 @@ public class DungeonPopulator : MonoBehaviour
         var random = new DeterministicRandom(layout.Seed).Derive("content");
         SpawnDoors(layout);
         SpawnRoomContent(layout, random.Derive("rooms"));
+        SpawnCorridorAmbushes(layout, random.Derive("ambushes"));
         SpawnGuaranteedItems(layout, random.Derive("guaranteed"));
     }
 
@@ -196,6 +197,15 @@ public class DungeonPopulator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Fills the room's prop budget in clusters rather than one object at a time.
+    ///
+    /// The budget is unchanged; only its distribution is. Objects in a room were put there
+    /// by someone — barrels stand in threes against a wall, crates get stacked in a corner —
+    /// and spread evenly over the floor at one per cell they read as scatter laid over the
+    /// room instead of as its contents. Anchoring against a wall does a second job for
+    /// free: it keeps the middle of the room clear, which is where the player has to fight.
+    /// </summary>
     private void SpawnProps(DungeonLayout layout, Room room, List<Vector2Int> free,
         DeterministicRandom random, ref int slot)
     {
@@ -203,18 +213,239 @@ public class DungeonPopulator : MonoBehaviour
         // half its box, and scattering by the box would fill it twice as densely.
         float expected = room.Area * content.propsPerHundredFloorCells / 100f;
 
-        int count = Mathf.FloorToInt(expected);
-        if (random.Chance(expected - count)) count++;
+        int budget = Mathf.FloorToInt(expected);
+        if (random.Chance(expected - budget)) budget++;
 
-        for (int i = 0; i < count; i++)
+        while (budget > 0)
         {
             var choice = content.PickPrefab(content.props, room.DepthFromStart, random);
             if (choice == null) return;
-            if (!TryTakeCell(free, out Vector2Int cell)) return;
 
-            _prefabs.Spawn(choice.prefabId, builder.CellCenter(cell), _contentRoot,
+            if (!TryTakeAnchor(layout, free, random, out Vector2Int anchor)) return;
+
+            _prefabs.Spawn(choice.prefabId, builder.CellCenter(anchor), _contentRoot,
                 SlotGuid(layout.Seed, room.Index, slot++));
+            budget--;
+
+            // The rest of the cluster is the same prop, on cells touching the anchor —
+            // a heap of one thing, not a sample of the whole table.
+            int cluster = random.RangeInclusive(
+                content.propsPerClusterMin, content.propsPerClusterMax) - 1;
+
+            for (int i = 0; i < cluster && budget > 0; i++)
+            {
+                if (!TryTakeNeighbour(free, anchor, random, out Vector2Int cell)) break;
+
+                _prefabs.Spawn(choice.prefabId, builder.CellCenter(cell), _contentRoot,
+                    SlotGuid(layout.Seed, room.Index, slot++));
+                budget--;
+            }
         }
+    }
+
+    /// <summary>
+    /// Takes a cell to start a cluster on, preferring one that touches something solid.
+    ///
+    /// Falls back to any free cell rather than giving up, because a small room can easily
+    /// have had all its wall-side cells taken by enemies and loot already, and a room with
+    /// no props at all is a worse outcome than a cluster standing in the open.
+    /// </summary>
+    private bool TryTakeAnchor(DungeonLayout layout, List<Vector2Int> free,
+        DeterministicRandom random, out Vector2Int anchor)
+    {
+        if (random.Chance(content.propWallBias))
+        {
+            // Searched from the end, which is the order TryTakeCell consumes in, so the
+            // choice stays governed by the same shuffle everything else uses.
+            for (int i = free.Count - 1; i >= 0; i--)
+            {
+                if (!layout.TouchesSolid(free[i])) continue;
+
+                anchor = free[i];
+                free.RemoveAt(i);
+                return true;
+            }
+        }
+
+        return TryTakeCell(free, out anchor);
+    }
+
+    /// <summary>Takes a still-free cell adjacent to <paramref name="anchor"/>, diagonals included.</summary>
+    private static bool TryTakeNeighbour(List<Vector2Int> free, Vector2Int anchor,
+        DeterministicRandom random, out Vector2Int cell)
+    {
+        var options = new List<Vector2Int>(8);
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                options.Add(anchor + new Vector2Int(dx, dy));
+            }
+        }
+
+        random.Shuffle(options);
+
+        foreach (Vector2Int option in options)
+        {
+            int index = free.IndexOf(option);
+            if (index < 0) continue;
+
+            free.RemoveAt(index);
+            cell = option;
+            return true;
+        }
+
+        cell = default;
+        return false;
+    }
+
+
+    // ---------------------------------------------------------------- corridors
+
+    /// <summary>
+    /// Puts enemies in the two places the layout generator already went to the trouble of
+    /// finding, and which nothing had ever read.
+    ///
+    /// <b>Alcoves</b> are blind pockets carved off the side of a corridor — the mouth is
+    /// behind the player by the time the interior enters their view cone, so an alcove is
+    /// somewhere they walk straight past without having been able to look in.
+    ///
+    /// <b>Chokepoints</b> are cells whose removal would split the dungeon: the places a
+    /// fight cannot be walked away from. The enemy goes *beside* one, never on it. On it,
+    /// the only route is blocked and the player has no choice to make; beside it, they
+    /// have to decide whether getting through is worth being seen.
+    ///
+    /// Both are capped hard by <see cref="RoomContentSettings.maxCorridorEnemies"/>, and
+    /// both skip anything near the start room: the first thing a run does must not be an
+    /// ambush in a corridor the player has no room to back out of.
+    /// </summary>
+    private void SpawnCorridorAmbushes(DungeonLayout layout, DeterministicRandom random)
+    {
+        if (content.maxCorridorEnemies <= 0) return;
+        if (content.enemies == null || content.enemies.Count == 0) return;
+
+        var taken = new HashSet<Vector2Int>();
+        int placed = 0;
+        int slot = 0;
+
+        // Alcoves first: they are the better ambush and there are far fewer of them, so
+        // spending the budget here before the chokepoints is the right way round.
+        var alcoveRandom = random.Derive("alcoves");
+        foreach (Vector2Int cell in layout.Alcoves)
+        {
+            if (placed >= content.maxCorridorEnemies) break;
+            if (!alcoveRandom.Chance(content.alcoveAmbushChance)) continue;
+            if (!IsUsableAmbushCell(layout, cell, taken)) continue;
+
+            if (TrySpawnAmbush(layout, cell, alcoveRandom, "alcove", slot++))
+            {
+                taken.Add(cell);
+                placed++;
+            }
+        }
+
+        var chokeRandom = random.Derive("chokepoints");
+        foreach (Vector2Int choke in layout.Chokepoints)
+        {
+            if (placed >= content.maxCorridorEnemies) break;
+            if (!chokeRandom.Chance(content.chokepointGuardChance)) continue;
+
+            if (!TryFindGuardPost(layout, choke, taken, chokeRandom, out Vector2Int post)) continue;
+
+            if (TrySpawnAmbush(layout, post, chokeRandom, "guard", slot++))
+            {
+                taken.Add(post);
+                placed++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A cell next to the chokepoint that is not itself one. Standing on a chokepoint
+    /// walls the route off; standing next to it leaves the route open and watched.
+    /// </summary>
+    private static bool TryFindGuardPost(DungeonLayout layout, Vector2Int choke,
+        HashSet<Vector2Int> taken, DeterministicRandom random, out Vector2Int post)
+    {
+        var chokeSet = new HashSet<Vector2Int>(layout.Chokepoints);
+
+        var options = new List<Vector2Int>(4)
+        {
+            choke + Vector2Int.right, choke + Vector2Int.left,
+            choke + Vector2Int.up, choke + Vector2Int.down
+        };
+        random.Shuffle(options);
+
+        foreach (Vector2Int option in options)
+        {
+            if (chokeSet.Contains(option)) continue;
+            if (!IsUsableAmbushCell(layout, option, taken)) continue;
+
+            post = option;
+            return true;
+        }
+
+        post = default;
+        return false;
+    }
+
+    /// <summary>
+    /// True when the cell is open corridor nobody has claimed. Cells inside rooms are
+    /// excluded because the room pass has its own budget and its own guarantees — the
+    /// start room being empty among them.
+    /// </summary>
+    private static bool IsUsableAmbushCell(DungeonLayout layout, Vector2Int cell,
+        HashSet<Vector2Int> taken)
+    {
+        if (!layout.IsWalkable(cell)) return false;
+        if (taken.Contains(cell)) return false;
+        if (layout[cell] == CellType.Door) return false; // never stand in a doorway
+        return layout.RoomAt(cell) == null;
+    }
+
+    /// <summary>
+    /// Spawns one corridor enemy, gated by the depth of the room it is nearest to.
+    ///
+    /// Corridors have no depth of their own — depth is a property of the room graph — so
+    /// the nearest room's is borrowed. Without it every corridor would be treated as depth
+    /// zero and the <see cref="RoomContentSettings.PrefabChoice.minDepth"/> gating would
+    /// put the late-game enemies in the first hallway of the run.
+    /// </summary>
+    private bool TrySpawnAmbush(DungeonLayout layout, Vector2Int cell, DeterministicRandom random,
+        string kind, int slot)
+    {
+        int depth = NearestRoomDepth(layout, cell);
+        if (depth <= 0) return false; // right beside the start room: not a fair opening move
+
+        var choice = content.PickPrefab(content.enemies, depth, random);
+        if (choice == null) return false;
+
+        GameObject enemy = _prefabs.Spawn(choice.prefabId, builder.CellCenter(cell), _contentRoot,
+            CellGuid(layout.Seed, kind, cell));
+        if (enemy == null) return false;
+
+        var behaviour = enemy.GetComponent<EnemyBase>();
+        if (behaviour != null) behaviour.SetPlayer(_player);
+        return true;
+    }
+
+    /// <summary>Depth of the room whose centre is closest, or 0 when there are no rooms.</summary>
+    private static int NearestRoomDepth(DungeonLayout layout, Vector2Int cell)
+    {
+        int best = 0;
+        int bestDistance = int.MaxValue;
+
+        foreach (var room in layout.Rooms)
+        {
+            int distance = Mathf.Abs(room.Center.x - cell.x) + Mathf.Abs(room.Center.y - cell.y);
+            if (distance >= bestDistance) continue;
+
+            bestDistance = distance;
+            best = room.DepthFromStart;
+        }
+
+        return best;
     }
 
     // ---------------------------------------------------------------- templates

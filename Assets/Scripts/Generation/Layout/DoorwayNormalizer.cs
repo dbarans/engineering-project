@@ -143,9 +143,15 @@ public static class DoorwayNormalizer
         kept.Clear();
         for (int i = first; i < first + doorwayWidth; i++) kept.Add(clump[i]);
 
+        // The walled-up excess becomes Pillar rather than Wall. Both are solid and both
+        // stop vision, so this changes nothing mechanically — but the painter gives Pillar
+        // its own tile, so the cells flanking a door read as built jambs instead of as the
+        // bedrock the opening was cut through. It is the cheapest way to get the framed
+        // doorway of the concept art, because the frame is made of cells the narrowing
+        // pass was going to fill in anyway.
         for (int i = 0; i < clump.Count; i++)
         {
-            if (i < first || i >= first + doorwayWidth) layout[clump[i]] = CellType.Wall;
+            if (i < first || i >= first + doorwayWidth) layout[clump[i]] = CellType.Pillar;
         }
 
         // Walling up part of an opening can cut the dungeon in two — most obviously when

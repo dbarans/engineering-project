@@ -75,6 +75,32 @@ public class RoomContentSettings : ScriptableObject
     public List<PrefabChoice> props = new List<PrefabChoice>();
     [Min(0f)] public float propsPerHundredFloorCells = 6f;
 
+    [Tooltip("Props per cluster. Objects in a room were put there by someone: barrels " +
+             "stand in threes against a wall, crates get stacked in a corner. Spread one " +
+             "at a time over the floor they read as scatter rather than as belongings. " +
+             "1..1 restores the old uniform scatter.")]
+    [Min(1)] public int propsPerClusterMin = 2;
+    [Min(1)] public int propsPerClusterMax = 4;
+
+    [Tooltip("Chance a cluster is anchored against a wall or in a corner rather than out " +
+             "in the open. Also what keeps the middle of a room clear to fight in.")]
+    [Range(0f, 1f)] public float propWallBias = 0.8f;
+
+    [Header("Corridor ambushes")]
+    [Tooltip("Chance a blind alcove gets an enemy standing in it. An alcove is a pocket " +
+             "the player walks past without ever having looked into, which makes it the " +
+             "layout's natural ambush slot — the generator records them for exactly this.")]
+    [Range(0f, 1f)] public float alcoveAmbushChance = 0.35f;
+
+    [Tooltip("Chance a chokepoint gets an enemy posted *beside* it. Never on it: standing " +
+             "in the only gap turns a decision into a wall, while standing next to it means " +
+             "the player has to choose whether the way through is worth the fight.")]
+    [Range(0f, 1f)] public float chokepointGuardChance = 0.2f;
+
+    [Tooltip("Cap on enemies placed outside rooms, over the whole dungeon. Corridors are " +
+             "where the player has least room to retreat, so this stays deliberately low.")]
+    [Min(0)] public int maxCorridorEnemies = 6;
+
     [Header("Camp room")]
     public string saveStationPrefabId = "world.savestation";
     public string lightPrefabId = "world.lamp";
@@ -190,6 +216,7 @@ public class RoomContentSettings : ScriptableObject
     private void OnValidate()
     {
         if (maxLootPerRoom < minLootPerRoom) maxLootPerRoom = minLootPerRoom;
+        if (propsPerClusterMax < propsPerClusterMin) propsPerClusterMax = propsPerClusterMin;
         foreach (var choice in loot) ClampCounts(choice);
         foreach (var choice in treasureLoot) ClampCounts(choice);
     }

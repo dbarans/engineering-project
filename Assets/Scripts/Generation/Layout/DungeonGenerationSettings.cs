@@ -40,6 +40,13 @@ public class DungeonGenerationSettings : ScriptableObject
              "a room the player can see from its doorway, which the metrics report.")]
     [Range(0f, 1f)] public float interiorDensity = 0.5f;
 
+    [Tooltip("How hard the outline pass works on a room's walls: chamfering the corners " +
+             "and pushing the odd cell of a long wall inwards, so the perimeter has the " +
+             "rhythm of masonry instead of the straight edge of a selection box. Only ever " +
+             "removes cells, so it can never push a room into its neighbours. 0 = leave " +
+             "outlines square.")]
+    [Range(0f, 1f)] public float perimeterDetail = 0.6f;
+
     [Header("Corridors")]
     [Tooltip("Narrowest corridor, and the width used at every doorway.")]
     [Min(1)] public int corridorWidth = 1;
@@ -91,6 +98,7 @@ public class DungeonGenerationSettings : ScriptableObject
             AlcoveChance = alcoveChance,
             ShapedRoomChance = shapedRoomChance,
             InteriorDensity = interiorDensity,
+            PerimeterDetail = perimeterDetail,
             MaxGenerationAttempts = maxGenerationAttempts
         }.Sanitized();
     }

@@ -12,7 +12,18 @@ using UnityEngine;
 /// spawn gets a guid derived from the seed and its slot. That is what lets the save
 /// system store a seed instead of a world: regenerating produces the same objects under
 /// the same identities, and the save only has to record which of them are gone.
+///
+/// <para>
+/// <see cref="ExecuteAlways"/> is load-bearing, not decoration. The subscription to
+/// <see cref="DungeonBuilder.Built"/> happens in <see cref="OnEnable"/>, and a plain
+/// <see cref="MonoBehaviour"/> has no edit-mode lifecycle — so without it, generating from
+/// the builder's context menu raised the event to an empty subscriber list and the dungeon
+/// came out as bare geometry: no doors, no enemies, no props. That is the case that
+/// matters most here, because the Dungeon scene is authored by baking a generated dungeon
+/// into it rather than by generating at runtime.
+/// </para>
 /// </summary>
+[ExecuteAlways]
 public class DungeonPopulator : MonoBehaviour
 {
     private const string ContentRootName = "GeneratedContent";

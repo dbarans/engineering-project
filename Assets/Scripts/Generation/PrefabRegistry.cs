@@ -74,7 +74,7 @@ public class PrefabRegistry : ScriptableObject
             return null;
         }
 
-        var instance = Instantiate(prefab, position, Quaternion.identity, parent);
+        GameObject instance = InstantiateFor(prefab, position, parent);
 
         var entity = instance.GetComponent<SaveableEntity>();
         if (entity != null)
@@ -92,6 +92,29 @@ public class PrefabRegistry : ScriptableObject
         }
 
         return instance;
+    }
+
+    /// <summary>
+    /// Creates the instance, keeping it linked to its prefab when this runs in the editor.
+    ///
+    /// Plain <see cref="Object.Instantiate"/> in edit mode produces a detached copy: it
+    /// looks identical, but it is no longer an instance of anything, so later edits to the
+    /// prefab never reach it. That does not matter at runtime, where the objects live for
+    /// one session — it matters a great deal for the Dungeon scene, which is authored by
+    /// generating a dungeon and saving the result, and would otherwise accumulate hundreds
+    /// of orphaned doors and props that quietly stop tracking their prefabs.
+    /// </summary>
+    private static GameObject InstantiateFor(GameObject prefab, Vector2 position, Transform parent)
+    {
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            var linked = (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(prefab, parent);
+            linked.transform.SetPositionAndRotation(position, Quaternion.identity);
+            return linked;
+        }
+#endif
+        return Instantiate(prefab, position, Quaternion.identity, parent);
     }
 
     private void OnEnable()

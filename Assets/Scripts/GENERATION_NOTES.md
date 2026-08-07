@@ -335,6 +335,31 @@ rather than layout-side.
   door-width and has a door, or is an arch and has none. There is no in-between where a
   door half-blocks a gap.
 
+- **Content never spawned when generating from the editor.** Separate from the width
+  problem above, and it had been true since Stage 3 without being noticed, because every
+  check of the populator had been done in Play mode.
+
+  `DungeonPopulator` subscribes to `DungeonBuilder.Built` in `OnEnable`. A plain
+  `MonoBehaviour` has no edit-mode lifecycle, so `OnEnable` never ran there; the builder's
+  context-menu Generate raised `Built` to an empty subscriber list and produced bare
+  geometry — no doors, no enemies, no props. Everything else was wired correctly the whole
+  time: `doorPrefabId` is `world.door`, the registry resolves it, the populator is in the
+  scene with its references set. Only the subscription was missing.
+
+  This is the case that matters most for this project, because the Dungeon scene is
+  authored by *baking* — generate, then save the scene — rather than by generating at
+  runtime. `DungeonPopulator.ResetContentRoot` already branched on `Application.isPlaying`
+  to use `DestroyImmediate`, so edit-mode population had clearly been intended; nothing
+  ever invoked it. Fixed with `[ExecuteAlways]` on the populator, which is load-bearing
+  rather than decorative and is commented as such.
+
+- **Baked content kept its prefab link.** Falls straight out of the above. `Object.Instantiate`
+  in edit mode returns a *detached* copy — visually identical, but no longer an instance of
+  anything, so later edits to `Door_System.prefab` would never reach the doors baked into
+  the scene. `PrefabRegistry.Spawn` now routes through `PrefabUtility.InstantiatePrefab`
+  when it runs in the editor outside Play mode. Runtime behaviour is untouched, guarded by
+  both `#if UNITY_EDITOR` and `!Application.isPlaying`.
+
 - **Thresholds.** `DoorwayTile` is generated and wired at last (the painter had the field
   and a floor-tile fallback, so doorways had been silently invisible). It is drawn with
   jambs on its left and right, and `DungeonPainter.OrientDoorways` gives it a quarter turn

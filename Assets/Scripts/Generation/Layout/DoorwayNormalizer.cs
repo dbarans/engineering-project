@@ -28,6 +28,9 @@ using UnityEngine;
 /// </summary>
 public static class DoorwayNormalizer
 {
+    /// <summary>Cells either side of a doorway that read as its frame rather than as wall.</summary>
+    private const int JambDepth = 2;
+
     private static readonly Vector2Int[] Neighbours =
     {
         new Vector2Int(1, 0), new Vector2Int(-1, 0),
@@ -143,15 +146,23 @@ public static class DoorwayNormalizer
         kept.Clear();
         for (int i = first; i < first + doorwayWidth; i++) kept.Add(clump[i]);
 
-        // The walled-up excess becomes Pillar rather than Wall. Both are solid and both
-        // stop vision, so this changes nothing mechanically — but the painter gives Pillar
-        // its own tile, so the cells flanking a door read as built jambs instead of as the
-        // bedrock the opening was cut through. It is the cheapest way to get the framed
-        // doorway of the concept art, because the frame is made of cells the narrowing
-        // pass was going to fill in anyway.
+        // The excess is walled up, and the couple of cells nearest the door become Pillar
+        // rather than Wall. Both are solid and both stop vision, so this changes nothing
+        // mechanically — but the painter gives Pillar its own tile, so the cells flanking
+        // a door read as built jambs instead of as the bedrock the opening was cut through.
+        //
+        // Only the nearest few, and that limit is doing real work. Making the whole excess
+        // Pillar looked right on a three-cell opening and absurd on a wide one: a corridor
+        // running the length of a room's wall is one opening fourteen cells across, and
+        // walling it produced fourteen pillars in a row — a colonnade embedded in a wall
+        // rather than a door frame. Measured at 3.4 runs of six or more per map.
+        int last = first + doorwayWidth - 1;
         for (int i = 0; i < clump.Count; i++)
         {
-            if (i < first || i >= first + doorwayWidth) layout[clump[i]] = CellType.Pillar;
+            if (i >= first && i <= last) continue;
+
+            int distance = i < first ? first - i : i - last;
+            layout[clump[i]] = distance <= JambDepth ? CellType.Pillar : CellType.Wall;
         }
 
         // Walling up part of an opening can cut the dungeon in two — most obviously when

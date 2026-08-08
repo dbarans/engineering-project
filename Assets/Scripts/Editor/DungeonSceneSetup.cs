@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -89,6 +89,7 @@ public static class DungeonSceneSetup
         Tile rubbleTile = EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid);
         Tile doorwayTile = EnsureTile("DoorwayTile", TileStyle.Doorway, Tile.ColliderType.None);
         Tile[] decalTiles = EnsureDecalTiles();
+        Tile[] wallAutotiles = EnsureWallAutotiles();
         PrefabRegistry registry = EnsureRegistry();
         EnsureRegistryEntries(registry);
         DungeonGenerationSettings settings = EnsureSettings();
@@ -101,7 +102,8 @@ public static class DungeonSceneSetup
 
         WarnOnCellSizeMismatch(grid);
         WireGenerator(grid, floor, decals, walls, floorTiles, wallTile, wallFaceTile,
-            pillarTile, rubbleTile, doorwayTile, decalTiles, settings, contentSettings, registry);
+            pillarTile, rubbleTile, doorwayTile, decalTiles, wallAutotiles,
+            settings, contentSettings, registry);
 
         EditorSceneManager.MarkSceneDirty(grid.gameObject.scene);
         AssetDatabase.SaveAssets();
@@ -204,7 +206,8 @@ public static class DungeonSceneSetup
     /// </summary>
     private static void WireGenerator(Grid grid, Tilemap floor, Tilemap decals, Tilemap walls,
         Tile[] floorTiles, Tile wallTile, Tile wallFaceTile, Tile pillarTile, Tile rubbleTile,
-        Tile doorwayTile, Tile[] decalTiles, DungeonGenerationSettings settings,
+        Tile doorwayTile, Tile[] decalTiles, Tile[] wallAutotiles,
+        DungeonGenerationSettings settings,
         RoomContentSettings contentSettings, PrefabRegistry registry)
     {
         var root = grid.gameObject;
@@ -214,6 +217,7 @@ public static class DungeonSceneSetup
         SetRef(painter, "decalTilemap", decals);
         SetRef(painter, "wallTilemap", walls);
         SetArray(painter, "decalTiles", decalTiles);
+        SetArray(painter, "wallAutotiles", wallAutotiles);
         SetArray(painter, "floorTiles", floorTiles);
         SetRef(painter, "wallTile", wallTile);
         SetRef(painter, "wallFaceTile", wallFaceTile);
@@ -332,8 +336,18 @@ public static class DungeonSceneSetup
         Stain,
 
         /// <summary>Decal: loose chippings, lighter than the floor they lie on.</summary>
-        Grit
+        Grit,
+
+        /// <summary>
+        /// One of the sixteen wall autotile variants. Which one is carried separately in
+        /// <see cref="_wallMask"/> rather than as sixteen enum members, because the drawing
+        /// is one routine parameterised by the mask — the whole point of doing it this way.
+        /// </summary>
+        WallAutotile
     }
+
+    /// <summary>Exposure mask for the wall variant currently being drawn: 1 N, 2 E, 4 S, 8 W.</summary>
+    private static int _wallMask;
 
     /// <summary>
     /// Decals are drawn as a whole rather than pixel by pixel, because a crack is a path
@@ -388,6 +402,42 @@ public static class DungeonSceneSetup
     {
         switch (style)
         {
+            case TileStyle.WallAutotile:
+            {
+                // Masonry on top, and a drawn edge on every exposed side. The edges are
+                // what makes the outline legible: without them a corner, a straight run
+                // and a one-cell buttress are the same twelve pixels of stone and the
+                // whole structure reads as one undifferentiated slab.
+                bool north = (_wallMask & 1) != 0;
+                bool east = (_wallMask & 2) != 0;
+                bool south = (_wallMask & 4) != 0;
+                bool west = (_wallMask & 8) != 0;
+
+                // The south side faces the camera, so it gets real height: a lit cap along
+                // the top of the face falling away into shadow. Every other side is seen
+                // from above and only needs a rim.
+                const int faceHeight = 11;
+                if (south && y < faceHeight)
+                {
+                    const int capHeight = 4;
+                    if (y >= faceHeight - capHeight) return Jitter(WallCapColor, 0.02f, random);
+
+                    float depth = 1f - y / (float)(faceHeight - capHeight);
+                    return Jitter(Color.Lerp(WallFaceColor, WallFaceShadowColor, depth * 0.6f), 0.025f, random);
+                }
+
+                const int rim = 3;
+                bool onRim =
+                    (north && y >= TilePixels - rim) ||
+                    (east && x >= TilePixels - rim) ||
+                    (west && x < rim) ||
+                    (south && y < rim);
+
+                if (onRim) return Jitter(WallJointColor, 0.02f, random);
+
+                goto case TileStyle.WallTop;
+            }
+
             case TileStyle.WallTop:
             {
                 // Horizontal courses with staggered vertical joints, so the wall reads as
@@ -749,6 +799,28 @@ public static class DungeonSceneSetup
     }
 
     /// <summary>
+    /// The sixteen wall variants, one per combination of exposed sides.
+    ///
+    /// Generated rather than authored because the alternative is a hand-cut wall sheet,
+    /// and that has been the blocker on making outlines readable since Stage 5. These are
+    /// placeholders in the same sense as the rest: enough for the geometry to be legible
+    /// and to be judged, not a substitute for real art. When the real sheet arrives it can
+    /// either fill these same sixteen slots or be swapped for a Rule Tile — the painter
+    /// only asks for a tile per mask and does not care which.
+    /// </summary>
+    private static Tile[] EnsureWallAutotiles(bool overwrite = false)
+    {
+        var tiles = new Tile[16];
+        for (int mask = 0; mask < tiles.Length; mask++)
+        {
+            _wallMask = mask;
+            tiles[mask] = EnsureTile($"WallTile_{mask:00}", TileStyle.WallAutotile,
+                Tile.ColliderType.Grid, overwrite);
+        }
+        return tiles;
+    }
+
+    /// <summary>
     /// The decal variants: two fractures, a stain and a scatter of chippings. Four is
     /// enough that a room does not visibly repeat, and few enough that each one stays
     /// recognisable rather than dissolving into general texture.
@@ -797,6 +869,7 @@ public static class DungeonSceneSetup
         EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid, overwrite: true);
         EnsureTile("DoorwayTile", TileStyle.Doorway, Tile.ColliderType.None, overwrite: true);
         EnsureDecalTiles(overwrite: true);
+        EnsureWallAutotiles(overwrite: true);
 
         AssetDatabase.SaveAssets();
         Debug.Log($"[DungeonSetup] Placeholder tiles redrawn in '{TilesFolder}'.");

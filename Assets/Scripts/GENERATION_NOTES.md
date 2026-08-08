@@ -14,8 +14,8 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 4 — Save integration | done | `feat: [GU-0051] seed-based save integration` |
 | 5 — Polish | metrics + room templates done; Rule Tiles / floors / biomes deferred, see below | `feat: [GU-0051] generation metrics and room templates` |
 | 6 — Spatial design | done (layout side); needs an editor pass | see §6 below |
-| 7 — Concept-art pass | in progress: scale, void, thresholds, decals done; Rule Tiles blocked on art | see §7 below |
-| 8 — Outline detail and placement | done (layout side, measured over 150 seeds); needs an editor pass | see §8 below |
+| 7 — Concept-art pass | done; wall autotiling unblocked it, see §8 | see §7 below |
+| 8 — Outline detail, wall autotiling and placement | done, measured; needs an editor pass | see §8 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -555,6 +555,51 @@ configuration, through a headless harness (see below).
   zero and put late-game enemies in the first hallway. Anything at depth 0 is skipped
   outright: an ambush in the corridor out of the start room is not a fair opening move.
 
+- **Wall autotiling, which is what makes all of the above visible.** The outline work above
+  was measurable and invisible, and that is worth being blunt about: ~10 notches per room
+  were being cut, and every one of them was painted with the same flat tile as the wall it
+  sat in. A one-cell bump drawn in the same twelve pixels of stone as its neighbours is not
+  a bump; it is nothing. Held against the concept art the rooms still looked like boxes.
+
+  `DungeonPainter` now picks a wall tile from a **sixteen-entry array indexed by which of
+  the four sides are exposed** — bit 0 north, 1 east, 2 south, 3 west. Exposed means "not
+  painted as wall", so open ground, doorways, pillars *and the void behind the shell* all
+  count. The void has to count, or the outer boundary of the structure would be drawn as
+  though it continued into rock that is not there and the dungeon would lose its silhouette
+  against the black.
+
+  Measured over 20 maps, the masks come out as follows — and the distribution is the reason
+  this works at all:
+
+  | Mask | Share | What it is |
+  |---|---|---|
+  | 5 (N+S), 10 (E+W) | 32% each | thin wall, open on both sides |
+  | 3, 6, 9, 12 | ~5% each | corners, ~430 per map |
+  | 7, 11, 13, 14 | ~1.5% each | three sides open — the buttress peninsulas, ~125 per map |
+  | 0 (interior) | **0.4%** | fully buried |
+
+  Almost nothing is interior. Every wall cell gets an edge, so corners read as corners and
+  a one-cell buttress reads as something sticking out.
+
+  **The sixteen sprites are generated, not authored** — one drawing routine parameterised
+  by the mask, in the same placeholder style as everything else. This is the thing that had
+  been listed as "blocked on art" since Stage 5, and it did not need to be: it needed a
+  wall sheet cut into corners *or* sixteen procedural variants, and the second is a
+  half-page of code. When the real sheet arrives it can fill the same sixteen slots or be
+  swapped for a Rule Tile; the painter asks for a tile per mask and does not care which.
+
+  The old `wallTile`/`wallFaceTile` pair survives as a fallback, used when the array is not
+  fully populated. All sixteen or none — a half-filled array would paint some walls with a
+  null tile and leave holes that look like doorways.
+
+- **Jamb runs capped, fixing a defect this stage introduced.** Making the whole walled-up
+  excess `Pillar` looked right on a three-cell opening and absurd on a wide one. A corridor
+  running the length of a room's wall is a single opening fourteen cells across, and
+  walling it produced **fourteen pillars in a row** — a colonnade embedded in a wall rather
+  than a door frame. Measured at 3.4 runs of six or more per map, max 14. Only the two
+  cells nearest the door are `Pillar` now (`DoorwayNormalizer.JambDepth`); the rest stays
+  `Wall`.
+
 ### Measured, over 150 seeds at the shipped settings
 
 | | `perimeterDetail` 0 | `perimeterDetail` 0.6 |
@@ -595,17 +640,20 @@ how any future generator change should be checked before it reaches the editor.
 
 ### In-editor checklist for this stage
 
-1. **Tools ▸ Dungeon ▸ Layout Preview ▸ Generate** a few times and read the shaped-room
+1. **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** — required. It generates the sixteen
+   `WallTile_NN` variants and wires them to the painter. Without it the array is empty,
+   the painter falls back to the old flat pair, and none of the outline work is visible.
+2. **Tools ▸ Dungeon ▸ Layout Preview ▸ Generate** a few times and read the shaped-room
    and visibility lines; they should sit near the table above.
-2. Generate in the scene and look at a room's **outline**: corners cut diagonally, the odd
+3. Generate in the scene and look at a room's **outline**: corners cut diagonally, the odd
    cell of each long wall pushed in. If every wall is dead straight, `perimeterDetail` did
    not reach `LayoutParams` from the asset.
-3. Look at a **doorway**: it should have a pillar cell to one or both sides. These cast FOV
+4. Look at a **doorway**: it should have a pillar cell to one or both sides. These cast FOV
    shadows, unlike the painted threshold tile, so standing off to one side of a door should
    now hide part of the room beyond it.
-4. Check that **props stand in groups against walls**, not spread evenly over the floor,
+5. Check that **props stand in groups against walls**, not spread evenly over the floor,
    and that the middle of a room is clear.
-5. Walk a corridor and confirm the ambushes read as intended: something waiting in a side
+6. Walk a corridor and confirm the ambushes read as intended: something waiting in a side
    pocket, and something posted next to a pinch rather than blocking it.
 
 ---

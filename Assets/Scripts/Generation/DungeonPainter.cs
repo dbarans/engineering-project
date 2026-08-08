@@ -31,8 +31,16 @@ public class DungeonPainter : MonoBehaviour
     [SerializeField] private TileBase wallTile;
 
     [Tooltip("Optional. Wall whose south side is exposed, i.e. the face turned towards the " +
-             "camera. Without it the dungeon reads as a floor plan rather than as rooms.")]
+             "camera. Without it the dungeon reads as a floor plan rather than as rooms. " +
+             "Ignored when the 16 autotile variants below are filled in.")]
     [SerializeField] private TileBase wallFaceTile;
+
+    [Tooltip("Optional, and the thing that makes wall outlines readable. Sixteen variants, " +
+             "indexed by which of the four sides are exposed: bit 0 north, 1 east, 2 south, " +
+             "3 west. With these filled in every corner, edge and one-cell buttress gets its " +
+             "own art instead of the flat slab that made them all look identical. Leave " +
+             "empty to fall back to the plain wall/face pair.")]
+    [SerializeField] private TileBase[] wallAutotiles;
 
     [Tooltip("Optional. Free-standing pillars and partition walls inside rooms; falls back " +
              "to the wall tile. Painted into the wall tilemap, so it blocks vision and " +
@@ -117,6 +125,14 @@ public class DungeonPainter : MonoBehaviour
 
         bool[] shell = BuildWallShell(layout);
 
+        // All sixteen or none: a half-filled array would silently paint some walls with a
+        // null tile, leaving holes in the structure that look like doorways.
+        bool autotiled = wallAutotiles != null && wallAutotiles.Length == 16;
+        if (autotiled)
+        {
+            foreach (TileBase tile in wallAutotiles) autotiled &= tile != null;
+        }
+
         for (int y = 0; y < layout.Height; y++)
         {
             int row = y * layout.Width;
@@ -145,9 +161,14 @@ public class DungeonPainter : MonoBehaviour
                         // the background from a grey slab into black void.
                         if (!shell[index]) { walls[index] = null; break; }
 
-                        // A wall with open ground to its south shows its face to the
-                        // camera; one buried in rock only ever shows its top.
-                        walls[index] = layout[x, y - 1] != CellType.Wall ? wallFace : wallTile;
+                        walls[index] = autotiled
+                            // Every exposed side gets its own edge, so a corner reads as a
+                            // corner and a one-cell buttress reads as something sticking out
+                            // rather than as more of the same slab.
+                            ? wallAutotiles[ExposureMask(layout, shell, x, y)]
+                            // Fallback: a wall with open ground to its south shows its face
+                            // to the camera; one buried in rock only shows its top.
+                            : layout[x, y - 1] != CellType.Wall ? wallFace : wallTile;
                         break;
 
                     default:
@@ -246,6 +267,36 @@ public class DungeonPainter : MonoBehaviour
                 floorTilemap.SetTransformMatrix(new Vector3Int(x, y, 0), quarterTurn);
             }
         }
+    }
+
+    /// <summary>
+    /// Which of a wall cell's four sides are exposed, as a bitmask: 1 north, 2 east,
+    /// 4 south, 8 west.
+    ///
+    /// "Exposed" means the neighbour is not itself painted as wall — so open ground, a
+    /// doorway, a pillar, and the unpainted void behind the shell all count. The void has
+    /// to count, or the outer boundary of the whole structure would be drawn as if it
+    /// continued into rock that is not there, and the dungeon would lose its silhouette
+    /// against the black.
+    /// </summary>
+    private static int ExposureMask(DungeonLayout layout, bool[] shell, int x, int y)
+    {
+        int mask = 0;
+        if (!IsPaintedWall(layout, shell, x, y + 1)) mask |= 1;
+        if (!IsPaintedWall(layout, shell, x + 1, y)) mask |= 2;
+        if (!IsPaintedWall(layout, shell, x, y - 1)) mask |= 4;
+        if (!IsPaintedWall(layout, shell, x - 1, y)) mask |= 8;
+        return mask;
+    }
+
+    /// <summary>
+    /// True when the cell is drawn as part of the wall mass. Outside the map counts as
+    /// wall, so the map border does not get an edge drawn along it.
+    /// </summary>
+    private static bool IsPaintedWall(DungeonLayout layout, bool[] shell, int x, int y)
+    {
+        if (!layout.Contains(x, y)) return true;
+        return layout[x, y] == CellType.Wall && shell[y * layout.Width + x];
     }
 
     /// <summary>

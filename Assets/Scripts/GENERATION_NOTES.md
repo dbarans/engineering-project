@@ -656,6 +656,44 @@ how any future generator change should be checked before it reaches the editor.
 6. Walk a corridor and confirm the ambushes read as intended: something waiting in a side
    pocket, and something posted next to a pinch rather than blocking it.
 
+### Two fixes after seeing it in play, not measurable headlessly
+
+- **The autotile "face" was a 3D illusion, and this is a top-down game.** The south-exposed
+  variant drew a lit cap and a shadow gradient the same way the old `wallFaceTile` always
+  had, to read as "wall seen at an angle". In-game, on a wall spanning many cells, it read
+  as exactly that — a perspective view — which is wrong for this camera. Removed: every
+  side now gets the same flat rim treatment. `WallFaceTile`/`wallFaceTile` (the pre-autotile
+  fallback pair) still has the old effect; it only matters if the autotile array is
+  incomplete, and was left alone rather than touched speculatively.
+
+- **Walls were nearly invisible outside the light, and the whole outline/autotile pass was
+  going largely unseen because of it.** Confirmed by reading `OcclusionMeshBuilder.Cast`:
+  the FOV mesh's rays stop at `hit.point` on the wall collider, so the mesh's vertices sit
+  exactly on the floor/wall boundary and never enter a wall cell. The vision mask is
+  therefore 0 over the entire interior of every wall tile, `DarknessOverlay` (`_Darkness`
+  0.97) takes it to near-black, and none of the courses, joints or corner variants this
+  stage added were legible except in a sliver at the mask's edge fade.
+
+  Fixed without touching the FOV/stencil system at all: `WallSortingOrder` moved from -50
+  to **7**, above `DarknessOverlayQuad`'s sorting order (6, confirmed on the scene
+  instance). The overlay simply never draws over the wall tilemap now, so walls (and the
+  pillars and rubble sharing that tilemap) render at their own colour everywhere,
+  regardless of vision. This is the Darkwood read of it: architecture stays dimly legible
+  by its own dark, desaturated art the way a ruin's silhouette does outside a flashlight
+  beam, while floor, loot and anything standing on it are still properly fog-of-war'd.
+  Occupants (enemies, barrels) are untouched — they still vanish outside the FOV stencil
+  exactly as before; this only exempts the *static* tilemap from the separate darkening
+  pass, which is a different mechanism.
+
+  **Known interaction, not fixed here:** this also puts walls above ordinary world sprites
+  (order ~0-2), door leaf included (order 1). `Door_System`'s leaf is presently 2.8 cells
+  long — a fix to 1 cell was made and then reverted earlier in this branch's history, at
+  the other developer's request, since the door system is being redone separately. A leaf
+  that wide swings across the jamb cells beside its own doorway, and those cells are now
+  drawn *after* it. Expect the open door to visually clip behind the wall/pillar tiles it
+  overlaps until the door prefab is refitted. Flagged for whoever picks that up next, not
+  addressed here.
+
 ---
 
 ## Risk register

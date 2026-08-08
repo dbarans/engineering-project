@@ -37,7 +37,26 @@ public static class DungeonSceneSetup
     // World objects sit at sorting order 0..1, so both tilemaps must draw below them.
     private const int FloorSortingOrder = -100;
     private const int DecalSortingOrder = -75;
-    private const int WallSortingOrder = -50;
+
+    /// <summary>
+    /// Above <see cref="DarknessOverlayQuad"/>'s sorting order (6 by default, see the
+    /// scene instance), so the black overlay never draws over structure — the same trick
+    /// as its own doc comment ("must be higher than the sprites it darkens"), aimed the
+    /// other way. Walls, pillars and rubble share this tilemap, so all of them get it.
+    ///
+    /// This is the Darkwood read of the vision system: architecture stays legible at its
+    /// own (dark, desaturated) colour everywhere, the way a ruin's silhouette does even
+    /// outside a flashlight beam; only the floor, loot and anything standing on it are
+    /// actually fog-of-war'd. It is a deliberate asymmetry, not an oversight — occupants
+    /// still vanish outside the FOV stencil exactly as before, this only exempts the
+    /// static tilemap from the separate darkening pass.
+    ///
+    /// Known interaction: it also puts walls above ordinary sprites (order ~0-1), which
+    /// includes the door leaf. A door leaf wider than its own doorway cell will draw
+    /// partly *behind* the wall/jamb tiles it swings across. Not addressed here — the
+    /// door prefab is owned by GU-0054-wall-rule-tiles work, not this pass.
+    /// </summary>
+    private const int WallSortingOrder = 7;
 
     /// <summary>Tile texture side in pixels; imported at the same PPU so one tile is one world unit.</summary>
     private const int TilePixels = 32;
@@ -404,27 +423,17 @@ public static class DungeonSceneSetup
         {
             case TileStyle.WallAutotile:
             {
-                // Masonry on top, and a drawn edge on every exposed side. The edges are
-                // what makes the outline legible: without them a corner, a straight run
-                // and a one-cell buttress are the same twelve pixels of stone and the
-                // whole structure reads as one undifferentiated slab.
+                // Masonry on top, and a drawn edge on every exposed side, flat and uniform
+                // across all four — no faked height on any side. This is a top-down game;
+                // a lit cap and a falling shadow on the south side read as a wall viewed at
+                // an angle, which is exactly the wrong read for a plan seen from directly
+                // above. The edges alone are what makes the outline legible: without them a
+                // corner, a straight run and a one-cell buttress are the same twelve pixels
+                // of stone and the whole structure reads as one undifferentiated slab.
                 bool north = (_wallMask & 1) != 0;
                 bool east = (_wallMask & 2) != 0;
                 bool south = (_wallMask & 4) != 0;
                 bool west = (_wallMask & 8) != 0;
-
-                // The south side faces the camera, so it gets real height: a lit cap along
-                // the top of the face falling away into shadow. Every other side is seen
-                // from above and only needs a rim.
-                const int faceHeight = 11;
-                if (south && y < faceHeight)
-                {
-                    const int capHeight = 4;
-                    if (y >= faceHeight - capHeight) return Jitter(WallCapColor, 0.02f, random);
-
-                    float depth = 1f - y / (float)(faceHeight - capHeight);
-                    return Jitter(Color.Lerp(WallFaceColor, WallFaceShadowColor, depth * 0.6f), 0.025f, random);
-                }
 
                 const int rim = 3;
                 bool onRim =

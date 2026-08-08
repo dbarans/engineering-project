@@ -694,6 +694,46 @@ how any future generator change should be checked before it reaches the editor.
   overlaps until the door prefab is refitted. Flagged for whoever picks that up next, not
   addressed here.
 
+- **Prop clusters overlapped and blocked passages.** Reported after playing, not
+  measurable from the layout alone: the clustering added earlier in this stage placed
+  prop cluster members one cell apart, which assumes every prop fits in one cell. It
+  does not. `Table.prefab`'s own collider is about 2.5×1.3 cells — read directly, see
+  below — so two tables one cell apart overlap by roughly half a table, and a table
+  anchored near a narrow point can physically wall it off: `PathfindingGrid`'s per-node
+  check radius is `cellSize * 0.45`, and a footprint that wide reaches well past the
+  neighbouring node's own check circle.
+
+  Two fixes in `DungeonPopulator`, both driven by measuring the actual prefab rather than
+  assuming a size:
+
+  - **`FootprintCells`** reads a prefab's `BoxCollider2D.size` through its
+    `Transform.lossyScale` — not `Renderer.bounds`/`Collider2D.bounds`, which are
+    unreliable (often zero) on a prefab *asset* that has never been instantiated, which is
+    exactly what `PrefabRegistry.Resolve` hands back before anything is spawned. Cluster
+    members are now spaced by this measured size (`TryTakeSpaced`, checked pairwise
+    against every member already placed, not just the anchor — two members can each be far
+    enough from the anchor and still land on each other if only that distance is checked).
+  - **`BlocksPathfinding`** walks the prefab's colliders and checks their layer against
+    `ObstacleStatic`/`ObstacleDynamic`/`ObstaclePathOnly` — the layers
+    `PathfindingGrid.obstacleMask` actually reads. **Not filtered by `isTrigger`**: this
+    project's `Physics2DSettings.queriesHitTriggers` is `1` (confirmed in
+    `ProjectSettings/Physics2DSettings.asset`), so a trigger collider on an obstacle layer
+    blocks the grid exactly like a solid one. This is not a hypothetical — `Table.prefab`'s
+    own `ObstaclePathOnly` collider (root object, the one that sets its footprint) *is* a
+    trigger, and an early version of this check excluded triggers and would have called
+    every table harmless. Props found to block movement this way are kept off
+    `layout.Chokepoints` and their immediate neighbours (`DungeonLayout.NearAnyChokepoint`,
+    a new lazily-built lookup) — the same reasoning as the corridor-ambush chokepoint rule
+    above: that cell is the only route through somewhere, and a prop parked on it defeats a
+    connectivity guarantee the generator worked to provide.
+
+  Left alone, flagged rather than fixed: `RoomContentSettings.props`'s own tooltip says
+  props "never block vision or pathfinding", and both currently-registered props
+  (`prop.barrel`, `prop.table`) are on `ObstaclePathOnly`, which by definition blocks
+  pathfinding. The comment is stale relative to the layer convention `ENEMY_NOTES.md`
+  §GU-0036 established for `Barrel`; reconciling it is a documentation call for whoever
+  owns that convention, not a generation change.
+
 ---
 
 ## Risk register

@@ -205,6 +205,18 @@ public class DungeonPopulator : MonoBehaviour
     /// and spread evenly over the floor at one per cell they read as scatter laid over the
     /// room instead of as its contents. Anchoring against a wall does a second job for
     /// free: it keeps the middle of the room clear, which is where the player has to fight.
+    ///
+    /// Spacing and blocking-avoidance both matter here in a way a 1-cell placement grid
+    /// hides. <c>Table.prefab</c>'s own collider is about 2.5 cells wide — cells are the
+    /// unit the *generator* places things on, not the size any given prop actually is — so
+    /// two tables placed on cells one apart, which is what a naive cluster does, overlap
+    /// by roughly half a table. And every prop registered today (`prop.barrel`,
+    /// `prop.table`) sits on layer `ObstaclePathOnly`, which really does block
+    /// `PathfindingGrid` — contrary to this class's own `RoomContentSettings.props`
+    /// tooltip claiming props are always safe to scatter. That mismatch is not fixed here;
+    /// it is worth someone reconciling the doc comment with the layer convention, but this
+    /// pass works with what actually blocks movement today rather than what a comment says
+    /// should.
     /// </summary>
     private void SpawnProps(DungeonLayout layout, Room room, List<Vector2Int> free,
         DeterministicRandom random, ref int slot)
@@ -221,26 +233,100 @@ public class DungeonPopulator : MonoBehaviour
             var choice = content.PickPrefab(content.props, room.DepthFromStart, random);
             if (choice == null) return;
 
-            if (!TryTakeAnchor(layout, free, random, out Vector2Int anchor)) return;
+            GameObject prefab = _prefabs.Resolve(choice.prefabId);
+            int spacing = FootprintCells(choice.prefabId, prefab);
+            bool blocking = BlocksPathfinding(prefab);
+
+            if (!TryTakeAnchor(layout, free, blocking, random, out Vector2Int anchor)) return;
 
             _prefabs.Spawn(choice.prefabId, builder.CellCenter(anchor), _contentRoot,
                 SlotGuid(layout.Seed, room.Index, slot++));
             budget--;
 
-            // The rest of the cluster is the same prop, on cells touching the anchor —
-            // a heap of one thing, not a sample of the whole table.
+            // The rest of the cluster is the same prop, spaced by its own footprint so
+            // members never overlap — a heap of one thing standing apart, not stacked.
             int cluster = random.RangeInclusive(
                 content.propsPerClusterMin, content.propsPerClusterMax) - 1;
 
+            var placed = new List<Vector2Int>(cluster + 1) { anchor };
+
             for (int i = 0; i < cluster && budget > 0; i++)
             {
-                if (!TryTakeNeighbour(free, anchor, random, out Vector2Int cell)) break;
+                if (!TryTakeSpaced(layout, free, anchor, placed, spacing, blocking, out Vector2Int cell))
+                    break;
 
                 _prefabs.Spawn(choice.prefabId, builder.CellCenter(cell), _contentRoot,
                     SlotGuid(layout.Seed, room.Index, slot++));
+                placed.Add(cell);
                 budget--;
             }
         }
+    }
+
+    private readonly Dictionary<string, int> _footprintCache = new Dictionary<string, int>();
+
+    /// <summary>
+    /// A prefab's footprint in cells: its <see cref="BoxCollider2D"/> size (world-space,
+    /// via the transform's lossy scale), rounded up to the wider side.
+    ///
+    /// Read from the collider's own serialized size rather than from
+    /// <c>Renderer.bounds</c>/<c>Collider2D.bounds</c>, because those are computed from an
+    /// object's live placement in a scene and are unreliable — often zero — on a prefab
+    /// *asset* that has never been instantiated, which is exactly what
+    /// <see cref="PrefabRegistry.Resolve"/> hands back here. `BoxCollider2D.size` and
+    /// `Transform.lossyScale` are plain serialized data and read correctly either way.
+    ///
+    /// Falls back to 1 for anything without a <see cref="BoxCollider2D"/>: better to
+    /// under-space an oddly-shaped prop than to fail placement for a collider type this
+    /// does not understand. Cached per id — this runs once per cluster, not per cell.
+    /// </summary>
+    private int FootprintCells(string prefabId, GameObject prefab)
+    {
+        if (_footprintCache.TryGetValue(prefabId, out int cached)) return cached;
+
+        int cells = 1;
+        BoxCollider2D box = prefab != null ? prefab.GetComponentInChildren<BoxCollider2D>(true) : null;
+        if (box != null)
+        {
+            Vector2 worldSize = Vector2.Scale(box.size, box.transform.lossyScale);
+            cells = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(worldSize.x, worldSize.y)));
+        }
+
+        _footprintCache[prefabId] = cells;
+        return cells;
+    }
+
+    /// <summary>Known layers on which a collider physically blocks movement (see ENEMY_NOTES §GU-0036).</summary>
+    private static readonly string[] BlockingLayerNames =
+        { "ObstacleStatic", "ObstacleDynamic", "ObstaclePathOnly" };
+
+    /// <summary>
+    /// True when any collider on the prefab sits on a layer <see cref="PathfindingGrid"/>
+    /// actually treats as an obstacle.
+    ///
+    /// Not filtered by <c>isTrigger</c>, on purpose: `PathfindingGrid.BuildGrid` marks a
+    /// node unwalkable with a masked `Physics2D.OverlapCircle`, and this project's
+    /// `Physics2DSettings.queriesHitTriggers` is `1` — confirmed in
+    /// `ProjectSettings/Physics2DSettings.asset` — so a trigger collider on an obstacle
+    /// layer blocks the grid exactly like a solid one does. `Table.prefab` is the concrete
+    /// case: its `ObstaclePathOnly` collider (the one that actually determines its
+    /// footprint) is a trigger, and would have been silently treated as non-blocking here
+    /// if this excluded triggers, defeating the whole point of the check.
+    /// </summary>
+    private static bool BlocksPathfinding(GameObject prefab)
+    {
+        if (prefab == null) return false;
+
+        foreach (Collider2D collider in prefab.GetComponentsInChildren<Collider2D>(true))
+        {
+            string layerName = LayerMask.LayerToName(collider.gameObject.layer);
+            foreach (string blocking in BlockingLayerNames)
+            {
+                if (layerName == blocking) return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -249,8 +335,14 @@ public class DungeonPopulator : MonoBehaviour
     /// Falls back to any free cell rather than giving up, because a small room can easily
     /// have had all its wall-side cells taken by enemies and loot already, and a room with
     /// no props at all is a worse outcome than a cluster standing in the open.
+    ///
+    /// A prop that blocks movement additionally skips <see cref="DungeonLayout.Chokepoints"/>
+    /// and their immediate neighbours: those cells are, by definition, the only route
+    /// through somewhere, and an anchor placed right there — worse, with a cluster fanned
+    /// out from it — can wall off a narrow room arm that the generator itself guaranteed
+    /// was connected.
     /// </summary>
-    private bool TryTakeAnchor(DungeonLayout layout, List<Vector2Int> free,
+    private bool TryTakeAnchor(DungeonLayout layout, List<Vector2Int> free, bool blocking,
         DeterministicRandom random, out Vector2Int anchor)
     {
         if (random.Chance(content.propWallBias))
@@ -260,6 +352,7 @@ public class DungeonPopulator : MonoBehaviour
             for (int i = free.Count - 1; i >= 0; i--)
             {
                 if (!layout.TouchesSolid(free[i])) continue;
+                if (blocking && layout.NearAnyChokepoint(free[i], 1)) continue;
 
                 anchor = free[i];
                 free.RemoveAt(i);
@@ -267,38 +360,62 @@ public class DungeonPopulator : MonoBehaviour
             }
         }
 
-        return TryTakeCell(free, out anchor);
-    }
+        if (!blocking) return TryTakeCell(free, out anchor);
 
-    /// <summary>Takes a still-free cell adjacent to <paramref name="anchor"/>, diagonals included.</summary>
-    private static bool TryTakeNeighbour(List<Vector2Int> free, Vector2Int anchor,
-        DeterministicRandom random, out Vector2Int cell)
-    {
-        var options = new List<Vector2Int>(8);
-        for (int dy = -1; dy <= 1; dy++)
+        for (int i = free.Count - 1; i >= 0; i--)
         {
-            for (int dx = -1; dx <= 1; dx++)
-            {
-                if (dx == 0 && dy == 0) continue;
-                options.Add(anchor + new Vector2Int(dx, dy));
-            }
+            if (layout.NearAnyChokepoint(free[i], 1)) continue;
+
+            anchor = free[i];
+            free.RemoveAt(i);
+            return true;
         }
 
-        random.Shuffle(options);
+        anchor = default;
+        return false;
+    }
 
-        foreach (Vector2Int option in options)
+    /// <summary>
+    /// Takes a still-free cell at least <paramref name="spacing"/> cells (Chebyshev) from
+    /// every cell already placed in this cluster, within a bounded radius of the anchor so
+    /// the result still reads as one group rather than the whole room being redistributed.
+    ///
+    /// The pairwise check against every placed member — not just the anchor — is what
+    /// keeps a three- or four-strong cluster of a wide prop from overlapping itself: two
+    /// members can each be far enough from the anchor and still be right on top of each
+    /// other if only the anchor distance is checked.
+    /// </summary>
+    private static bool TryTakeSpaced(DungeonLayout layout, List<Vector2Int> free, Vector2Int anchor,
+        List<Vector2Int> placed, int spacing, bool blocking, out Vector2Int cell)
+    {
+        int radius = spacing * 2;
+
+        for (int i = free.Count - 1; i >= 0; i--)
         {
-            int index = free.IndexOf(option);
-            if (index < 0) continue;
+            Vector2Int candidate = free[i];
+            if (Chebyshev(candidate, anchor) > radius) continue;
+            if (blocking && layout.NearAnyChokepoint(candidate, 1)) continue;
 
-            free.RemoveAt(index);
-            cell = option;
+            bool tooClose = false;
+            foreach (Vector2Int other in placed)
+            {
+                if (Chebyshev(candidate, other) >= spacing) continue;
+                tooClose = true;
+                break;
+            }
+            if (tooClose) continue;
+
+            free.RemoveAt(i);
+            cell = candidate;
             return true;
         }
 
         cell = default;
         return false;
     }
+
+    private static int Chebyshev(Vector2Int a, Vector2Int b) =>
+        Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
 
 
     // ---------------------------------------------------------------- corridors

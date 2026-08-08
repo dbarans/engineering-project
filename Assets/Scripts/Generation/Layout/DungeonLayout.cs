@@ -266,6 +266,34 @@ public sealed class DungeonLayout
     /// </summary>
     public IReadOnlyList<Vector2Int> Chokepoints => _chokepoints;
 
+    /// <summary>Lazily-built lookup backing <see cref="NearAnyChokepoint"/>.</summary>
+    private HashSet<Vector2Int> _chokepointSet;
+
+    /// <summary>
+    /// True when the cell is a chokepoint or within <paramref name="radius"/> cells
+    /// (Chebyshev) of one.
+    ///
+    /// For anything that physically blocks movement — a prop with a real collider, not
+    /// just a spawn marker — a chokepoint is not merely inconvenient to stand on, it is
+    /// the one cell holding two halves of the dungeon together. Built as a set on first
+    /// use rather than scanning <see cref="Chokepoints"/> per query, since population
+    /// calls this once per candidate cell and there can be hundreds of both.
+    /// </summary>
+    public bool NearAnyChokepoint(Vector2Int cell, int radius)
+    {
+        if (_chokepointSet == null) _chokepointSet = new HashSet<Vector2Int>(_chokepoints);
+        if (_chokepointSet.Count == 0) return false;
+
+        for (int dy = -radius; dy <= radius; dy++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                if (_chokepointSet.Contains(cell + new Vector2Int(dx, dy))) return true;
+            }
+        }
+        return false;
+    }
+
     public DungeonLayout(string seed, int width, int height, List<Room> rooms, List<RoomLink> links)
     {
         Seed = seed;
@@ -361,6 +389,7 @@ public sealed class DungeonLayout
 
     internal void SetChokepoints(IEnumerable<Vector2Int> cells)
     {
+        _chokepointSet = null; // stale after a re-detect; NearAnyChokepoint rebuilds lazily
         _chokepoints.Clear();
         _chokepoints.AddRange(cells);
     }

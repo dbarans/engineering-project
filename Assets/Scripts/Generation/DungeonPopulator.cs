@@ -102,10 +102,27 @@ public class DungeonPopulator : MonoBehaviour
                 if (layout[x, y] != CellType.Door) continue;
 
                 var cell = new Vector2Int(x, y);
-                // Keyed by cell, not by a running index: a door's identity must not
-                // shift when an unrelated room gains an extra doorway.
-                _prefabs.Spawn(content.doorPrefabId, builder.CellCenter(cell), _contentRoot,
-                    CellGuid(layout.Seed, "door", cell));
+                Vector3 spawnPos = builder.CellCenter(cell);
+
+                GameObject doorInstance = _prefabs.Spawn(content.doorPrefabId, spawnPos, _contentRoot, CellGuid(layout.Seed, "door", cell));
+
+                if (doorInstance != null)
+                {
+                    bool wallEast = !layout.IsWalkable(x + 1, y);
+                    bool wallWest = !layout.IsWalkable(x - 1, y);
+
+                    if (wallEast && wallWest)
+                    {
+                        doorInstance.transform.rotation = Quaternion.Euler(0f, 0f, 90f);
+                        Vector3 pos = doorInstance.transform.position;
+                        pos.x += 1f; 
+                        doorInstance.transform.position = pos;
+                    }
+                    else
+                    {
+                        doorInstance.transform.rotation = Quaternion.identity;
+                    }
+                }
             }
         }
     }

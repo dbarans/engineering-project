@@ -641,6 +641,7 @@ public static class DungeonSceneSetup
             ("world.savestation", "Assets/Prefabs/World/SaveStation.prefab"),
             ("world.lamp", "Assets/Prefabs/Lamp.prefab"),
             ("world.craftingtable", "Assets/Prefabs/World/CraftingTable.prefab"),
+            ("world.chest", "Assets/Prefabs/World/Chest.prefab"),
             ("prop.barrel", "Assets/Prefabs/Barrel.prefab"),
             ("prop.table", "Assets/Prefabs/Table.prefab"),
             ("enemy.skullguy", "Assets/Prefabs/SkullGuyEnemy.prefab"),

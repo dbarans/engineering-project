@@ -80,7 +80,7 @@ public class HeldItemController : MonoBehaviour
         if (dropTarget == null) dropTarget = FindFirstObjectByType<WorldItemPickup>();
         if (dropTarget == null) return;
 
-        if (!dropTarget.Drop(_heldItem.Item, _heldItem.Count)) return;
+        if (!dropTarget.Drop(_heldItem.Item, _heldItem.Count, _heldItem.Durability)) return;
 
         Destroy(_heldItem.gameObject);
         _heldItem = null;

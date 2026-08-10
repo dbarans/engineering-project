@@ -71,12 +71,13 @@ public class WorldItemPickup : MonoBehaviour
 
     /// <summary>
     /// Spawns <paramref name="count"/> units of <paramref name="item"/> as a single drop
-    /// on the ground in front of the player. Returns <c>false</c> if it could not spawn
-    /// (no prefab or nothing to drop).
+    /// on the ground in front of the player, carrying its remaining
+    /// <paramref name="durability"/> (<c>-1</c> = full). Returns <c>false</c> if it could
+    /// not spawn (no prefab or nothing to drop).
     /// </summary>
-    public bool Drop(ItemData item, int count)
+    public bool Drop(ItemData item, int count, int durability = -1)
     {
-        var drop = SpawnAt(item, count, ComputeDropPosition());
+        var drop = SpawnAt(item, count, ComputeDropPosition(), durability);
         if (drop == null) return false;
 
         drop.ArmPickupDelay(pickupDelay);
@@ -90,13 +91,13 @@ public class WorldItemPickup : MonoBehaviour
     /// items from a save. Returns null when it could not spawn (no prefab, no item or
     /// nothing to drop).
     /// </summary>
-    public WorldItem SpawnAt(ItemData item, int count, Vector2 position)
+    public WorldItem SpawnAt(ItemData item, int count, Vector2 position, int durability = -1)
     {
         if (item == null || count <= 0 || worldItemPrefab == null) return null;
 
         var drop = Instantiate(
             worldItemPrefab, new Vector3(position.x, position.y, 0f), Quaternion.identity);
-        drop.SetStack(item, count);
+        drop.SetStack(item, count, durability);
         return drop;
     }
 
@@ -198,7 +199,7 @@ public class WorldItemPickup : MonoBehaviour
         if (item == null || slotInventory == null) return;
         if (!item.CanPickUp) return; // still in its post-drop delay
 
-        int remainder = slotInventory.Backpack.TryAddItem(item.Item, item.Count);
+        int remainder = slotInventory.Backpack.TryAddItem(item.Item, item.Count, item.Durability);
         if (remainder <= 0)
         {
             if (_selected == item) _selected = null;
@@ -212,7 +213,7 @@ public class WorldItemPickup : MonoBehaviour
         else
         {
             // Backpack filled up — leave the remainder on the ground, still hovered.
-            item.SetStack(item.Item, remainder);
+            item.SetStack(item.Item, remainder, item.Durability);
             if (cursor != null && _shownItem == item) cursor.SetHoverText(NameOf(item)); // refresh the count
         }
     }

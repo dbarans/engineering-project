@@ -7,13 +7,12 @@ using UnityEngine.InputSystem;
 /// The projectile is built in code (no prefab needed); a placeholder circle sprite is generated
 /// at runtime, the same approach as MeleeAttack's area indicator.
 ///
-/// Input: read directly from the keyboard (default G) — a temporary binding until a Throw
-/// action is added to the PlayerControls input asset in the editor.
+/// Input: read directly from the keyboard via <see cref="KeyBindings.throwItem"/> — a
+/// temporary binding until a Throw action is added to the PlayerControls input asset in
+/// the editor.
 /// </summary>
 public class PlayerThrow : MonoBehaviour
 {
-    [Tooltip("Temporary direct key binding; replace with a PlayerControls action when editing the input asset.")]
-    [SerializeField] private Key throwKey = Key.G;
     [SerializeField] private float throwSpeed = 12f;
     [Tooltip("Shared noise ranges asset — the landing noise radius is read from here.")]
     [SerializeField] private NoiseSettings noiseSettings;
@@ -29,7 +28,7 @@ public class PlayerThrow : MonoBehaviour
 
     private void Update()
     {
-        if (Keyboard.current == null || !Keyboard.current[throwKey].wasPressedThisFrame) return;
+        if (Keyboard.current == null || !Keyboard.current[KeyBindings.Instance.throwItem].wasPressedThisFrame) return;
         if (Time.time < nextThrowTime) return;
 
         Vector2 direction = AimDirection();

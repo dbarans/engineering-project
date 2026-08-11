@@ -17,10 +17,6 @@ public class BackpackUI : MonoBehaviour
     [SerializeField] private SlotInventory slotInventory;
     [SerializeField] private HeldItemController heldItem;
 
-    [Header("Input")]
-    [Tooltip("Key that opens/closes the backpack.")]
-    [SerializeField] private Key toggleKey = Key.Tab;
-
     private readonly List<SlotView> _slots = new List<SlotView>();
     private ItemContainer _container;
 
@@ -39,7 +35,7 @@ public class BackpackUI : MonoBehaviour
     private void Update()
     {
         var keyboard = Keyboard.current;
-        if (keyboard != null && keyboard[toggleKey].wasPressedThisFrame)
+        if (keyboard != null && keyboard[KeyBindings.Instance.toggleBackpack].wasPressedThisFrame)
             Toggle();
     }
 

@@ -56,6 +56,41 @@ public class ChestInventory : MonoBehaviour
         }
     }
 
+    /// <summary>Total slots this chest has, without forcing <see cref="Container"/> to exist.</summary>
+    public int SlotCount => columns * rows;
+
+    /// <summary>
+    /// Replaces what this chest starts stocked with. Called by the dungeon populator.
+    ///
+    /// Writes <see cref="startingItems"/> rather than <see cref="Container"/>, because the
+    /// container is runtime-only state and would not survive the Dungeon scene being baked
+    /// (generate in edit mode, then save the scene). If the container has already been
+    /// created — a second Generate over a live scene — it is re-applied too, so the chest
+    /// does not silently keep the previous run's contents.
+    /// </summary>
+    public void SetStartingItems(IEnumerable<(ItemData item, int count)> stacks)
+    {
+        startingItems.Clear();
+        foreach (var (item, count) in stacks)
+        {
+            if (item == null || count <= 0) continue;
+            startingItems.Add(new StartingStack { item = item, count = count });
+        }
+
+        if (_container != null)
+        {
+            for (int i = 0; i < _container.SlotCount; i++) _container.Clear(i);
+            ApplyStartingItems();
+        }
+
+#if UNITY_EDITOR
+        // Without this, a chest stocked while baking the Dungeon scene looks stocked in
+        // memory but is never written into the scene file, and comes back empty after a
+        // domain reload.
+        if (!Application.isPlaying) UnityEditor.EditorUtility.SetDirty(this);
+#endif
+    }
+
     private void ApplyStartingItems()
     {
         foreach (var stack in startingItems)

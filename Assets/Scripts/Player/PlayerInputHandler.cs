@@ -26,7 +26,7 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void Awake()
     {
-        controls = new PlayerControls();
+        controls = InputService.Controls;
         if (playerStamina == null) playerStamina = GetComponent<PlayerStaminaSystem>();
         if (playerHiding == null) playerHiding = GetComponent<PlayerHiding>();
         if (backpackUI == null) backpackUI = FindFirstObjectByType<BackpackUI>();

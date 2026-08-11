@@ -47,9 +47,6 @@ public class WorldItemPickup : MonoBehaviour
     [SerializeField] private float hoverRadius = 0.3f;
     [Tooltip("Layers searched for world items under the cursor. Non-item colliders are ignored anyway.")]
     [SerializeField] private LayerMask itemLayerMask = ~0;
-    [Tooltip("Key that cycles the selection when several items are stacked under the cursor.")]
-    [SerializeField] private Key cycleKey = Key.E;
-
     // Items under the cursor this frame, sorted for a stable cycling order.
     private readonly List<WorldItem> _underCursor = new List<WorldItem>();
     private readonly List<Collider2D> _hits = new List<Collider2D>();
@@ -227,6 +224,6 @@ public class WorldItemPickup : MonoBehaviour
     private bool CycleKeyPressedThisFrame()
     {
         var keyboard = Keyboard.current;
-        return keyboard != null && keyboard[cycleKey].wasPressedThisFrame;
+        return keyboard != null && keyboard[KeyBindings.Instance.interact].wasPressedThisFrame;
     }
 }

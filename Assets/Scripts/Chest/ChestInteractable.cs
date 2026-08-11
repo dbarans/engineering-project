@@ -20,8 +20,6 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(ChestInventory))]
 public class ChestInteractable : MonoBehaviour
 {
-    [SerializeField] private Key interactKey = Key.E;
-
     /// <summary>The chest currently showing in the shared panel, or null when none is.</summary>
     private static ChestInteractable _open;
 
@@ -35,7 +33,7 @@ public class ChestInteractable : MonoBehaviour
     private void Update()
     {
         if (!_playerInRange || Keyboard.current == null) return;
-        if (!Keyboard.current[interactKey].wasPressedThisFrame) return;
+        if (!Keyboard.current[KeyBindings.Instance.interact].wasPressedThisFrame) return;
 
         // Another chest holds the panel: closing it wins over opening this one, and its
         // own Update does that. Deferring here is what makes the outcome independent of

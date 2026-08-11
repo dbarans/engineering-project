@@ -69,6 +69,32 @@ public class RoomContentSettings : ScriptableObject
     public List<ItemChoice> treasureLoot = new List<ItemChoice>();
     [Min(0)] public int treasureLootCount = 3;
 
+    [Header("Chests")]
+    [Tooltip("Id from the PrefabRegistry. Leave empty to generate no chests at all.")]
+    public string chestPrefabId = "world.chest";
+
+    [Tooltip("Chance an ordinary room contains a chest. Rooms at depth 0 (Start) never do.")]
+    [Range(0f, 1f)] public float chestChancePerRoom = 0.25f;
+
+    [Tooltip("Added to the chance per hop from the start room, so the far end of the run " +
+             "is where the rewards are. The total is clamped to 1.")]
+    [Range(0f, 0.5f)] public float chestChancePerDepth = 0.05f;
+
+    [Min(0)] public int maxChestsPerRoom = 1;
+
+    [Tooltip("What an ordinary chest is stocked with, by weight.")]
+    public List<ItemChoice> chestLoot = new List<ItemChoice>();
+    [Min(0)] public int minChestStacks = 1;
+    [Min(1)] public int maxChestStacks = 3;
+
+    [Tooltip("Chests guaranteed in the Treasure room, on top of the loose treasure loot.")]
+    [Min(0)] public int treasureChests = 1;
+
+    [Tooltip("The Treasure room's chest table. Falls back to chestLoot when left empty.")]
+    public List<ItemChoice> treasureChestLoot = new List<ItemChoice>();
+    [Min(0)] public int minTreasureChestStacks = 2;
+    [Min(1)] public int maxTreasureChestStacks = 4;
+
     [Header("Props")]
     [Tooltip("Cover and scenery. Per the project convention these never block vision or " +
              "pathfinding, so they are safe to scatter anywhere walkable.")]
@@ -205,6 +231,10 @@ public class RoomContentSettings : ScriptableObject
         return Mathf.Clamp(whole, 0, maxEnemiesPerRoom);
     }
 
+    /// <summary>Chance a given room gets a chest, scaled by its depth from the start room.</summary>
+    public float ChestChanceFor(int depth) =>
+        Mathf.Clamp01(chestChancePerRoom + depth * chestChancePerDepth);
+
     private static bool IsEligible(PrefabChoice choice, int depth)
     {
         return choice != null &&
@@ -217,8 +247,12 @@ public class RoomContentSettings : ScriptableObject
     {
         if (maxLootPerRoom < minLootPerRoom) maxLootPerRoom = minLootPerRoom;
         if (propsPerClusterMax < propsPerClusterMin) propsPerClusterMax = propsPerClusterMin;
+        if (maxChestStacks < minChestStacks) maxChestStacks = minChestStacks;
+        if (maxTreasureChestStacks < minTreasureChestStacks) maxTreasureChestStacks = minTreasureChestStacks;
         foreach (var choice in loot) ClampCounts(choice);
         foreach (var choice in treasureLoot) ClampCounts(choice);
+        foreach (var choice in chestLoot) ClampCounts(choice);
+        foreach (var choice in treasureChestLoot) ClampCounts(choice);
     }
 
     private static void ClampCounts(ItemChoice choice)

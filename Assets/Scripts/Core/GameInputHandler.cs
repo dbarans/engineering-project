@@ -27,7 +27,7 @@ public class GameInputHandler : MonoBehaviour
             Debug.LogError($"{nameof(GameInputHandler)}: Assigned object does not implement IGameStateManager.");
         }
 
-        controls = new PlayerControls();
+        controls = InputService.Controls;
     }
 
     private void OnEnable()
@@ -40,11 +40,6 @@ public class GameInputHandler : MonoBehaviour
     {
         controls.UI.Cancel.performed -= OnCancelPerformed;
         controls.UI.Disable();
-    }
-
-    private void OnDestroy()
-    {
-        controls?.Dispose();
     }
 
     /// <summary>

@@ -7,6 +7,12 @@ public class RangedAttack : PlayerAttack
     [SerializeField] private GameObject projectilePrefab;
     [SerializeField] private Transform shootPoint;
 
+    [Tooltip("Projectiles released per pull of the trigger. 1 = a single aimed round (pistol); " +
+             "more = a shotgun-style pattern, with every projectile rolled independently inside the " +
+             "current spread cone. A shot costs one unit of ammo whatever this is set to.")]
+    [Min(1)]
+    [SerializeField] private int projectilesPerShot = 1;
+
     [Header("Ammo")]
     [Tooltip("Item consumed by each shot. One unit is spent per shot; with none in the " +
              "inventory the weapon cannot fire. Leave empty to disable the ammo requirement.")]
@@ -123,9 +129,14 @@ public class RangedAttack : PlayerAttack
         if (!ConsumeAmmo())
             return;
 
-        float randomOffset = UnityEngine.Random.Range(-currentSpreadAngle / 2f, currentSpreadAngle / 2f);
-        Quaternion shootRotation = shootPoint.rotation * Quaternion.Euler(0, 0, randomOffset);
-        Instantiate(projectilePrefab, shootPoint.position, shootRotation);
+        // Each projectile gets its own roll inside the cone, so a multi-projectile shot scatters
+        // across the aim lines instead of leaving as one clump on a single shared angle.
+        for (int i = 0; i < projectilesPerShot; i++)
+        {
+            float randomOffset = UnityEngine.Random.Range(-currentSpreadAngle / 2f, currentSpreadAngle / 2f);
+            Quaternion shootRotation = shootPoint.rotation * Quaternion.Euler(0, 0, randomOffset);
+            Instantiate(projectilePrefab, shootPoint.position, shootRotation);
+        }
 
         CameraShake shaker = FindFirstObjectByType<CameraShake>();
         if (shaker != null)

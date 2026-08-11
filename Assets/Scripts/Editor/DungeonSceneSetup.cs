@@ -758,10 +758,12 @@ public static class DungeonSceneSetup
         AddLoot(settings.loot, "Assets/Items/Item 7 - Bullet.asset", 1.2f, 2, 6);
         AddLoot(settings.loot, "Assets/Items/Item 3 - Wood.asset", 1f, 1, 3);
         AddLoot(settings.loot, "Assets/Items/Item 2 - Mana Potion.asset", 0.5f, 1, 1);
+        AddLoot(settings.loot, "Assets/Items/Item 11 - Shell.asset", 0.9f, 2, 5);
 
         AddLoot(settings.treasureLoot, "Assets/Items/Item 5 - Pistol.asset", 1f, 1, 1);
         AddLoot(settings.treasureLoot, "Assets/Items/Item 1 - Sword.asset", 1f, 1, 1);
         AddLoot(settings.treasureLoot, "Assets/Items/Coins.asset", 1.5f, 5, 15);
+        AddLoot(settings.treasureLoot, "Assets/Items/Item 10 - Shotgun.asset", 0.8f, 1, 1);
 
         // Ink is what saving costs, so a run with none in it cannot be saved at all.
         var ink = AssetDatabase.LoadAssetAtPath<ItemData>("Assets/Items/Item 6 - Ink.asset");

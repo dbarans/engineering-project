@@ -26,7 +26,10 @@ public static class SlotInventorySetup
     private const string Item3Path = "Assets/Items/Item 3 - Wood.asset";
     private const string Item4Path = "Assets/Items/Item 4 - Axe.asset";
     private const string Item5Path = "Assets/Items/Item 5 - Pistol.asset";
+    private const string Item7Path = "Assets/Items/Item 7 - Bullet.asset";
     private const string Item8Path = "Assets/Items/Item 8 - Scrap.asset";
+    private const string Item10Path = "Assets/Items/Item 10 - Shotgun.asset";
+    private const string Item11Path = "Assets/Items/Item 11 - Shell.asset";
 
     [MenuItem("Tools/Slot Inventory/Build UI & Wire Scene")]
     public static void BuildAndWire()
@@ -326,7 +329,11 @@ public static class SlotInventorySetup
         var axe = AssetDatabase.LoadAssetAtPath<ItemData>(Item4Path);
         var pistol = AssetDatabase.LoadAssetAtPath<ItemData>(Item5Path);
         var scrap = AssetDatabase.LoadAssetAtPath<ItemData>(Item8Path);
-        if (sword == null && mana == null && wood == null && axe == null && pistol == null && scrap == null) return;
+        var shotgun = AssetDatabase.LoadAssetAtPath<ItemData>(Item10Path);
+        var bullets = AssetDatabase.LoadAssetAtPath<ItemData>(Item7Path);
+        var shells = AssetDatabase.LoadAssetAtPath<ItemData>(Item11Path);
+        if (sword == null && mana == null && wood == null && axe == null && pistol == null && scrap == null
+            && shotgun == null && bullets == null && shells == null) return;
 
         var fill = EditorSetupUtility.EnsureComponent<SlotInventoryDebugFill>(owner);
         var so = new SerializedObject(fill);
@@ -337,8 +344,13 @@ public static class SlotInventorySetup
         AddEntry(entries, mana, 12, false);
         AddEntry(entries, axe, 1, false);
         AddEntry(entries, pistol, 1, false);
+        AddEntry(entries, shotgun, 1, false);
+        // Ammo goes to the backpack: the hotbar's five slots are all weapons and consumables,
+        // and RangedAttack counts rounds across both containers anyway.
         AddEntry(entries, wood, 64, true);
         AddEntry(entries, scrap, 6, true);
+        AddEntry(entries, bullets, 10, true);
+        AddEntry(entries, shells, 10, true);
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 

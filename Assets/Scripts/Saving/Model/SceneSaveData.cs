@@ -56,6 +56,13 @@ public class DroppedItemSaveData
     public string itemId;
     public int count;
 
+    /// <summary>
+    /// Remaining durability the drop carries (see <see cref="ItemStack.durability"/>).
+    /// Defaults to <c>-1</c> ("full/undamaged") so saves written before ground items
+    /// tracked wear restore them intact rather than broken.
+    /// </summary>
+    public int durability = -1;
+
     /// <summary>World position as [x, y].</summary>
     public float[] position;
 }

@@ -736,6 +736,116 @@ how any future generator change should be checked before it reaches the editor.
 
 ---
 
+## Stage 9 — Loot chests
+
+`GU-0057`. Chests are the reward the treasure room was missing: prior stages left it with
+loose floor loot and nothing that reads as a container worth finding.
+
+### What was added
+
+- `ChestInventory.SetStartingItems(...)` — the only path the populator uses to stock a
+  chest. It writes `startingItems`, never `Container`: the container is runtime-only
+  state, and the Dungeon scene is authored by *baking* a generated dungeon (generate in
+  edit mode, then save the scene, same as every other Stage 7/8 spawn), so anything
+  poured straight into the container would vanish the moment the scene reloads. Outside
+  Play mode it also calls `EditorUtility.SetDirty`, which is load-bearing for the same
+  reason `[ExecuteAlways]` was for the populator in Stage 7 — without it a baked chest
+  looks stocked in memory and comes back empty after a domain reload.
+- `DungeonPopulator.SpawnChests`/`StockChest` — a new pass in `SpawnRoomContent`, inserted
+  **after enemies and before props** in both the `default` and `Treasure` cases. That
+  position is not arbitrary: chests share the per-room `slot` counter that feeds
+  `SlotGuid` (D7), so where a new spawn call lands in the sequence renumbers everything
+  after it. Once chosen, this order should not move.
+- `RoomContentSettings` — `chestChancePerRoom` + `chestChancePerDepth` (rewards bias
+  towards the far end of the run, same shape as the enemy count curve),
+  `chestLoot`/`treasureChestLoot` tables, and a guaranteed `treasureChests` count so the
+  Treasure room always has at least one. Start and Camp rooms never get one — same rule as
+  enemies, for the same reason.
+- Chest spawns reuse `TryTakeAnchor(..., blocking: true, ...)` unchanged from the props
+  pass: the chest prefab sits on `ObstaclePathOnly`, so it is read as blocking, which keeps
+  it off chokepoints and biases it against a wall — the same spot it would read right in
+  visually.
+- Chest contents are **not** routed through `Drop`/`WorldItemPickup` like floor loot.
+  Floor loot is a world drop, captured by `WorldItemsSaveable` by position; a chest's
+  contents are entity state, captured by `ChestSaveable` (`GU-0053`) by guid. Writing
+  through `SetStartingItems` keeps chest loot on the two-path model the save system
+  already assumes rather than inventing a third one.
+- `PrefabRegistry` needed no change — `world.chest` was already registered.
+- **`Chest.prefab` sorting order — raised to 8, then reverted to 0, and this dead end is
+  worth recording so nobody repeats it.** The chest anchored against a wall — which is
+  where `propWallBias`-style placement puts it on purpose — had its own top-left corner
+  drawn over by the wall tile bleeding past its cell edge, the same interaction Stage 8
+  flagged for the door leaf. Bumping the sorting order above `WallSortingOrder` (7) looked
+  like the same fix. It is not: a chest is an **occupant** in the `GU-0036` sense (see
+  `ENEMY_NOTES.md`), stencil-clipped outside the FOV the same as `Barrel` and the enemies,
+  and that clip only works at the draw order the pipeline actually expects — masked
+  sprites at 0, `FovMaskWriter` at 5, `DarknessOverlay` at 6, walls at 7. An order of 8 sits
+  *above all of it*, so the chest stopped respecting the stencil test altogether and
+  rendered on top of the entire scene regardless of vision, which is a worse defect than
+  the one-corner wall bleed it was chasing. Reverted to 0 — the same order `Barrel` uses —
+  and the wall-corner bleed is left as what it already was for every other wall-hugging
+  occupant: a known, accepted limitation, not something to solve by moving sort order
+  again.
+
+- **Chest wired into the GU-0036 stencil pipeline, matching `Barrel`.** Without this a
+  chest is visible through walls and fog alike, which defeats the entire point of a hidden
+  reward. `SpriteRenderer.material` set to `Materials/SpriteFovMasked.mat` (design-time
+  default, `_StencilComp` unset so it still renders normally outside Play), plus a
+  `FovMaskedSpriteRuntime` component (`clippedMaterial: Materials/SpriteFovMaskedClipped.mat`)
+  on the same GameObject as the `SpriteRenderer` — `Awake()` swaps to the real clipped
+  material at runtime, which is the only place the fixed-function `Stencil { Comp Equal }`
+  block is actually honored (see the `GU-0036` write-up in `ENEMY_NOTES.md` for why a
+  `MaterialPropertyBlock` does not work here).
+
+- **The chest's reach trigger moved to a child GameObject, on its own layer.** A deeper
+  version of the same "flush against a wall" problem, found after the sorting fix still
+  looked wrong up close: `Chest.prefab` carried *two* `BoxCollider2D`s on the same root
+  GameObject — the 1×1 physical footprint (`ObstaclePathOnly`, exactly one cell) and a
+  2.33×2.33 trigger for player reach. Unity layers are per-GameObject, not per-collider, so
+  the reach trigger was silently on `ObstaclePathOnly` too — more than double the chest's
+  real width, counted as a pathfinding obstacle it was never meant to be. A hand-placed
+  chest with clearance around it never showed this; a chest the generator deliberately
+  anchors flush against a wall pushed that oversized trigger into the wall's own space,
+  both tightening `PathfindingGrid`'s walkable area near the wall by more than the chest
+  actually occupies and reading, up close, as if the chest's colliders were embedded in the
+  wall.
+
+  Fixed by giving the reach trigger its own child object, `ReachTrigger`, on layer
+  `Interactable` — nothing in `PathfindingGrid.obstacleMask` or the vision system's
+  obstacle mask treats that layer as blocking, so the reach zone can freely reach into
+  neighbouring cells (including a wall cell, which is fine — a chest flush against a wall
+  should still be reachable) without affecting what is walkable or visible. `Awake`/trigger
+  events on a child do not reach a parent's `MonoBehaviour` automatically, so
+  `ChestReachForwarder` relays them to `ChestInteractable` by `SendMessage`, the identical
+  pattern `DoorCollisionForwarder` already uses for the door. The root GameObject keeps
+  only the 1×1 non-trigger collider, so it is now exactly the chest's real footprint —
+  nothing bigger.
+
+### Not done
+
+- **Stocking template-marker chests.** A room template's `Prefab` marker with id
+  `world.chest` spawns an empty chest; giving markers their own loot table is a
+  `DungeonSpawnMarker` change and belongs with the template work, not here.
+- **Locked chests.** `GU-0045` added key-opened doors; a locked chest would want the same
+  treatment and is a separate change.
+- **Mimics / trapped chests.**
+
+### In-editor checklist for this stage
+
+1. Fill `RoomContentSettings.asset`'s `chestLoot`/`treasureChestLoot` if retuning — the ids
+   are `ItemData.Id` guids, not readable strings; read them off the asset or the
+   `ItemDatabase`, do not guess.
+2. Generate a dungeon. Chests should appear against walls, none in the start room, at
+   least one in the treasure room.
+3. Enter Play mode, open a chest with `E`: it should have items in it. An empty panel
+   means either the loot table is empty or stocking went to `Container` instead of
+   `startingItems`.
+4. Take an item, save, quit, load: the chest comes back still missing that item, and every
+   other chest keeps its own independent contents (the `GU-0053` guarantee).
+5. Regenerate with the same seed twice: identical chest positions and identical contents.
+
+---
+
 ## Risk register
 
 | Risk | Severity | Mitigation |

@@ -158,6 +158,15 @@ public class DungeonPopulator : MonoBehaviour
                     if (!authored)
                         SpawnItems(content.treasureLoot, content.treasureLootCount, free, roomRandom);
                     SpawnEnemies(layout, room, free, roomRandom, ref slot);
+                    if (!authored)
+                    {
+                        var treasureTable = content.treasureChestLoot.Count > 0
+                            ? content.treasureChestLoot
+                            : content.chestLoot;
+                        SpawnChests(layout, room, free, roomRandom.Derive("chests"),
+                            content.treasureChests, treasureTable,
+                            content.minTreasureChestStacks, content.maxTreasureChestStacks, ref slot);
+                    }
                     break;
 
                 default:
@@ -167,6 +176,16 @@ public class DungeonPopulator : MonoBehaviour
                         SpawnItems(content.loot,
                             roomRandom.RangeInclusive(content.minLootPerRoom, content.maxLootPerRoom),
                             free, roomRandom);
+
+                        var chestRandom = roomRandom.Derive("chests");
+                        int chestCount = 0;
+                        for (int i = 0; i < content.maxChestsPerRoom; i++)
+                        {
+                            if (chestRandom.Chance(content.ChestChanceFor(room.DepthFromStart)))
+                                chestCount++;
+                        }
+                        SpawnChests(layout, room, free, chestRandom, chestCount, content.chestLoot,
+                            content.minChestStacks, content.maxChestStacks, ref slot);
                     }
                     break;
             }
@@ -212,6 +231,80 @@ public class DungeonPopulator : MonoBehaviour
             _prefabs.Spawn(content.lightPrefabId, builder.CellCenter(lightCell),
                 _contentRoot, SlotGuid(layout.Seed, room.Index, slot++));
         }
+    }
+
+    /// <summary>
+    /// Spawns and stocks up to <paramref name="count"/> chests in the room.
+    ///
+    /// Reuses <see cref="TryTakeAnchor"/> the same way <see cref="SpawnProps"/> does: the
+    /// chest prefab sits on <c>ObstaclePathOnly</c>, so it really does block
+    /// <see cref="PathfindingGrid"/>, and that path already keeps blocking spawns off
+    /// chokepoints and biases them against a wall — which is also where a chest reads
+    /// right.
+    /// </summary>
+    private void SpawnChests(DungeonLayout layout, Room room, List<Vector2Int> free,
+        DeterministicRandom random, int count, List<RoomContentSettings.ItemChoice> table,
+        int minStacks, int maxStacks, ref int slot)
+    {
+        if (string.IsNullOrEmpty(content.chestPrefabId) || count <= 0) return;
+
+        GameObject prefab = _prefabs.Resolve(content.chestPrefabId);
+        bool blocking = BlocksPathfinding(prefab);
+
+        for (int i = 0; i < count; i++)
+        {
+            if (!TryTakeAnchor(layout, free, blocking, random, out Vector2Int cell)) return;
+
+            GameObject chest = _prefabs.Spawn(content.chestPrefabId, builder.CellCenter(cell),
+                _contentRoot, SlotGuid(layout.Seed, room.Index, slot++));
+            if (chest == null) continue;
+
+            StockChest(chest, table, minStacks, maxStacks, random.Derive($"chest{slot}"));
+        }
+    }
+
+    /// <summary>
+    /// Rolls a chest's contents and writes them through <see cref="ChestInventory.SetStartingItems"/>.
+    ///
+    /// Deliberately not routed through <see cref="Drop"/>/<see cref="WorldItemPickup"/> like
+    /// floor loot: floor loot is a world drop captured by <see cref="WorldItemsSaveable"/> by
+    /// position, while a chest's contents are entity state captured by
+    /// <see cref="ChestSaveable"/> by guid. They are two different persistence paths on
+    /// purpose, and a chest's contents live on the chest, not as loose items sitting on it.
+    /// </summary>
+    private void StockChest(GameObject chest, List<RoomContentSettings.ItemChoice> table,
+        int minStacks, int maxStacks, DeterministicRandom random)
+    {
+        var inventory = chest.GetComponent<ChestInventory>();
+        if (inventory == null)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] Prefab id '{content.chestPrefabId}' has no ChestInventory " +
+                "— nothing to stock.", chest);
+            return;
+        }
+
+        int stacks = Mathf.Min(random.RangeInclusive(minStacks, maxStacks), inventory.SlotCount);
+        var rolled = new List<(ItemData, int)>(stacks);
+
+        for (int i = 0; i < stacks; i++)
+        {
+            var choice = content.PickItem(table, random);
+            if (choice == null) break;
+
+            ItemData item = ItemDatabase.Instance != null ? ItemDatabase.Instance.Resolve(choice.itemId) : null;
+            if (item == null)
+            {
+                Debug.LogWarning(
+                    $"[DungeonPopulator] Item id '{choice.itemId}' is not in the ItemDatabase — " +
+                    "chest stack skipped. Run Tools ▸ Save System ▸ Rebuild Item Database.", chest);
+                continue;
+            }
+
+            rolled.Add((item, random.RangeInclusive(choice.minCount, choice.maxCount)));
+        }
+
+        inventory.SetStartingItems(rolled);
     }
 
     /// <summary>

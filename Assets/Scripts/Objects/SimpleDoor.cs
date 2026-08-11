@@ -23,6 +23,8 @@ public class SimpleDoor : MonoBehaviour
 
     [Header("Sprint Ramming")]
     [SerializeField] private float staminaCostForRamming = 25f;
+    [Tooltip("Damage one sprint ram deals — to the door, or to the barricade when one is up.")]
+    [SerializeField] private float ramDamage = 15f;
 
     [Header("HP System and Destruction")]
     [SerializeField] private float maxHealth = 100f;
@@ -37,11 +39,20 @@ public class SimpleDoor : MonoBehaviour
     private Camera mainCamera;
     private Collider2D doorCollider;
     private SpriteRenderer doorSpriteRenderer;
+    private DoorBarricade barricade;
 
     /// <summary>
     /// Gets a value indicating whether the door is currently locked.
     /// </summary>
     public bool IsLocked => isLocked;
+
+    /// <summary>
+    /// Gets a value indicating whether planks are nailed across this door. A barricaded
+    /// door cannot be opened from either side and soaks damage before the door itself
+    /// takes any — see <see cref="DoorBarricade"/>. False when the door has no barricade
+    /// component at all, which is the case for every door that was never set up for it.
+    /// </summary>
+    public bool IsBarricaded => barricade != null && barricade.IsBarricaded;
 
     /// <summary>
     /// Gets a value indicating whether the door is currently open.
@@ -61,6 +72,7 @@ public class SimpleDoor : MonoBehaviour
         currentHealth = maxHealth;
         doorCollider = GetComponent<Collider2D>();
         doorSpriteRenderer = GetComponent<SpriteRenderer>();
+        barricade = GetComponent<DoorBarricade>();
     }
 
     private void Update()
@@ -124,6 +136,15 @@ public class SimpleDoor : MonoBehaviour
     public void ToggleDoor(Transform opener = null)
     {
         if (isDestroyed) return;
+
+        // Checked before the key and lock branches: planks are nailed across the frame,
+        // so they stop the owner of the key just as surely as they stop everything else.
+        // Deliberately symmetric — walling yourself in is the cost of the time it buys.
+        if (IsBarricaded && !isOpen)
+        {
+            Debug.Log("[Door] Barricaded shut — the planks have to come off first.");
+            return;
+        }
 
         if (requiresKeyToOpen && !isOpen)
         {
@@ -239,6 +260,15 @@ public class SimpleDoor : MonoBehaviour
     {
         if (isDestroyed) return;
 
+        // Ahead of the key-locked immunity below: a reinforced door the player has also
+        // barricaded should still lose its planks, otherwise barricading the sturdiest
+        // door in the dungeon would make it permanently unopenable by anyone.
+        if (barricade != null)
+        {
+            damageAmount = barricade.AbsorbDamage(damageAmount);
+            if (damageAmount <= 0f) return;
+        }
+
         if (requiresKeyToOpen)
         {
             Debug.Log("[Door] This door is too sturdy! Melee attacks deal no damage.");
@@ -285,6 +315,15 @@ public class SimpleDoor : MonoBehaviour
     {
         if (isOpen || isDestroyed) return;
 
+        // A barricade is rammed apart plank by plank rather than opened, and that holds
+        // even on a key-locked door — so this runs before the reinforcement check below.
+        // Without it the ram would clear isLocked on a door it never actually opened.
+        if (IsBarricaded)
+        {
+            RamBarricade(collision.gameObject);
+            return;
+        }
+
         if (requiresKeyToOpen)
         {
             Debug.Log("[Door] This door is key-locked and reinforced. Ramming is impossible — you need a key!");
@@ -305,7 +344,7 @@ public class SimpleDoor : MonoBehaviour
                     if (stamina.CurrentStamina >= staminaCostForRamming)
                     {
                         stamina.UseRamStamina(staminaCostForRamming);
-                        TakeDamage(15f);
+                        TakeDamage(ramDamage);
 
                         if (!isDestroyed)
                         {
@@ -321,5 +360,31 @@ public class SimpleDoor : MonoBehaviour
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// A sprinting player throwing their weight against a barricade — their own, usually.
+    /// Costs the same stamina as a normal ram, but the force goes into the planks instead
+    /// of the hinges, and it never opens the door: the barricade has to fall first.
+    /// </summary>
+    private void RamBarricade(GameObject hittingObject)
+    {
+        if (!hittingObject.CompareTag("Player")) return;
+
+        var movement = hittingObject.GetComponent<PlayerMovement>();
+        var stamina = hittingObject.GetComponent<PlayerStaminaSystem>();
+        if (movement == null || stamina == null) return;
+
+        if (movement.CurrentMode != PlayerMovement.MovementMode.Sprint) return;
+
+        if (stamina.CurrentStamina < staminaCostForRamming)
+        {
+            Debug.Log("[Door] Not enough stamina to break through the barricade!");
+            return;
+        }
+
+        stamina.UseRamStamina(staminaCostForRamming);
+        barricade.AbsorbDamage(ramDamage);
+        Debug.Log("[Door] Slammed into the barricade!");
     }
 }

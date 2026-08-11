@@ -40,6 +40,18 @@ public class EnemyDoorAttacker : MonoBehaviour
 
         if (isAttackingDoor && currentDoor != null)
         {
+            // The barricade came down: the door behind it is just a door again, so walk
+            // through instead of carrying on chopping. Without this the enemy would keep
+            // swinging until the door itself was destroyed, handing the player several
+            // free seconds that the barricade was never meant to buy. Locked doors are
+            // unaffected — their lock never clears, so they are still breached outright.
+            if (!currentDoor.IsLocked && !currentDoor.IsBarricaded)
+            {
+                currentDoor.ToggleDoor(transform);
+                ResetAttack();
+                return;
+            }
+
             if (rb != null)
             {
                 rb.linearVelocity = Vector2.zero;
@@ -108,7 +120,10 @@ public class EnemyDoorAttacker : MonoBehaviour
 
             if (isChasingOrSearching)
             {
-                if (door.IsLocked)
+                // A barricade blocks the enemy exactly like a lock does — it is the only
+                // way a player shut inside a room can stop a chase, since ToggleLock
+                // refuses to work from the inside.
+                if (door.IsLocked || door.IsBarricaded)
                 {
                     currentDoor = door;
                     isAttackingDoor = true;
@@ -119,8 +134,11 @@ public class EnemyDoorAttacker : MonoBehaviour
                     door.ToggleDoor(transform);
                 }
             }
-            else
+            else if (!door.IsBarricaded)
             {
+                // A patrolling enemy leaves a barricaded door alone rather than shouldering
+                // it every frame — OnCollisionStay2D would otherwise retry the open call
+                // continuously and flood the log with refusals.
                 door.ToggleDoor(transform);
             }
         }

@@ -49,7 +49,7 @@ public static class DoorBarricadeSetup
         }
 
         string prefabLine = prefabDone
-            ? $"• Door prefab at '{prefabPath}' can be barricaded, with 3 placeholder stage visuals"
+            ? $"• Door prefab at '{prefabPath}' can be barricaded, with 3 placeholder stage visuals, and saves/restores its barricade"
             : "• Door prefab NOT found — only scene doors were set up";
 
         Debug.Log($"[Door Barricade] Setup complete. {prefabLine}. " +
@@ -170,6 +170,7 @@ public static class DoorBarricadeSetup
             var barricade = EditorSetupUtility.EnsureComponent<DoorBarricade>(door.gameObject);
             AssignPlankItem(barricade, plank, overwrite: false);
             EnsureStageVisuals(barricade);
+            EnsureSaveSupport(root);
 
             PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
             return true;
@@ -197,8 +198,10 @@ public static class DoorBarricadeSetup
             var barricade = Undo.AddComponent<DoorBarricade>(door.gameObject);
             AssignPlankItem(barricade, plank, overwrite: false);
             EnsureStageVisuals(barricade);
+            EnsureSaveSupport(door.transform.root.gameObject);
 
             EditorUtility.SetDirty(door.gameObject);
+            EditorUtility.SetDirty(door.transform.root.gameObject);
             EditorSceneManager.MarkSceneDirty(door.gameObject.scene);
             upgraded++;
         }
@@ -284,6 +287,23 @@ public static class DoorBarricadeSetup
         {
             so.ApplyModifiedPropertiesWithoutUndo();
         }
+    }
+
+    /// <summary>
+    /// Adds <see cref="SaveableEntity"/> and <see cref="DoorBarricadeSaveable"/> to the
+    /// door's root GameObject, so a barricade built during play survives a save/load.
+    /// Both <see cref="PrefabRegistry.Spawn"/> and <see cref="SaveableEntity"/>'s own
+    /// dispatch look for these on the same GameObject via <c>GetComponent</c> (not
+    /// <c>GetComponentInChildren</c>), which is why this targets the door root
+    /// (<c>Door_System</c>) rather than the <c>Door_Visual</c> child the barricade and
+    /// <see cref="SimpleDoor"/> itself live on.
+    /// </summary>
+    private static void EnsureSaveSupport(GameObject doorRoot)
+    {
+        if (doorRoot == null) return;
+
+        EditorSetupUtility.EnsureComponent<SaveableEntity>(doorRoot);
+        EditorSetupUtility.EnsureComponent<DoorBarricadeSaveable>(doorRoot);
     }
 
     /// <summary>

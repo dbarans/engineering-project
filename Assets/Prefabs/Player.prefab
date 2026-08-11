@@ -1285,6 +1285,9 @@ MonoBehaviour:
   - item: {fileID: 11400000, guid: 6e99b352a93d14e4e9bc628196155ce9, type: 2}
     count: 1
     toBackpack: 1
+  - item: {fileID: 11400000, guid: 69f70701ead828848bfa6c39d52d6bdf, type: 2}
+    count: 7
+    toBackpack: 1
 --- !u!114 &6900123456789012345
 MonoBehaviour:
   m_ObjectHideFlags: 0

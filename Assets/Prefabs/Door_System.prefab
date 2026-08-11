@@ -508,6 +508,8 @@ GameObject:
   m_Component:
   - component: {fileID: 5290797314067682422}
   - component: {fileID: 6442681578627247599}
+  - component: {fileID: 4401521415802048849}
+  - component: {fileID: 1836998306350585764}
   m_Layer: 0
   m_Name: Door_System
   m_TagString: Untagged
@@ -543,3 +545,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c310c3740756424b9c0b26ef42779f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DoorCollisionForwarder
+--- !u!114 &4401521415802048849
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8923387513705250510}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a424deccceafd0a46827734266709ebe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SaveableEntity
+  guid: 
+  prefabId: 
+--- !u!114 &1836998306350585764
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8923387513705250510}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 51bd8f1bdb85d1b4b8fc894d5a854249, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DoorBarricadeSaveable

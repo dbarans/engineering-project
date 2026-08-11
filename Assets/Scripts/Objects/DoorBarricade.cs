@@ -152,6 +152,19 @@ public class DoorBarricade : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Forces the barricade to an exact stage count, recomputing health and refreshing
+    /// visuals to match. The restore-from-save entry point — unlike <see cref="AddStage"/>
+    /// it does not check whether the door is open or gate the change on a build cost,
+    /// since a save is trusted to already describe a valid state.
+    /// </summary>
+    public void SetStages(int count)
+    {
+        stages = Mathf.Clamp(count, 0, maxStages);
+        health = stages * healthPerStage;
+        RefreshVisuals();
+    }
+
     private void TryBuild(GameObject playerObject)
     {
         if (plankItem == null)

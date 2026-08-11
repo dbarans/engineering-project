@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Captures and restores items lying on the ground (plan Phase 3, §5.6). Drops are
 /// fungible, so there are no per-instance guids — just a list of {itemId, count,
-/// position} in the scene's save bucket. On restore the save is the source of truth:
+/// durability, position} in the scene's save bucket. On restore the save is the source of truth:
 /// every <see cref="WorldItem"/> in the scene is despawned first, then the saved list
 /// is respawned through <see cref="WorldItemPickup.SpawnAt"/>. The pickup delay is
 /// deliberately not armed — there is no drop click to block. Lives on the
@@ -32,6 +32,7 @@ public class WorldItemsSaveable : MonoBehaviour, ISaveable
             {
                 itemId = item.Item.Id,
                 count = item.Count,
+                durability = item.Durability,
                 position = new[] { item.transform.position.x, item.transform.position.y }
             });
         }
@@ -67,7 +68,8 @@ public class WorldItemsSaveable : MonoBehaviour, ISaveable
                 continue;
             }
 
-            pickup.SpawnAt(item, saved.count, new Vector2(saved.position[0], saved.position[1]));
+            pickup.SpawnAt(item, saved.count, new Vector2(saved.position[0], saved.position[1]),
+                saved.durability);
         }
     }
 }

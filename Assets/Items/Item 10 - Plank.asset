@@ -10,11 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
-  m_Name: Item 10 - Shotgun
+  m_Name: Item 10 - Plank
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: b5e83a17c94d4f60a2d71e6c85f30924, type: 3}
-  id: c3f7a1d84b6e42a9bd05e17c9f42db63
-  itemName: Shotgun
-  value: 220
-  maxStack: 1
-  weaponType: 2
+  id: 32507b240e6840fdbadf0fc93fe42f29
+  icon: {fileID: 21300000, guid: c77a8a687ebdf0f418b20db861238f65, type: 3}
+  itemName: Plank
+  value: 1
+  maxStack: 20
+  weaponType: 0
+  maxDurability: 0

@@ -28,8 +28,8 @@ public static class SlotInventorySetup
     private const string Item5Path = "Assets/Items/Item 5 - Pistol.asset";
     private const string Item7Path = "Assets/Items/Item 7 - Bullet.asset";
     private const string Item8Path = "Assets/Items/Item 8 - Scrap.asset";
-    private const string Item10Path = "Assets/Items/Item 10 - Shotgun.asset";
-    private const string Item11Path = "Assets/Items/Item 11 - Shell.asset";
+    private const string Item11Path = "Assets/Items/Item 11 - Shotgun.asset";
+    private const string Item12Path = "Assets/Items/Item 12 - Shell.asset";
 
     [MenuItem("Tools/Slot Inventory/Build UI & Wire Scene")]
     public static void BuildAndWire()
@@ -329,9 +329,9 @@ public static class SlotInventorySetup
         var axe = AssetDatabase.LoadAssetAtPath<ItemData>(Item4Path);
         var pistol = AssetDatabase.LoadAssetAtPath<ItemData>(Item5Path);
         var scrap = AssetDatabase.LoadAssetAtPath<ItemData>(Item8Path);
-        var shotgun = AssetDatabase.LoadAssetAtPath<ItemData>(Item10Path);
+        var shotgun = AssetDatabase.LoadAssetAtPath<ItemData>(Item11Path);
         var bullets = AssetDatabase.LoadAssetAtPath<ItemData>(Item7Path);
-        var shells = AssetDatabase.LoadAssetAtPath<ItemData>(Item11Path);
+        var shells = AssetDatabase.LoadAssetAtPath<ItemData>(Item12Path);
         if (sword == null && mana == null && wood == null && axe == null && pistol == null && scrap == null
             && shotgun == null && bullets == null && shells == null) return;
 

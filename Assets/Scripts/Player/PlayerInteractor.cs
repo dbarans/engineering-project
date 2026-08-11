@@ -15,24 +15,24 @@ public class PlayerInteractor : MonoBehaviour
 
     private void Awake()
     {
-        controls = new PlayerControls();
+        controls = InputService.Controls;
     }
 
     private void OnEnable()
     {
-        controls.Player.Enable();
+        // Not controls.Player.Enable() here either — see the note in OnDisable. The map's
+        // enabled state is PlayerInputHandler's alone to own on the shared instance;
+        // whenever it is on, this subscription is live too.
         controls.Player.Interact.performed += OnInteractPerformed;
     }
 
     private void OnDisable()
     {
         controls.Player.Interact.performed -= OnInteractPerformed;
-        controls.Player.Disable();
-    }
-
-    private void OnDestroy()
-    {
-        controls?.Dispose();
+        // Not controls.Player.Disable() here: the map is shared with PlayerInputHandler,
+        // which is the one place that deliberately disables it (backpack open). This
+        // component disabling would otherwise kill player movement/attack too whenever
+        // PlayerInteractor itself is toggled off independently of that.
     }
 
     private void OnInteractPerformed(InputAction.CallbackContext context)

@@ -62,6 +62,61 @@ MonoBehaviour:
     minCount: 1
     maxCount: 1
   treasureLootCount: 3
+  chestPrefabId: world.chest
+  chestChancePerRoom: 0.25
+  chestChancePerDepth: 0.05
+  maxChestsPerRoom: 1
+  chestLoot:
+  - itemId: 5050d2d519e64e13be6c3dacaac66b8a
+    weight: 1
+    minCount: 3
+    maxCount: 8
+  - itemId: ace0a8d83e674e12921766d1c1f6252f
+    weight: 1
+    minCount: 2
+    maxCount: 5
+  - itemId: 5c8a7f2e1b9d4c3a8e6f0d1c2b3a4e5f
+    weight: 0.8
+    minCount: 1
+    maxCount: 3
+  - itemId: a622953b36db42d2bb548dea09eeeca8
+    weight: 0.6
+    minCount: 1
+    maxCount: 2
+  - itemId: d4010ec17b594394a2a36831f75082aa
+    weight: 0.6
+    minCount: 1
+    maxCount: 2
+  - itemId: 1e94b7c25a084d3fae6bd0921c73f8ea
+    weight: 0.8
+    minCount: 2
+    maxCount: 5
+  minChestStacks: 1
+  maxChestStacks: 3
+  treasureChests: 1
+  treasureChestLoot:
+  - itemId: 876fac5fa0714f1dbcbbeb1b1983b591
+    weight: 1
+    minCount: 1
+    maxCount: 1
+  - itemId: fc85e15cdd84420aa8743d7a1c88c87d
+    weight: 1
+    minCount: 1
+    maxCount: 1
+  - itemId: 9d6341d9f24e4b99ad45358fe96e16ff
+    weight: 0.8
+    minCount: 1
+    maxCount: 1
+  - itemId: 345ef2e12acc44c18604b92dee8384b0
+    weight: 1.5
+    minCount: 10
+    maxCount: 25
+  - itemId: c3f7a1d84b6e42a9bd05e17c9f42db63
+    weight: 0.6
+    minCount: 1
+    maxCount: 1
+  minTreasureChestStacks: 2
+  maxTreasureChestStacks: 4
   props:
   - prefabId: prop.barrel
     weight: 1

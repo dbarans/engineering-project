@@ -201,4 +201,33 @@ public class ItemContainer
 
         return count;
     }
+
+    /// <summary>
+    /// Adds <paramref name="count"/> of <paramref name="item"/> carrying an explicit
+    /// remaining <paramref name="durability"/> (<c>-1</c> = full/undamaged). Used when
+    /// picking a worn item up off the ground, where the plain overload would silently
+    /// repair it.
+    ///
+    /// A worn item only ever fills empty slots, never merges into an existing stack:
+    /// one slot holds one durability value, so merging two differently worn copies would
+    /// have to pick one of them and quietly discard the other.
+    /// </summary>
+    public int TryAddItem(ItemData item, int count, int durability)
+    {
+        if (item == null || count <= 0) return 0;
+
+        // Nothing to carry — a non-durable item, or one that is undamaged anyway — so the
+        // ordinary stacking rules apply and are strictly better (they merge).
+        if (durability < 0 || item.maxDurability <= 0) return TryAddItem(item, count);
+
+        int max = Mathf.Max(1, item.maxStack);
+        for (int i = 0; i < _slots.Length && count > 0; i++)
+        {
+            if (!_slots[i].IsEmpty) continue;
+            int moved = Mathf.Min(max, count);
+            Set(i, item, moved, durability);
+            count -= moved;
+        }
+        return count;
+    }
 }

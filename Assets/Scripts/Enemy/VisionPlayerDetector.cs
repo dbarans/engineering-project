@@ -12,6 +12,9 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
     [SerializeField] private LayerMask obstacleLayers;
     [SerializeField] private GizmoDebugSettings gizmoDebugSettings;
 
+    /// <inheritdoc />
+    public float DetectionRange => range;
+
     public bool IsPlayerDetected(Transform player)
     {
         if (player == null) return false;

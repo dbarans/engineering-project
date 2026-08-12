@@ -5,19 +5,24 @@ using System.Collections.Generic;
 /// Movement strategy using pathfinding algorithm.
 /// Uses A* over PathfindingGrid and follows calculated waypoints.
 /// </summary>
-public class PathfindingMovement : MonoBehaviour, IMovementStrategy, IPathStatusProvider, IMovementArrivalTolerance
+public class PathfindingMovement : MonoBehaviour, IMovementStrategy, IPathStatusProvider, IMovementArrivalTolerance, IWalkabilityProbe
 {
     [SerializeField] private PathfindingGrid grid;
     [SerializeField] private float repathInterval = 0.25f;
     [SerializeField] private float waypointReachDistance = 0.1f;
     [SerializeField] private float targetRepathDistance = 0.5f;
+    [Tooltip("Cap on cells one search may expand before giving up and following the closest partial route. Bounds the worst case on a large grid.")]
+    [SerializeField] private int maxExploredNodes = AStarPathfinder.DefaultMaxExploredNodes;
+    [Tooltip("Cooldown after a search that found no route to the target. Without it an unreachable target re-runs a failed search every single frame.")]
+    [SerializeField] private float failedPathRetryInterval = 0.75f;
     [Header("Debug")]
     [SerializeField] private bool drawPathGizmos = true;
     [SerializeField] private Color pathColor = Color.yellow;
 
-    private List<Vector2> currentPath = new List<Vector2>();
+    private readonly List<Vector2> currentPath = new List<Vector2>();
     private int currentPathIndex;
     private float nextRepathTime;
+    private float nextFailedRetryTime;
     private Vector2 lastTarget;
     private bool hasLastTarget;
     private bool hasReachablePath = true;
@@ -30,33 +35,60 @@ public class PathfindingMovement : MonoBehaviour, IMovementStrategy, IPathStatus
     /// </summary>
     public bool HasReachablePath => hasReachablePath;
 
+    /// <inheritdoc />
+    public bool IsWalkable(Vector2 worldPosition)
+    {
+        PathfindingGrid resolved = ResolveGrid();
+        return resolved == null || resolved.IsWalkableWorld(worldPosition);
+    }
+
     /// <summary>
     /// Moves the agent towards the target using pathfinding.
     /// </summary>
     public void Move(Transform agent, Vector3 target, float speed)
     {
         if (agent == null) return;
-        if (grid == null)
-            grid = FindFirstObjectByType<PathfindingGrid>();
-        if (grid == null) return;
+        PathfindingGrid resolved = ResolveGrid();
+        if (resolved == null) return;
 
         Vector2 target2D = new Vector2(target.x, target.y);
 
         bool targetChanged = !hasLastTarget || Vector2.Distance(lastTarget, target2D) >= targetRepathDistance;
-        bool shouldRepath = Time.time >= nextRepathTime || targetChanged || currentPath.Count == 0 || currentPathIndex >= currentPath.Count;
+        bool pathExhausted = currentPath.Count == 0 || currentPathIndex >= currentPath.Count;
+        bool shouldRepath = Time.time >= nextRepathTime || targetChanged || pathExhausted;
+
+        // A target that just failed keeps failing for a while (a sealed-off room, a spot inside a
+        // wall). Retrying it every frame is what turns one bad target into a frame-rate collapse,
+        // so the failure gets its own, longer cooldown.
+        if (shouldRepath && Time.time < nextFailedRetryTime) shouldRepath = false;
+
         if (shouldRepath)
         {
-            currentPath = AStarPathfinder.FindPath(grid, agent.position, target2D);
+            bool reachedTarget = AStarPathfinder.FindPath(resolved, agent.position, target2D, currentPath, maxExploredNodes);
             currentPathIndex = 0;
             lastTarget = target2D;
             hasLastTarget = true;
             nextRepathTime = Time.time + repathInterval;
 
             bool alreadyAtTarget = Vector2.Distance(agent.position, target2D) <= waypointReachDistance;
-            hasReachablePath = alreadyAtTarget || currentPath.Count > 0;
+            hasReachablePath = alreadyAtTarget || reachedTarget;
+
+            if (!hasReachablePath)
+                nextFailedRetryTime = Time.time + failedPathRetryInterval;
         }
 
         FollowPath(agent, speed);
+    }
+
+    /// <summary>
+    /// Resolves and caches the grid reference, falling back to the one in the scene when the
+    /// prefab could not carry it (spawned enemies).
+    /// </summary>
+    private PathfindingGrid ResolveGrid()
+    {
+        if (grid == null)
+            grid = FindFirstObjectByType<PathfindingGrid>();
+        return grid;
     }
 
     /// <summary>

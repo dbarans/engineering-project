@@ -35,6 +35,7 @@ public class PlayerThrow : MonoBehaviour
         if (direction == Vector2.zero) return;
 
         nextThrowTime = Time.time + throwCooldown;
+        AudioService.PlayAt(SoundId.PlayerThrow, transform.position);
         SpawnProjectile(direction);
     }
 

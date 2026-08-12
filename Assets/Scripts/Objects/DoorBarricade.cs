@@ -122,6 +122,7 @@ public class DoorBarricade : MonoBehaviour
             {
                 stages = remaining;
                 RefreshVisuals();
+                AudioService.PlayAt(SoundId.BarricadeStageBreak, transform.position);
                 NoiseEvents.Emit(transform.position, breakNoiseRadius);
                 Debug.Log($"[Barricade] A stage gave way — {stages} left.", this);
             }
@@ -132,6 +133,7 @@ public class DoorBarricade : MonoBehaviour
         stages = 0;
         health = 0f;
         RefreshVisuals();
+        AudioService.PlayAt(SoundId.BarricadeDestroy, transform.position);
         NoiseEvents.Emit(transform.position, breakNoiseRadius);
         Debug.Log("[Barricade] Torn down! The door is exposed.", this);
         return leftover;
@@ -197,6 +199,7 @@ public class DoorBarricade : MonoBehaviour
         }
 
         AddStage();
+        AudioService.PlayAt(SoundId.BarricadeBuild, transform.position);
         NoiseEvents.Emit(transform.position, buildNoiseRadius);
         Debug.Log($"[Barricade] Stage {stages}/{maxStages} nailed on.", this);
     }

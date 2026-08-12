@@ -96,6 +96,13 @@ public class RangedAttack : PlayerAttack
     /// </summary>
     protected override bool CanFire() => HasAmmo();
 
+    /// <summary>The only way CanFire fails here is an empty magazine — so, a dry click.</summary>
+    protected override void OnFireBlocked()
+    {
+        AudioService.PlayAt(SoundId.PlayerAttackDryFire,
+            shootPoint != null ? shootPoint.position : transform.position);
+    }
+
     /// <summary>True when firing is allowed: no ammo item is required, or one is available.</summary>
     private bool HasAmmo()
     {
@@ -127,7 +134,12 @@ public class RangedAttack : PlayerAttack
         // CanFire already confirmed a round is available; consuming here keeps the spend
         // and the projectile spawn atomic so a shot is never fired without paying for it.
         if (!ConsumeAmmo())
+        {
+            // Reached when ammo vanished between CanFire and here. Audible on purpose:
+            // a trigger pull that produces nothing at all reads as the game ignoring input.
+            AudioService.PlayAt(SoundId.PlayerAttackDryFire, shootPoint.position);
             return;
+        }
 
         // Each projectile gets its own roll inside the cone, so a multi-projectile shot scatters
         // across the aim lines instead of leaving as one clump on a single shared angle.
@@ -143,6 +155,8 @@ public class RangedAttack : PlayerAttack
         {
             shaker.TriggerShake(0.08f, 0.4f);
         }
+        AudioService.PlayAt(SoundId.PlayerAttackRanged, shootPoint.position);
+
         if (noiseSettings != null)
             NoiseEvents.Emit(shootPoint.position, noiseSettings.shootNoiseRadius);
     }

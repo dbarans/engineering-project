@@ -24,12 +24,33 @@ public class PlayerNoiseEmitter : MonoBehaviour
     private void Update()
     {
         if (Time.time < nextEmitTime) return;
+        if (!movement.IsMoving) return;
+
+        nextEmitTime = Time.time + emitInterval;
+
+        // Audio first, and unconditionally while moving: sneaking emits zero gameplay
+        // noise but the player still hears their own careful footsteps. That asymmetry is
+        // the reason audio does not simply ride along on NoiseEvents — see AUDIO_NOTES.md D1.
+        AudioService.PlayAt(FootstepSoundId(), transform.position);
 
         float radius = CurrentNoiseRadius();
         if (radius <= 0f) return;
 
-        nextEmitTime = Time.time + emitInterval;
         NoiseEvents.Emit(transform.position, radius);
+    }
+
+    /// <summary>Footstep sound for the current movement mode.</summary>
+    private string FootstepSoundId()
+    {
+        switch (movement.CurrentMode)
+        {
+            case PlayerMovement.MovementMode.Sneak:
+                return SoundId.PlayerFootstepSneak;
+            case PlayerMovement.MovementMode.Sprint:
+                return SoundId.PlayerFootstepSprint;
+            default:
+                return SoundId.PlayerFootstepWalk;
+        }
     }
 
     /// <summary>

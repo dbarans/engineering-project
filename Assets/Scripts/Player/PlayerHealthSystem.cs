@@ -30,8 +30,23 @@ public class PlayerHealthSystem : MonoBehaviour
     /// <param name="damage"> Value of the damage depending of the attack type</param>
     public void TakeDamage(int damage)
     {
+        bool wasAlive = currentHealth > 0;
+
         currentHealth -= damage;
         if (healthBar != null) healthBar.SetHealth(currentHealth);
+
+        // Non-positional: this happens to the player, so a direction would be meaningless.
+        // The death sound replaces the hurt one on the killing blow rather than stacking
+        // on top of it, and only on the transition — further damage to an already-dead
+        // player is silent.
+        if (currentHealth <= 0)
+        {
+            if (wasAlive) AudioService.Play(SoundId.PlayerDeath);
+        }
+        else
+        {
+            AudioService.Play(SoundId.PlayerHurt);
+        }
     }
     
     /// <summary>

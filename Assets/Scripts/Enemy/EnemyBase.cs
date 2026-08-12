@@ -222,6 +222,11 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     private void UpdateStateMachine()
     {
+        // Six separate branches below can enter FollowPlayer. Comparing the state across
+        // the whole machine catches the transition once, in one place, instead of needing
+        // an alert call bolted onto each of them (and re-bolted onto every future one).
+        EnemyState stateBefore = currentState;
+
         if (IsPlayerDetected())
             lastDetectionTime = Time.time;
 
@@ -333,6 +338,11 @@ public abstract class EnemyBase : MonoBehaviour
                     currentState = EnemyState.Idle;
                 break;
         }
+
+        // Only the moment the chase begins. Re-detecting the player mid-chase does not
+        // re-alert, because the state never left FollowPlayer to come back to it.
+        if (currentState == EnemyState.FollowPlayer && stateBefore != EnemyState.FollowPlayer)
+            AudioService.PlayAt(SoundId.EnemyAlert, transform.position);
     }
 
     /// <summary>
@@ -511,6 +521,10 @@ public abstract class EnemyBase : MonoBehaviour
         if (IsDead) return;
 
         currentHealth = Mathf.Max(0f, currentHealth - damage);
+
+        // Positional and fired before the hook below: OnDeath is where subclasses
+        // deactivate or destroy the enemy, and PlayAt outlives the emitter either way.
+        AudioService.PlayAt(IsDead ? SoundId.EnemyDeath : SoundId.EnemyHurt, transform.position);
 
         if (IsDead)
         {

@@ -36,6 +36,10 @@ MonoBehaviour:
     weight: 0.5
     minCount: 1
     maxCount: 1
+  - itemId: 1e94b7c25a084d3fae6bd0921c73f8ea
+    weight: 0.9
+    minCount: 2
+    maxCount: 5
   minLootPerRoom: 0
   maxLootPerRoom: 2
   guaranteedItemId: d4010ec17b594394a2a36831f75082aa
@@ -53,6 +57,10 @@ MonoBehaviour:
     weight: 1.5
     minCount: 5
     maxCount: 15
+  - itemId: c3f7a1d84b6e42a9bd05e17c9f42db63
+    weight: 0.8
+    minCount: 1
+    maxCount: 1
   treasureLootCount: 3
   chestPrefabId: world.chest
   chestChancePerRoom: 0.25
@@ -79,6 +87,10 @@ MonoBehaviour:
     weight: 0.6
     minCount: 1
     maxCount: 2
+  - itemId: 1e94b7c25a084d3fae6bd0921c73f8ea
+    weight: 0.8
+    minCount: 2
+    maxCount: 5
   minChestStacks: 1
   maxChestStacks: 3
   treasureChests: 1
@@ -99,6 +111,10 @@ MonoBehaviour:
     weight: 1.5
     minCount: 10
     maxCount: 25
+  - itemId: c3f7a1d84b6e42a9bd05e17c9f42db63
+    weight: 0.6
+    minCount: 1
+    maxCount: 1
   minTreasureChestStacks: 2
   maxTreasureChestStacks: 4
   props:

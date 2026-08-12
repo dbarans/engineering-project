@@ -573,6 +573,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SaveableEntity
   guid: 
+  prefabId: 
 --- !u!114 &7423423773025333002
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -601,6 +602,8 @@ MonoBehaviour:
   obstacleLayers:
     serializedVersion: 2
     m_Bits: 768
+  viewAngle: 120
+  turnSpeedDeg: 360
   gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
 --- !u!114 &7423423773025333004
 MonoBehaviour:

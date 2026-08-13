@@ -1190,6 +1190,22 @@ PrefabInstance:
       propertyPath: player
       value: 
       objectReference: {fileID: 1550077370}
+    - target: {fileID: 7892708207933928237, guid: 9fcb20d09d999c34c9420d6778e33bdc, type: 3}
+      propertyPath: corpsePrefab
+      value: 
+      objectReference: {fileID: 7566011447024258560, guid: 2a4fe617542b3ed4ab6fd77ba156f5bb, type: 3}
+    - target: {fileID: 7892708207933928237, guid: 9fcb20d09d999c34c9420d6778e33bdc, type: 3}
+      propertyPath: possibleDrops.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7892708207933928237, guid: 9fcb20d09d999c34c9420d6778e33bdc, type: 3}
+      propertyPath: possibleDrops.Array.data[0].itemData
+      value: 
+      objectReference: {fileID: 11400000, guid: ece63bae93017df4aabc0637a9b9949d, type: 2}
+    - target: {fileID: 7892708207933928237, guid: 9fcb20d09d999c34c9420d6778e33bdc, type: 3}
+      propertyPath: possibleDrops.Array.data[0].quantity
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

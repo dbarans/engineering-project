@@ -15,6 +15,6 @@ public class SkullGuyEnemy : EnemyBase
     {
         // Placeholder: disable on death. A death animation can be played here later
         // (e.g. play a clip, then disable on ClipFinished).
-        gameObject.SetActive(false);
+        base.OnDeath();
     }
 }

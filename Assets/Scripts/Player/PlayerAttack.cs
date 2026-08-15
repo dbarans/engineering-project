@@ -45,7 +45,10 @@ public abstract class PlayerAttack : MonoBehaviour
             return false;
 
         if (!CanFire())
+        {
+            OnFireBlocked();
             return false;
+        }
 
         ExecuteAttack();
         Fired?.Invoke();
@@ -59,6 +62,14 @@ public abstract class PlayerAttack : MonoBehaviour
     /// false aborts the shot without consuming the charge or attack stamina.
     /// </summary>
     protected virtual bool CanFire() => true;
+
+    /// <summary>
+    /// Called when <see cref="CanFire"/> refused a charged shot. Exists so a weapon can
+    /// give the player some feedback for the refusal — an out-of-ammo click — instead of
+    /// the trigger doing nothing at all, which reads as dropped input. Does nothing by
+    /// default: a weapon with no failure condition never reaches it.
+    /// </summary>
+    protected virtual void OnFireBlocked() { }
 
     /// <summary>
     /// Resets charge progress after a shot. Charging continues from the start

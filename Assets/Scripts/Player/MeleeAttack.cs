@@ -55,6 +55,9 @@ public class MeleeAttack : PlayerAttack
         float damage = Mathf.Lerp(minDamage, maxDamage, progress);
         Vector3 center = AttackCenter();
 
+        // The swing itself, whether or not it connects — a whiff still moves air.
+        AudioService.PlayAt(SoundId.PlayerAttackMelee, center);
+
         // The active weapon lives in the selected hotbar slot (the weapon manager only
         // equips melee while a melee item is selected). A depleted weapon still swings
         // but hits much softer until it is repaired.

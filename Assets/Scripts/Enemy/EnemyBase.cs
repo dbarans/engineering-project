@@ -77,6 +77,13 @@ public abstract class EnemyBase : MonoBehaviour
     [Tooltip("Radius within which random wander points are picked: around the spot where the player was lost (WanderNearLastPosition), or around the spawn position for enemies with no waypoints configured.")]
     [SerializeField] private float wanderRadius = 4f;
 
+<<<<<<< HEAD
+    [Header("Performance")]
+    [Tooltip("Extra distance added to this enemy's own sensor ranges. Inside the result the AI ticks every frame; outside it, only every throttledTickInterval. A dungeon holds dozens of enemies and nearly all of them are far away at any moment.")]
+    [SerializeField] private float fullUpdateMargin = 8f;
+    [Tooltip("Tick period for enemies the player is far away from. Movement is compensated for the longer step, so patrols still run at normal speed. Set to 0 to disable throttling.")]
+    [SerializeField] private float throttledTickInterval = 0.35f;
+=======
     [Header("Drop System")]
     [SerializeField] private GameObject corpsePrefab;
     [SerializeField] private List<DropItem> possibleDrops;
@@ -90,6 +97,7 @@ public abstract class EnemyBase : MonoBehaviour
             [Min(1)] public int maxQuantity;
             [Range(0f, 100f)] public float dropChancePercent;
         }
+>>>>>>> origin/dev
 
     protected float currentHealth;
     private IMovementStrategy movementStrategy;
@@ -104,6 +112,12 @@ public abstract class EnemyBase : MonoBehaviour
     private Vector2 wanderTargetPosition;
     private float nextUnreachableWanderRetryTime;
     private Vector2 spawnPosition;
+    private IWalkabilityProbe walkabilityProbe;
+    private float fullUpdateSqrDistance;
+    private float nextThrottledTickTime;
+    private float lastTickTime;
+    private float lastTickDelta;
+    private float tickSpeedScale = 1f;
 
     private EnemyState currentState = EnemyState.Idle;
     private int currentWaypointIndex;
@@ -162,10 +176,36 @@ public abstract class EnemyBase : MonoBehaviour
         movementStrategy = GetComponent<IMovementStrategy>();
         detectors = GetComponents<IPlayerDetector>();
         noiseSensor = GetComponent<INoiseSensor>();
+        walkabilityProbe = movementStrategy as IWalkabilityProbe;
         spawnPosition = transform.position;
+
+        CacheFullUpdateDistance();
+        lastTickTime = Time.time;
+        // Random phase so a crowd of enemies spawned in the same frame does not land all of its
+        // throttled ticks (and their path searches) on the same frame forever after.
+        nextThrottledTickTime = Time.time + Random.value * Mathf.Max(0f, throttledTickInterval);
 
         rb = GetComponent<Rigidbody2D>();
         if (rb != null) rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+    }
+
+    /// <summary>
+    /// Precomputes the radius inside which this enemy must run its AI every frame: the widest
+    /// range any of its sensors can reach, plus a margin. Outside it, no detector can possibly
+    /// fire, so a full-rate tick would only burn frame time.
+    /// </summary>
+    private void CacheFullUpdateDistance()
+    {
+        float sensorRange = alwaysDetectRange;
+
+        if (detectors != null)
+        {
+            foreach (IPlayerDetector detector in detectors)
+                sensorRange = Mathf.Max(sensorRange, detector.DetectionRange);
+        }
+
+        float full = sensorRange + Mathf.Max(0f, fullUpdateMargin);
+        fullUpdateSqrDistance = full * full;
     }
 
     /// <summary>
@@ -194,12 +234,48 @@ public abstract class EnemyBase : MonoBehaviour
     protected virtual void Update()
     {
         if (IsDead) return;
+        if (!ShouldTickThisFrame()) return;
+
+        lastTickDelta = Time.time - lastTickTime;
+        lastTickTime = Time.time;
+        // A throttled enemy covers several frames' worth of ground in one step. The movement
+        // strategies integrate against Time.deltaTime, so the speed handed to them is scaled by
+        // how many frames this tick stands in for — otherwise distant patrols would crawl.
+        tickSpeedScale = Time.deltaTime > 0f ? Mathf.Clamp(lastTickDelta / Time.deltaTime, 0f, 60f) : 1f;
 
         UpdateStateMachine();
         ResolveUnreachablePatrolWaypoint();
         ResolveUnreachableWanderTarget();
         if (movementStrategy != null && ShouldMove())
             Move();
+    }
+
+    /// <summary>
+    /// Distance-based AI throttling. Enemies within sensor range of the player (or reacting to a
+    /// noise they just heard) tick every frame as before; the rest — the overwhelming majority in
+    /// a large dungeon — tick at throttledTickInterval, which is what keeps dozens of path
+    /// searches from piling into a single frame.
+    /// </summary>
+    private bool ShouldTickThisFrame()
+    {
+        if (throttledTickInterval <= 0f) return true;
+
+        // A fresh noise is the one thing that can reach an enemy the player is nowhere near, and
+        // it stays fresh only briefly — checking it here costs a float compare and keeps hearing
+        // exactly as responsive as it was.
+        bool nearPlayer = noiseSensor != null && noiseSensor.HasFreshNoise;
+
+        if (!nearPlayer && player != null)
+        {
+            Vector2 toPlayer = (Vector2)player.position - (Vector2)transform.position;
+            nearPlayer = toPlayer.sqrMagnitude <= fullUpdateSqrDistance;
+        }
+
+        if (!nearPlayer && Time.time < nextThrottledTickTime) return false;
+
+        // Jitter keeps the throttled ticks of a spawned group from re-synchronising over time.
+        nextThrottledTickTime = Time.time + throttledTickInterval * Random.Range(0.85f, 1.15f);
+        return true;
     }
 
     /// <summary>
@@ -244,6 +320,11 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     private void UpdateStateMachine()
     {
+        // Six separate branches below can enter FollowPlayer. Comparing the state across
+        // the whole machine catches the transition once, in one place, instead of needing
+        // an alert call bolted onto each of them (and re-bolted onto every future one).
+        EnemyState stateBefore = currentState;
+
         if (IsPlayerDetected())
             lastDetectionTime = Time.time;
 
@@ -355,6 +436,11 @@ public abstract class EnemyBase : MonoBehaviour
                     currentState = EnemyState.Idle;
                 break;
         }
+
+        // Only the moment the chase begins. Re-detecting the player mid-chase does not
+        // re-alert, because the state never left FollowPlayer to come back to it.
+        if (currentState == EnemyState.FollowPlayer && stateBefore != EnemyState.FollowPlayer)
+            AudioService.PlayAt(SoundId.EnemyAlert, transform.position);
     }
 
     /// <summary>
@@ -376,10 +462,28 @@ public abstract class EnemyBase : MonoBehaviour
         return EnemyState.ReturnToPatrol;
     }
 
-    /// <summary>Picks a new random point within wanderRadius of wanderAnchor.</summary>
+    /// <summary>
+    /// Picks a new random point within wanderRadius of wanderAnchor, preferring one the movement
+    /// strategy can actually stand on. An unvetted point lands inside a wall often enough that it
+    /// used to cost a failed full-map search every time.
+    /// </summary>
     private void PickRandomWanderTarget()
     {
-        wanderTargetPosition = wanderAnchor + Random.insideUnitCircle * wanderRadius;
+        const int attempts = 6;
+
+        for (int i = 0; i < attempts; i++)
+        {
+            Vector2 candidate = wanderAnchor + Random.insideUnitCircle * wanderRadius;
+            if (walkabilityProbe == null || walkabilityProbe.IsWalkable(candidate))
+            {
+                wanderTargetPosition = candidate;
+                return;
+            }
+        }
+
+        // Every candidate was blocked (enemy boxed in): stay put rather than commit to a target
+        // that is known to be unreachable.
+        wanderTargetPosition = transform.position;
     }
 
     /// <summary>
@@ -467,7 +571,7 @@ public abstract class EnemyBase : MonoBehaviour
                 return;
             }
 
-            waypointPauseTimer -= Time.deltaTime;
+            waypointPauseTimer -= lastTickDelta;
             if (waypointPauseTimer <= 0f)
             {
                 isWaitingAtWaypoint = false;
@@ -533,6 +637,10 @@ public abstract class EnemyBase : MonoBehaviour
         if (IsDead) return;
 
         currentHealth = Mathf.Max(0f, currentHealth - damage);
+
+        // Positional and fired before the hook below: OnDeath is where subclasses
+        // deactivate or destroy the enemy, and PlayAt outlives the emitter either way.
+        AudioService.PlayAt(IsDead ? SoundId.EnemyDeath : SoundId.EnemyHurt, transform.position);
 
         if (IsDead)
         {
@@ -649,7 +757,7 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     protected virtual void Move()
     {
-        movementStrategy?.Move(transform, GetTargetPosition(), GetCurrentMoveSpeed());
+        movementStrategy?.Move(transform, GetTargetPosition(), GetCurrentMoveSpeed() * tickSpeedScale);
     }
 
     /// <summary>

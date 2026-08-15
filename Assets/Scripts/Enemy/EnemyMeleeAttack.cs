@@ -47,6 +47,11 @@ public class EnemyMeleeAttack : MonoBehaviour
     public void Attack()
     {
         nextAttackTime = Time.time + attackCooldown;
+
+        // On the wind-up, not on the hit landing: attackHitDelay exists to give the player
+        // a window to dodge, and a swing they cannot hear until it connects removes it.
+        AudioService.PlayAt(SoundId.EnemyAttack, transform.position);
+
         AttackStarted?.Invoke();
         StartCoroutine(LandHitAfterDelay());
     }

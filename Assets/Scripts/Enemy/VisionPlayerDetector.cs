@@ -40,6 +40,8 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
         float targetAngle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
         facingAngleDeg = Mathf.MoveTowardsAngle(facingAngleDeg, targetAngle, turnSpeedDeg * Time.deltaTime);
     }
+    /// <inheritdoc />
+    public float DetectionRange => range;
 
     public bool IsPlayerDetected(Transform player)
     {

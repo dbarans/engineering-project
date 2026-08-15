@@ -1,0 +1,231 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf97a04777932b7479fe3e3a48a005a6, type: 3}
+  m_Name: SoundBank
+  m_EditorClassIdentifier: Assembly-CSharp::SoundBank
+  entries:
+  - id: player.footstep.walk
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0.15
+  - id: player.footstep.sprint
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0.12
+  - id: player.footstep.sneak
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0.2
+  - id: player.hurt
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 0
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: player.death
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 0
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: player.attack.melee
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: player.attack.ranged
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: player.attack.dryfire
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: player.throw
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: door.open
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: door.close
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: door.hit
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0.1
+  - id: door.destroy
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: barricade.build
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: barricade.stagebreak
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: barricade.destroy
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: chest.open
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: chest.close
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: item.pickup
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: item.drop
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: enemy.alert
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: enemy.attack
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: enemy.hurt
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0.1
+  - id: enemy.death
+    clips: []
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0

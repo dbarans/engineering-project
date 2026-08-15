@@ -77,6 +77,11 @@ public class WorldItemPickup : MonoBehaviour
         var drop = SpawnAt(item, count, ComputeDropPosition(), durability);
         if (drop == null) return false;
 
+        // On Drop rather than SpawnAt: SpawnAt is also the save system's restore path
+        // (WorldItemsSaveable), and a load would otherwise fire one drop sound per ground
+        // item all in the same frame.
+        AudioService.PlayAt(SoundId.ItemDrop, drop.transform.position);
+
         drop.ArmPickupDelay(pickupDelay);
         return true;
     }
@@ -197,6 +202,12 @@ public class WorldItemPickup : MonoBehaviour
         if (!item.CanPickUp) return; // still in its post-drop delay
 
         int remainder = slotInventory.Backpack.TryAddItem(item.Item, item.Count, item.Durability);
+
+        // Anything actually moved into the backpack counts as a pick-up, including a
+        // partial one that left a remainder behind — the player did take something.
+        if (remainder < item.Count)
+            AudioService.PlayAt(SoundId.ItemPickup, item.transform.position);
+
         if (remainder <= 0)
         {
             if (_selected == item) _selected = null;

@@ -541,6 +541,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SaveableEntity
   guid: 
+  prefabId: 
 --- !u!114 &5153235430892638495
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -599,6 +600,17 @@ MonoBehaviour:
   skipInvestigateWhenLostPlayer: 0
   postInvestigateBehavior: 1
   wanderRadius: 5.7
+  corpsePrefab: {fileID: 7566011447024258560, guid: 2a4fe617542b3ed4ab6fd77ba156f5bb, type: 3}
+  possibleDrops: []
+  possibleRandomDrops:
+  - itemData: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
+    minQuantity: 1
+    maxQuantity: 5
+    dropChancePercent: 100
+  - itemData: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
+    minQuantity: 1
+    maxQuantity: 3
+    dropChancePercent: 100
 --- !u!114 &8613185589414859184
 MonoBehaviour:
   m_ObjectHideFlags: 0

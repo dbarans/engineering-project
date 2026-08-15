@@ -81,7 +81,7 @@ public class CraftingSlotView : MonoBehaviour, IPointerClickHandler, IPointerEnt
     public void OnPointerEnter(PointerEventData eventData)
     {
         var output = _recipe != null ? _recipe.outputItem : null;
-        ItemStatsPanel.Instance?.ShowAt(output, eventData.position);
+        ItemStatsPanel.Instance?.ShowAt(output, _recipe, eventData.position);
     }
 
     public void OnPointerExit(PointerEventData eventData)

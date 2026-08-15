@@ -31,3 +31,5 @@ MonoBehaviour:
     prefab: {fileID: 6831290240910429170, guid: 7fe1ae1a7ff22fa499d1543ce35e13ad, type: 3}
   - id: world.chest
     prefab: {fileID: 6316416700343463457, guid: 22000a0dc06dcd2458400152a62aa428, type: 3}
+  - id: enemy.corpse
+    prefab: {fileID: 7566011447024258560, guid: 2a4fe617542b3ed4ab6fd77ba156f5bb, type: 3}

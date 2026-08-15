@@ -1,5 +1,13 @@
 using System.Collections;
 using UnityEngine;
+using System.Collections.Generic;
+
+[System.Serializable]
+public struct DropItem
+{
+    public ItemData itemData;
+    public int quantity;
+}
 
 /// <summary>
 /// Enemy behaviour states used by the base state machine.
@@ -68,6 +76,20 @@ public abstract class EnemyBase : MonoBehaviour
     [SerializeField] private PostInvestigateBehavior postInvestigateBehavior = PostInvestigateBehavior.ReturnToPatrol;
     [Tooltip("Radius within which random wander points are picked: around the spot where the player was lost (WanderNearLastPosition), or around the spawn position for enemies with no waypoints configured.")]
     [SerializeField] private float wanderRadius = 4f;
+
+    [Header("Drop System")]
+    [SerializeField] private GameObject corpsePrefab;
+    [SerializeField] private List<DropItem> possibleDrops;
+    [Header("Random Drop System")]
+    [SerializeField] private List<LootDropEntry> possibleRandomDrops = new List<LootDropEntry>();
+    [System.Serializable]
+    public struct LootDropEntry
+        {
+            public ItemData itemData;
+            [Min(1)] public int minQuantity;
+            [Min(1)] public int maxQuantity;
+            [Range(0f, 100f)] public float dropChancePercent;
+        }
 
     protected float currentHealth;
     private IMovementStrategy movementStrategy;
@@ -553,10 +575,50 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     /// <summary>
-    /// Called when enemy health drops to zero.
-    /// Must be implemented by derived classes.
+    /// Called when enemy health drops to zero. Spawns a corpse and passes item drops.
     /// </summary>
-    protected abstract void OnDeath();
+    protected virtual void OnDeath()
+    {
+        if (corpsePrefab != null)
+        {
+            List<DropItem> generatedDrops = GenerateLoot();
+
+            GameObject corpseInstance = Instantiate(corpsePrefab, transform.position, Quaternion.identity);
+            EnemyCorpse corpseComponent = corpseInstance.GetComponent<EnemyCorpse>();
+            if (corpseComponent != null)
+            {
+                corpseComponent.InitializeDrop(generatedDrops);
+            }
+        }
+        Destroy(gameObject);
+    }
+
+    private List<DropItem> GenerateLoot()
+    {
+        List<DropItem> droppedItems = new List<DropItem>();
+
+        if (possibleRandomDrops == null || possibleRandomDrops.Count == 0)
+            return droppedItems;
+
+        List<LootDropEntry> availableDrops = new List<LootDropEntry>(possibleRandomDrops);
+
+        int itemsToPick = Mathf.Min(2, availableDrops.Count);
+
+        for (int i = 0; i < itemsToPick; i++)
+        {
+            int randomIndex = Random.Range(0, availableDrops.Count);
+            var entry = availableDrops[randomIndex];
+            availableDrops.RemoveAt(randomIndex);
+            float roll = Random.Range(0f, 100f);
+            if (roll <= entry.dropChancePercent)
+            {
+                int qty = Random.Range(entry.minQuantity, entry.maxQuantity + 1);
+                droppedItems.Add(new DropItem { itemData = entry.itemData, quantity = qty });
+            }
+        }
+
+        return droppedItems;
+    }
 
     /// <summary>
     /// Target position for movement based on current state. Override to customize.

@@ -99,6 +99,17 @@ public class SlotView : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        bool isCorpseOpen = EnemyCorpse.OpenCorpse != null;
+        bool isTargetSlotInCorpse = isCorpseOpen && _container == EnemyCorpse.OpenCorpse.Container;
+
+        if (isTargetSlotInCorpse && _held != null && _held.transform.childCount > 0)
+        {
+            if (_held.SourceContainer != null && _held.SourceContainer != EnemyCorpse.OpenCorpse.Container)
+            {
+                return;
+            }
+        }
+
         if (_held != null)
             _held.HandleSlotClick(this);
     }

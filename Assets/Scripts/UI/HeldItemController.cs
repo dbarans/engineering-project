@@ -31,6 +31,9 @@ public class HeldItemController : MonoBehaviour
     /// <summary>True while the cursor is carrying an item entity.</summary>
     public bool IsHolding => _heldItem != null;
 
+    /// <summary>The container the item was picked up from onto the cursor.</summary>
+    public ItemContainer SourceContainer { get; private set; }
+
     private void Awake()
     {
         if (followTarget == null) followTarget = transform as RectTransform;
@@ -84,6 +87,7 @@ public class HeldItemController : MonoBehaviour
 
         Destroy(_heldItem.gameObject);
         _heldItem = null;
+        SourceContainer = null;
     }
 
     /// <summary>Routes a click on <paramref name="slot"/> through the interaction rules.</summary>
@@ -119,14 +123,14 @@ public class HeldItemController : MonoBehaviour
                 int leave = slotCount - take;
                 var half = slot.Detach();
                 container.Set(index, slotItem, leave); // Refresh spawns a fresh entity for the remainder
-                Adopt(half);
+                Adopt(half, container);
                 if (_heldItem != null) _heldItem.SetStack(slotItem, take, slotDurability);
                 return;
             }
 
             var picked = slot.Detach();
             container.Clear(index);            // Refresh sees empty + detached -> no-op
-            Adopt(picked);
+            Adopt(picked, container);
             if (_heldItem != null) _heldItem.SetStack(slotItem, slotCount, slotDurability);
             return;
         }
@@ -140,6 +144,7 @@ public class HeldItemController : MonoBehaviour
             // Holding + empty slot -> drop the cursor's entity into the slot.
             var dropped = _heldItem;
             _heldItem = null;
+            SourceContainer = null;
             slot.Attach(dropped);
             container.Set(index, heldItem, heldCount, heldDurability); // Refresh updates the now-attached entity
             return;
@@ -158,6 +163,7 @@ public class HeldItemController : MonoBehaviour
                 {
                     Destroy(_heldItem.gameObject);
                     _heldItem = null;
+                    SourceContainer = null;
                 }
                 else
                 {
@@ -173,7 +179,7 @@ public class HeldItemController : MonoBehaviour
         var fromHand = _heldItem;
         slot.Attach(fromHand);
         container.Set(index, heldItem, heldCount, heldDurability); // Refresh updates the slot's new entity
-        Adopt(fromSlot);
+        Adopt(fromSlot, container);
         if (_heldItem != null) _heldItem.SetStack(slotItem, slotCount, slotDurability);
     }
 
@@ -206,7 +212,7 @@ public class HeldItemController : MonoBehaviour
         {
             var entity = slot.Detach();
             container.Set(index, slotItem, slotCount - 1); // 0 -> clears; >0 -> respawns remainder
-            Adopt(entity);
+            Adopt(entity, container);
             if (_heldItem != null) _heldItem.SetStack(slotItem, 1, slotDurability);
             return;
         }
@@ -218,10 +224,19 @@ public class HeldItemController : MonoBehaviour
         _heldItem.SetStack(slotItem, _heldItem.Count + 1, _heldItem.Durability);
     }
 
-    /// <summary>Re-parents an entity onto the cursor.</summary>
-    private void Adopt(InventoryItem item)
+    /// <summary>Re-parents an entity onto the cursor and records its source container.</summary>
+    private void Adopt(InventoryItem item, ItemContainer source = null)
     {
         _heldItem = item;
+        if (item != null)
+        {
+            if (source != null) SourceContainer = source;
+        }
+        else
+        {
+            SourceContainer = null;
+        }
+
         if (item == null || followTarget == null) return;
         item.transform.SetParent(followTarget, false);
         SlotView.StretchToParent(item.transform as RectTransform);

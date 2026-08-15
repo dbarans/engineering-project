@@ -11,6 +11,6 @@ public class BlindListenerEnemy : EnemyBase
 {
     protected override void OnDeath()
     {
-        gameObject.SetActive(false);
+        base.OnDeath();
     }
 }

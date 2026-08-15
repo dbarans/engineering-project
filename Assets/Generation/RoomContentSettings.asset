@@ -132,6 +132,9 @@ MonoBehaviour:
   chokepointGuardChance: 0.2
   maxCorridorEnemies: 6
   saveStationPrefabId: world.savestation
+  craftingTablePrefabId: world.craftingtable
   lightPrefabId: world.lamp
+  hubLamps: 3
+  hubChests: 3
   templates: []
   templateChance: 0.4

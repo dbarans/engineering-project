@@ -16,6 +16,19 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
     [SerializeField] private DungeonPainter painter;
     [SerializeField] private PathfindingGrid pathfindingGrid;
 
+    [Tooltip("Optional. A scene Transform kept at the hub's world position on every build " +
+             "— normally GameManager's own \"Player Spawn Point\" marker.\n\n" +
+             "This exists because of how this scene is actually used: the Dungeon scene is " +
+             "authored by baking (generate once in the editor, then save the scene), so at " +
+             "runtime buildOnStart is off and Build() never runs — the only thing that " +
+             "places the player at game start is GameManager.TeleportPlayerToSpawn(), which " +
+             "reads this Transform's static position. Without this field, that marker keeps " +
+             "whatever position it had the last time someone moved it by hand, which drifts " +
+             "away from the hub the moment the dungeon is regenerated with a different seed " +
+             "or different generation settings — the player spawns wherever the marker was " +
+             "left, not in the hub.")]
+    [SerializeField] private Transform playerSpawnMarker;
+
     [Header("Startup")]
     [Tooltip("Generate on Start. Leave off when the save system drives generation instead.")]
     [SerializeField] private bool buildOnStart;
@@ -128,7 +141,11 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
         // Only now are the colliders final, so this is the earliest the grid may sample
         // them. Doing it before painting silently produces a grid that disagrees with
         // the walls on screen.
-        pathfindingGrid.Configure(painter.Origin, layout.Width, layout.Height);
+        //
+        // painter.CellSize, not a hardcoded 1 or whatever the grid last had serialized:
+        // it is the tilemap's actual world-space cell size, and the two must match or
+        // every sample lands off-centre from the tile it is meant to test.
+        pathfindingGrid.Configure(painter.Origin, painter.CellSize, layout.Width, layout.Height);
 
         CurrentLayout = layout;
         Built?.Invoke(layout);
@@ -145,10 +162,17 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
 
     private void MovePlayerToSpawn(DungeonLayout layout)
     {
+        Vector2 spawnPosition = CellCenter(layout.SpawnCell);
+
+        // Keeps GameManager's own spawn teleport correct on a baked scene: see the field's
+        // tooltip for why this is not optional polish. Set even when no live player exists
+        // (edit mode baking), since this is what a later Play session will actually read.
+        if (playerSpawnMarker != null) playerSpawnMarker.position = spawnPosition;
+
         GameObject player = ResolvePlayer();
         if (player == null) return;
 
-        player.transform.position = CellCenter(layout.SpawnCell);
+        player.transform.position = spawnPosition;
 
         var body = player.GetComponent<Rigidbody2D>();
         if (body != null) body.linearVelocity = Vector2.zero;

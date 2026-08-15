@@ -60,14 +60,15 @@ public class RoomCorridorGeneratorTests
     }
 
     [Test]
-    public void SpawnCellIsWalkableAndInsideTheStartRoom()
+    public void SpawnCellIsWalkableAndInsideTheHub()
     {
         DungeonLayout layout = Generate("spawn", SmallParams());
 
         Assert.IsTrue(layout.IsWalkable(layout.SpawnCell));
         Room room = layout.RoomAt(layout.SpawnCell);
         Assert.IsNotNull(room, "spawn is not inside any room");
-        Assert.AreEqual(RoomKind.Start, room.Kind);
+        Assert.AreEqual(RoomKind.Hub, room.Kind);
+        Assert.AreEqual(room.Center, layout.SpawnCell, "spawn is not the hub's own centre");
     }
 
     [Test]
@@ -123,25 +124,88 @@ public class RoomCorridorGeneratorTests
     }
 
     [Test]
-    public void ExactlyOneStartCampAndTreasureRoom()
+    public void ExactlyOneHubAndTreasureRoom()
     {
         DungeonLayout layout = Generate("roles", SmallParams());
 
-        Assert.AreEqual(1, CountKind(layout, RoomKind.Start));
-        Assert.AreEqual(1, CountKind(layout, RoomKind.Camp));
+        Assert.AreEqual(1, CountKind(layout, RoomKind.Hub));
         Assert.AreEqual(1, CountKind(layout, RoomKind.Treasure));
     }
 
     [Test]
-    public void TreasureRoomIsDeeperThanTheCamp()
+    public void TreasureRoomIsDeeperThanTheHub()
     {
         DungeonLayout layout = Generate("depth", SmallParams());
 
         Room treasure = FindKind(layout, RoomKind.Treasure);
-        Room start = FindKind(layout, RoomKind.Start);
+        Room hub = FindKind(layout, RoomKind.Hub);
 
-        Assert.AreEqual(0, start.DepthFromStart);
-        Assert.Greater(treasure.DepthFromStart, 0, "the reward room sits at the entrance");
+        Assert.AreEqual(0, hub.DepthFromHub);
+        Assert.Greater(treasure.DepthFromHub, 0, "the reward room sits at the entrance");
+    }
+
+    /// <summary>
+    /// The hub is the one fixture of the layout the player is told to rely on: it holds
+    /// the run's only save station and crafting table, so "somewhere in the middle" has
+    /// to be a guarantee of the generator rather than a property of a lucky seed.
+    /// </summary>
+    [Test]
+    public void HubRoomIsCentredOnTheMap()
+    {
+        var parameters = SmallParams();
+        DungeonLayout layout = Generate("hub", parameters);
+
+        Room hub = FindKind(layout, RoomKind.Hub);
+        Assert.IsNotNull(hub, "no hub room was placed");
+        Assert.AreEqual(RoomShape.Rectangle, hub.Shape, "the hub must stay legible at a glance");
+
+        var center = new Vector2Int(layout.Width / 2, layout.Height / 2);
+        Assert.IsTrue(hub.Contains(center),
+            $"the hub at {hub.Bounds} does not cover the map centre {center}");
+    }
+
+    [Test]
+    public void HubRoomIsNeverTheTreasure()
+    {
+        DungeonLayout layout = Generate("hub-roles", SmallParams());
+
+        Room hub = FindKind(layout, RoomKind.Hub);
+        Assert.AreNotEqual(hub.Index, FindKind(layout, RoomKind.Treasure).Index);
+    }
+
+    [Test]
+    public void EverySeedProducesExactlyOneHub()
+    {
+        var parameters = SmallParams();
+
+        for (int i = 0; i < 200; i++)
+        {
+            string seed = $"hub-{i}";
+            Assert.AreEqual(1, CountKind(Generate(seed, parameters), RoomKind.Hub),
+                $"seed '{seed}' did not produce exactly one hub room");
+        }
+    }
+
+    /// <summary>
+    /// The hub occupies the middle of the map before any other room is sampled, so it is
+    /// the one placement that could break the spacing guarantee if it were mishandled.
+    /// Covered by <see cref="RoomsNeverOverlapAndRespectSpacing"/> for the default size;
+    /// this pins the same guarantee at the largest size the settings allow.
+    /// </summary>
+    [Test]
+    public void AnOversizedHubIsClampedToTheRoomSizeRange()
+    {
+        var parameters = SmallParams();
+        parameters.HubRoomSize = 999;
+        DungeonLayout layout = Generate("huge-hub", parameters);
+
+        Room hub = FindKind(layout, RoomKind.Hub);
+        Assert.IsNotNull(hub, "an oversized hub was dropped instead of being clamped");
+        Assert.LessOrEqual(hub.Bounds.width, parameters.MaxRoomSize);
+        Assert.LessOrEqual(hub.Bounds.height, parameters.MaxRoomSize);
+
+        Assert.AreEqual(layout.CountWalkable(),
+            RoomCorridorGenerator.CountReachable(layout, layout.SpawnCell));
     }
 
     [Test]

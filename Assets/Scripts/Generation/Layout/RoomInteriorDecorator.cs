@@ -65,9 +65,9 @@ public static class RoomInteriorDecorator
     private const int MinArea = 30;
 
     /// <summary>
-    /// Decorates every room that should be decorated. Start and Camp rooms are skipped:
-    /// the player has to be able to see that a safe room is safe, and the first room of a
-    /// run is the worst possible place to hide something.
+    /// Decorates every room that should be decorated. The Hub is skipped: the player has
+    /// to be able to see that the one safe room is safe, and it is also the first room of
+    /// a run — the worst possible place to hide something.
     /// </summary>
     public static void Decorate(DungeonLayout layout, LayoutParams p, DeterministicRandom random)
     {
@@ -75,7 +75,7 @@ public static class RoomInteriorDecorator
 
         foreach (Room room in layout.Rooms)
         {
-            if (room.Kind == RoomKind.Start || room.Kind == RoomKind.Camp) continue;
+            if (room.Kind == RoomKind.Hub) continue;
             if (room.Area < MinArea) continue;
 
             DecorateRoom(layout, room, p, random.Derive($"interior{room.Index}"));

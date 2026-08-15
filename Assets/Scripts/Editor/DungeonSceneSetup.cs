@@ -248,6 +248,7 @@ public static class DungeonSceneSetup
         SetRef(builder, "settings", settings);
         SetRef(builder, "painter", painter);
         SetRef(builder, "pathfindingGrid", Object.FindFirstObjectByType<PathfindingGrid>());
+        WirePlayerSpawnMarker(builder);
 
         var populator = EditorSetupUtility.EnsureComponent<DungeonPopulator>(root);
         SetRef(populator, "builder", builder);
@@ -256,8 +257,38 @@ public static class DungeonSceneSetup
     }
 
     /// <summary>
+    /// Points <see cref="DungeonBuilder"/>'s spawn marker at whatever Transform
+    /// <see cref="GameManager"/> in this scene teleports the player to at game start.
+    ///
+    /// This is what makes the fix self-installing rather than a manual inspector step
+    /// someone has to remember: without it, this scene's own <c>GameManager</c> and
+    /// <c>DungeonBuilder</c> would each keep working correctly in isolation, and the
+    /// player would still end up in the wrong place, because nothing told the builder
+    /// which Transform is the one <c>GameManager</c> actually reads at startup.
+    /// </summary>
+    private static void WirePlayerSpawnMarker(DungeonBuilder builder)
+    {
+        var gameManager = Object.FindFirstObjectByType<GameManager>();
+        if (gameManager == null) return;
+
+        var serialized = new SerializedObject(gameManager);
+        SerializedProperty property = serialized.FindProperty("playerSpawnPoint");
+        if (property == null || property.objectReferenceValue == null) return;
+
+        SetRef(builder, "playerSpawnMarker", property.objectReferenceValue);
+    }
+
+    /// <summary>
     /// The generator maps grid cells 1:1 onto pathfinding cells, so a Grid cell size
     /// other than the PathfindingGrid's would offset every spawn from its tile.
+    ///
+    /// Compared in *world* units — <c>grid.cellSize</c> alone is the Grid component's own
+    /// local-space value and excludes the GameObject's transform scale, so a scaled
+    /// DungeonRoot (this project has one at 2×) would otherwise make this warning fire
+    /// on a scene that is actually fine. <see cref="PathfindingGrid.Configure"/> now reads
+    /// this same world-space size from <see cref="DungeonPainter.CellSize"/> on every
+    /// build and corrects itself regardless, so this check is only ever a heads-up before
+    /// the first Generate — not something a mismatch here can leave broken.
     /// </summary>
     private static void WarnOnCellSizeMismatch(Grid grid)
     {
@@ -270,13 +301,18 @@ public static class DungeonSceneSetup
             return;
         }
 
-        if (!Mathf.Approximately(grid.cellSize.x, pathfinding.CellSize) ||
-            !Mathf.Approximately(grid.cellSize.y, pathfinding.CellSize))
+        Vector3 scale = grid.transform.lossyScale;
+        float worldCellSizeX = grid.cellSize.x * scale.x;
+        float worldCellSizeY = grid.cellSize.y * scale.y;
+
+        if (!Mathf.Approximately(worldCellSizeX, pathfinding.CellSize) ||
+            !Mathf.Approximately(worldCellSizeY, pathfinding.CellSize))
         {
             Debug.LogWarning(
-                $"[DungeonSetup] Tilemap cell size {grid.cellSize.x}x{grid.cellSize.y} differs from " +
-                $"PathfindingGrid.cellSize {pathfinding.CellSize}. Make them equal or generated " +
-                "content will not line up with its tiles.", grid);
+                $"[DungeonSetup] Tilemap cell size {worldCellSizeX}x{worldCellSizeY} world units " +
+                $"differs from PathfindingGrid.cellSize {pathfinding.CellSize}. Generate will " +
+                "correct this on the next build; flagged here only so it is not a surprise before then.",
+                grid);
         }
     }
 

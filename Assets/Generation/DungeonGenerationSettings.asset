@@ -20,6 +20,7 @@ MonoBehaviour:
   maxRoomSize: 22
   roomSpacing: 5
   placementAttemptsPerRoom: 120
+  hubRoomSize: 16
   shapedRoomChance: 0.6
   interiorDensity: 0.5
   perimeterDetail: 0.6

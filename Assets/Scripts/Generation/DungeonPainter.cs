@@ -84,14 +84,34 @@ public class DungeonPainter : MonoBehaviour
     /// <summary>World position of the lower-left corner of cell (0,0).</summary>
     public Vector2 Origin => Grid.CellToWorld(Vector3Int.zero);
 
-    /// <summary>Cell size in world units, taken from the tilemap grid.</summary>
-    public float CellSize => Grid.cellSize.x;
+    /// <summary>
+    /// Cell size in *world* units.
+    ///
+    /// <see cref="UnityEngine.Grid.cellSize"/> alone is the Grid component's own local
+    /// value and does not include the GameObject's transform scale — <see cref="Grid.CellToWorld"/>
+    /// applies it, but reading <c>cellSize</c> directly does not. Every scene shipped by
+    /// this project has `DungeonRoot` scaled 2×, so the unscaled value under-reported the
+    /// real spacing between painted tiles by half. That silently broke everything fed by
+    /// this property: <see cref="PathfindingGrid.Configure"/> is the one with the visible
+    /// symptom (it sampled a grid a quarter of the map's actual area, in the corner
+    /// nearest the origin, because it thought each cell was half as wide as it is), but
+    /// this is the one property responsible for both that and <see cref="CellCenter"/>.
+    /// </summary>
+    public float CellSize => Grid.cellSize.x * Grid.transform.lossyScale.x;
 
     /// <summary>World position of the centre of a layout cell.</summary>
     public Vector2 CellCenter(Vector2Int cell)
     {
         Vector3 corner = Grid.CellToWorld(new Vector3Int(cell.x, cell.y, 0));
-        return new Vector2(corner.x + Grid.cellSize.x * 0.5f, corner.y + Grid.cellSize.y * 0.5f);
+        Vector3 scale = Grid.transform.lossyScale;
+
+        // Half the *world*-space cell, not half of Grid.cellSize's unscaled value — the
+        // same distinction CellSize exists to make. Kept per-axis rather than reusing
+        // CellSize on both, since a non-square cell is otherwise representable here even
+        // though nothing in this project currently authors one.
+        return new Vector2(
+            corner.x + Grid.cellSize.x * scale.x * 0.5f,
+            corner.y + Grid.cellSize.y * scale.y * 0.5f);
     }
 
     /// <summary>Layout cell containing a world position.</summary>

@@ -24,7 +24,7 @@ public class RoomContentSettings : ScriptableObject
 
         [Min(0f)] public float weight = 1f;
 
-        [Tooltip("Never appears in rooms closer than this many hops from the start room.")]
+        [Tooltip("Never appears in rooms closer than this many hops from the hub.")]
         [Min(0)] public int minDepth;
     }
 
@@ -47,10 +47,10 @@ public class RoomContentSettings : ScriptableObject
     [Header("Enemies")]
     public List<PrefabChoice> enemies = new List<PrefabChoice>();
 
-    [Tooltip("Enemies in a room one hop from the start. Fractional values act as a chance.")]
+    [Tooltip("Enemies in a room one hop from the hub. Fractional values act as a chance.")]
     [Min(0f)] public float enemiesAtFirstDepth = 0.6f;
 
-    [Tooltip("Additional enemies per further hop from the start room.")]
+    [Tooltip("Additional enemies per further hop from the hub.")]
     [Min(0f)] public float enemiesPerDepth = 0.5f;
 
     [Min(0)] public int maxEnemiesPerRoom = 4;
@@ -73,10 +73,11 @@ public class RoomContentSettings : ScriptableObject
     [Tooltip("Id from the PrefabRegistry. Leave empty to generate no chests at all.")]
     public string chestPrefabId = "world.chest";
 
-    [Tooltip("Chance an ordinary room contains a chest. Rooms at depth 0 (Start) never do.")]
+    [Tooltip("Chance an ordinary room contains a chest. The hub itself never does — it gets " +
+             "its own chests, see Hub Chests below.")]
     [Range(0f, 1f)] public float chestChancePerRoom = 0.25f;
 
-    [Tooltip("Added to the chance per hop from the start room, so the far end of the run " +
+    [Tooltip("Added to the chance per hop from the hub, so the far end of the run " +
              "is where the rewards are. The total is clamped to 1.")]
     [Range(0f, 0.5f)] public float chestChancePerDepth = 0.05f;
 
@@ -127,9 +128,24 @@ public class RoomContentSettings : ScriptableObject
              "where the player has least room to retreat, so this stays deliberately low.")]
     [Min(0)] public int maxCorridorEnemies = 6;
 
-    [Header("Camp room")]
+    [Header("Hub room")]
+    [Tooltip("The dungeon's only save station. Spawned in the hub at the middle of the " +
+             "map and nowhere else, so saving stays a place the player walks back to.")]
     public string saveStationPrefabId = "world.savestation";
+
+    [Tooltip("The dungeon's only crafting table. Shares the hub with the save station " +
+             "for the same reason.")]
+    public string craftingTablePrefabId = "world.craftingtable";
+
     public string lightPrefabId = "world.lamp";
+
+    [Tooltip("Lamps placed around the hub. More than one so it is lit from several sides " +
+             "and reads as somewhere to stop, rather than one pool of light in a dark box.")]
+    [Min(0)] public int hubLamps = 3;
+
+    [Tooltip("Chests left in the hub, spawned empty. They are the player's own storage, " +
+             "not loot — what ends up in them is whatever they decide not to carry.")]
+    [Min(0)] public int hubChests = 3;
 
     [Header("Room templates")]
     [Tooltip("Hand-authored room interiors. A room that takes one skips random loot and " +
@@ -222,7 +238,7 @@ public class RoomContentSettings : ScriptableObject
     /// </summary>
     public int EnemyCountFor(int depth, DeterministicRandom random)
     {
-        if (depth <= 0) return 0; // the start room is always safe
+        if (depth <= 0) return 0; // the hub is always safe
 
         float expected = enemiesAtFirstDepth + (depth - 1) * enemiesPerDepth;
         int whole = Mathf.FloorToInt(expected);
@@ -231,7 +247,7 @@ public class RoomContentSettings : ScriptableObject
         return Mathf.Clamp(whole, 0, maxEnemiesPerRoom);
     }
 
-    /// <summary>Chance a given room gets a chest, scaled by its depth from the start room.</summary>
+    /// <summary>Chance a given room gets a chest, scaled by its depth from the hub.</summary>
     public float ChestChanceFor(int depth) =>
         Mathf.Clamp01(chestChancePerRoom + depth * chestChancePerDepth);
 

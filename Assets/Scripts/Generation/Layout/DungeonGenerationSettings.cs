@@ -45,7 +45,7 @@ public class DungeonGenerationSettings : ScriptableObject
     [Tooltip("How hard the interior pass works to break a room's sightlines with pillars, " +
              "partitions and rubble. 0 = leave rooms empty. Raising it lowers the share of " +
              "a room the player can see from its doorway, which the metrics report.")]
-    [Range(0f, 1f)] public float interiorDensity = 0.5f;
+    [Range(0f, 1f)] public float interiorDensity = 0.25f;
 
     [Tooltip("How hard the outline pass works on a room's walls: chamfering the corners " +
              "and pushing the odd cell of a long wall inwards, so the perimeter has the " +

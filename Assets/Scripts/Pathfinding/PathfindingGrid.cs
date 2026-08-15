@@ -29,6 +29,7 @@ public class PathfindingGrid : MonoBehaviour
     [SerializeField] private float cellSize = 1f;
     [SerializeField] private int width = 20;
     [SerializeField] private int height = 20;
+    [Tooltip("Layers checked for obstacles. Trigger colliders on these layers are ignored (see BuildGrid), so an interactable's trigger volume never blocks a path the way its solid collider would.")]
     [SerializeField] private LayerMask obstacleMask = ~0;
     [Tooltip("Extra clearance radius for moving agents. Increase when enemy collider is larger than a grid cell center sample.")]
     [SerializeField] private float agentRadius = 0f;
@@ -45,6 +46,10 @@ public class PathfindingGrid : MonoBehaviour
     private bool[] _walkable;
     private int[] _regionIds;
     private int _regionCount;
+
+    // Reused across every OverlapCircle call in BuildGrid to avoid a per-cell allocation —
+    // only the count matters, never the collider itself.
+    private readonly Collider2D[] _overlapBuffer = new Collider2D[1];
 
     /// <summary>Bumped by every <see cref="BuildGrid"/>. Lets caches keyed on grid topology invalidate themselves.</summary>
     public int TopologyVersion { get; private set; }
@@ -110,12 +115,15 @@ public class PathfindingGrid : MonoBehaviour
         }
 
         float radius = GetObstacleCheckRadius();
+        var filter = new ContactFilter2D { useTriggers = false };
+        filter.SetLayerMask(obstacleMask);
+
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
                 Vector2 center = CellToWorld(x, y);
-                _walkable[y * width + x] = !Physics2D.OverlapCircle(center, radius, obstacleMask);
+                _walkable[y * width + x] = Physics2D.OverlapCircle(center, radius, filter, _overlapBuffer) == 0;
             }
         }
 

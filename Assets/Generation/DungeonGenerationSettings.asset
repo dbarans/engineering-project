@@ -22,7 +22,7 @@ MonoBehaviour:
   placementAttemptsPerRoom: 120
   hubRoomSize: 16
   shapedRoomChance: 0.6
-  interiorDensity: 0.5
+  interiorDensity: 0.25
   perimeterDetail: 0.6
   corridorWidth: 2
   maxCorridorWidth: 3

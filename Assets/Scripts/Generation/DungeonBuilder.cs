@@ -52,6 +52,10 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
     /// <summary>Converts a layout cell to a world position; the single source of truth.</summary>
     public Vector2 CellCenter(Vector2Int cell) => painter.CellCenter(cell);
 
+    /// <summary>World-space cell size, for callers that need to reason about distances
+    /// rather than just cell-to-world positions (door orientation is the one today).</summary>
+    public float CellSize => painter.CellSize;
+
     private void OnEnable()
     {
         SaveManager.BuildWorld += BuildFromSave;

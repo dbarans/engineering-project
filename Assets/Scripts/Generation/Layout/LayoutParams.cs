@@ -55,7 +55,7 @@ public struct LayoutParams
         DoubleBendChance = 0.35f,
         AlcoveChance = 0.04f,
         ShapedRoomChance = 0.6f,
-        InteriorDensity = 0.5f,
+        InteriorDensity = 0.25f,
         PerimeterDetail = 0.6f,
         MaxGenerationAttempts = 12
     };

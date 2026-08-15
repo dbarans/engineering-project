@@ -20,8 +20,9 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 10 — Central hub | done, measured; needs an editor pass | see §10 below |
 | 11 — Player spawns in the hub | done, measured; needs an editor pass | see §11 below |
 | 12 — GameManager's spawn point drifts out of sync | fixed in code; **baked scenes need one manual regenerate** | see §12 below |
-| 13 — Pathfinding grid covered a quarter of the map | fixed in code and in the two checked-in scenes | see §13 below |
-| 14 — Pathfinding gizmo was invisible | fixed in code and in the two checked-in scenes | see §14 below |
+| 13 — Pathfinding grid covered a quarter of the map | fixed in code; `Dungeon.unity` also hand-edited | see §13 below |
+| 14 — Pathfinding gizmo was invisible | fixed in code; `Dungeon.unity` also hand-edited | see §14 below |
+| 15 — Blocking objects, pillar count, door alignment | done, measured; door fix reworked twice, **needs visual confirmation** | see §15 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -1512,6 +1513,155 @@ without needing a per-scene edit for the *logic* half of that bug.
    tint.
 4. Confirm nothing looks sparse at the shipped map size: 25 600 cells is under the 30 000
    cap, so every cell should be drawn (stride 1), not a dusting.
+
+---
+
+## Stage 15 — Blocking props, too many pillars, and a door alignment regression
+
+Three reports at once: props spawning somewhere that blocks passage, too many pillars, and
+doors misaligned since a recent change. Three separate causes, one each.
+
+### 1 — The chokepoint check's radius never scaled with the object's own size
+
+`TryTakeAnchor` and `TryTakeSpaced` both call `DungeonLayout.NearAnyChokepoint(cell, radius)`
+to reject a placement too close to a cell whose removal would split the dungeon. The radius
+was hardcoded to `1` in every call, regardless of how big the object actually is —
+`TryTakeSpaced` even had the object's real footprint sitting in its own parameter list
+(`spacing`) and still checked chokepoints with a flat `1`. A chokepoint marks a single cell;
+an object wider than the buffer around it can still physically reach one even while its
+*anchor* cell passes the check.
+
+Fixed by scaling the radius to the object's own footprint — `Mathf.CeilToInt(footprint / 2f)`,
+the same half-footprint clearance `SpawnFixture` already uses for the hub's furniture — in
+all three places that call `NearAnyChokepoint`: `TryTakeAnchor`, `TryTakeSpaced`, and
+`TryTakeFixtureCell` (the hub had the identical flat-`1` bug).
+
+**Measured** (200 seeds, shipped settings): simulating a footprint-5 object with the old
+flat radius of 1 let **49 423 of 643 527** accepted placements have a footprint that still
+touched a chokepoint. With the fix, across the same run and separately at footprint 1 and 3
+(`Table.prefab`'s actual size), **zero**. Footprint 3 alone happened not to show the bug in
+this measurement — its floor-division half-width (1) coincides with the old flat radius —
+which is exactly why the fix reasons from the object's real size rather than from what one
+specific prefab's dimensions happen to round to.
+
+### 2 — Prop clusters never checked against each other, or against chests
+
+Every cluster's spacing was tracked in a `placed` list created fresh inside the `while`
+loop in `SpawnProps` and discarded once that cluster finished. A barrel cluster and a table
+cluster placed one after another in the same room had no way to know about each other —
+each only avoided overlapping *its own* members. Chests, spawned earlier in the same room by
+`SpawnChests`, were invisible to props for the same reason: different call, different local
+list.
+
+Fixed with one list, `roomOccupied`, created once per room in `SpawnRoomContent` and threaded
+through `SpawnChests` then `SpawnProps` — every chest and every prop (anchor and cluster
+member alike) is added to it, and `TryTakeAnchor`/`TryTakeSpaced` now check it in addition to
+their existing chokepoint and same-cluster checks. `IsClearOfFixtures`, the pairwise
+footprint-spacing check written for the hub's own furniture in Stage 10, is exactly this
+check already — renamed `IsClearOfPlaced` and reused rather than duplicated.
+
+**Measured** (200 seeds, 3000 rooms, alternating barrel/table clusters mirroring
+`SpawnProps`'s own loop): **9210 overlapping pairs** without the shared list, **0** with it —
+at a cost of 310 fewer props placed out of ~36 000 (0.9%), the ones that would only have fit
+by overlapping something already there.
+
+### 3 — Door alignment regressed from the Stage 13 `CellCenter` fix
+
+Reported as "doors are too small, there's a gap" right after Stage 13 shipped — the
+timing is the diagnostic clue, not a coincidence.
+
+`SpawnDoors`'s rotated-door branch (used wherever a corridor runs north–south through the
+doorway) nudges the spawned door with a hardcoded `pos.x += 1f`, to re-centre it after a
+90-degree turn swings its off-centre pivot sideways. That constant was necessarily tuned by
+eye against whatever `DungeonPainter.CellCenter` returned *at the time* — and Stage 13
+changed what that is. Before Stage 13, `CellCenter` offset a cell's corner by half of the
+Tilemap `Grid` component's own **unscaled** cell size — always `1`, by this project's "one
+tile is one world unit" PPU convention (`DungeonSceneSetup.TilePixels`) — giving `0.5`
+world units, regardless of the `DungeonRoot` transform's scale. After Stage 13, it correctly
+offsets by half the **true world-space** cell size, `painter.CellSize * 0.5`, which is `1.0`
+on the shipped 2×-scaled `DungeonRoot`. Every spawn position moved by that `0.5`-unit delta
+in both axes — imperceptible for a barrel or an enemy, precise enough to open a visible gap
+at a doorway sized to the cell.
+
+First fix attempt subtracted that same, exactly-known delta from the rotated branch's
+compensation (`pos.x += 1f - (builder.CellSize * 0.5f - 0.5f)`) and left the unrotated
+(`else`) branch untouched, on the reasoning that it spawns straight at `CellCenter(cell)`
+with no hand-tuned hack to have regressed. That reasoning was wrong in a way only the editor
+could show: **confirmed by screenshot on an unrotated (east–west) door** — FOV leaked through
+a sliver at the top of the closed door, in the shipped 2×-scaled hub room. So the gap was
+never really about the Stage 13 delta specifically; it is about `Door_System`'s origin (what
+`SpawnDoors` positions at `CellCenter`) not being the centre of the closed door's own
+collider in the first place. The prefab's hinge pivot (`Door_Pivot`, at local `(0.25, -0.25)`
+under `Door_System`) has to sit off-centre for the swing-open rotation to look right, but that
+same offset means the *closed* door's collider centre sits about a quarter-cell away from
+`Door_System`'s origin — in **both** axes, regardless of rotation. The old `pos.x += 1f`
+hack partially masked this for the rotated branch by accident (it was tuned by eye against a
+door that already had this offset baked in); the unrotated branch was never covering it at
+all, hence the gap the user found.
+
+**Replaced the whole position hack** with `DungeonPopulator.CenterOnCollider`: after setting
+the door's rotation, work out where the door's collider actually is and shift the door by the
+difference between that and the intended cell centre. This self-corrects for the pivot offset
+at any rotation angle without needing to know the prefab's internal geometry or hand-tune a
+constant against it — the `legacyCenterOffsetDelta` arithmetic is gone from `SpawnDoors`
+entirely.
+
+#### The first attempt at that used `Collider2D.bounds`, and put every door off the map
+
+Worth recording, because the failure is a general Unity trap and the symptom was spectacular
+rather than subtle. `Collider2D.bounds` is **physics**-backed. `Physics2D.autoSyncTransforms`
+is off by default, so a collider's bounds do not reflect a transform written earlier in the
+same frame until the next physics step — and this code runs during **edit-mode baking**,
+where no physics step ever comes. The read returned an unsynced centre of roughly the world
+origin, making the correction `cellCenter - 0`, which lands each door at *twice* its map
+coordinate. Every door left the map.
+
+The replacement takes the collider centre from the transform hierarchy instead —
+`doorCollider.transform.TransformPoint(doorCollider.offset)` — which is pure matrix maths on
+transforms already written, correct the instant the rotation is set, with no physics and no
+sync call. Reasoning it through against `Door_System.prefab`'s hierarchy (`Door_Pivot` at
+local `(0.25, -0.25)`, `Door_Visual` at `(0, 0.5)` scaled `0.2` in x, box offset ≈ `0`) the
+correction is **(-0.249, -0.250)**, magnitude 0.35 — a quarter cell, and that `+0.25` in y is
+exactly the sliver the screenshot showed above the closed door. `CenterOnCollider` also now
+refuses any correction larger than one cell, logging instead: a misread centre leaves the
+door visibly at its doorway where the fault can be seen, rather than silently on the far side
+of the map.
+
+Compiles clean (Roslyn check against the full project, 0 errors). **Still needs the in-editor
+walk documented below** — the arithmetic above is derived, not observed, and the previous
+attempt is a standing reminder that derivation alone did not catch a physics-lifecycle bug.
+
+### Not done
+
+- **The gap Table.prefab actually posed, per the footprint-3 measurement above, was already
+  geometrically zero even before this fix** — its footprint happens to round such that a
+  flat radius of 1 was sufficient. The fix is still correct and still needed: it removes a
+  dependency on that coincidence for every other footprint, current or future.
+- **No headless check exists for the door offset**, and cannot — it is a rendering-alignment
+  question about where a sprite's pivot sits relative to its collider, which the layout
+  assembly's engine-free test harness has no way to observe. Confirming this one needs the
+  editor.
+- **Non-blocking props still get no cross-cluster spacing check against `roomOccupied`
+  through the wall-bias search path's fallback**, only through the two loops that do run —
+  in practice moot, since every prop registered today (`prop.barrel`, `prop.table`) is
+  blocking, but worth knowing if a genuinely non-blocking prop is ever added.
+
+### In-editor checklist for this stage
+
+1. Regenerate a dungeon and look through several rooms for barrels or tables standing
+   inside a wall, inside a pillar, or inside each other. None should.
+2. Compare pillar/rubble density against a memory of the previous default: rooms should
+   read as noticeably less cluttered, without going back to bare rectangles — `interiorDensity`
+   moved 0.5 → 0.25 in the same pass (Stage 6's own measured table: 0.736 → 0.769 mean room
+   visibility, i.e. rooms give away more of themselves at a glance, which is the intended
+   trade for fewer pillars).
+3. **Walk up to both a rotated door** (north–south corridor) **and an unrotated door**
+   (east–west corridor, the one the screenshot showed leaking) and check each fully seals
+   the opening — no FOV sliver past any edge when closed. `CenterOnCollider` treats both
+   branches the same way now, so both need checking; if either still shows a gap, note which
+   edge and how wide, since that tells me whether `Collider2D.bounds` disagreed with what
+   is actually visible (e.g. the collider not matching the sprite) rather than a centring
+   problem.
 
 ---
 

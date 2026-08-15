@@ -94,12 +94,14 @@ public class ChestInteractable : MonoBehaviour
         }
 
         _open = this;
+        AudioService.PlayAt(SoundId.ChestOpen, transform.position);
         ChestUI.Instance.Show(_inventory.Container);
     }
 
     private void Close()
     {
         _open = null;
+        AudioService.PlayAt(SoundId.ChestClose, transform.position);
         if (ChestUI.Instance != null) ChestUI.Instance.Hide();
     }
 }

@@ -214,11 +214,13 @@ public class SimpleDoor : MonoBehaviour
             }
 
             targetRotation = closedRotation * Quaternion.Euler(0, 0, openAngle * direction);
+            AudioService.PlayAt(SoundId.DoorOpen, transform.position);
             Debug.Log($"[Door] Opened away from {(opener != null ? opener.name : "Unknown")}!");
         }
         else
         {
             targetRotation = closedRotation;
+            AudioService.PlayAt(SoundId.DoorClose, transform.position);
             Debug.Log("[Door] Closed!");
         }
     }
@@ -276,6 +278,7 @@ public class SimpleDoor : MonoBehaviour
         }
 
         currentHealth -= damageAmount;
+        AudioService.PlayAt(SoundId.DoorHit, transform.position);
         Debug.Log($"[Door] Received {damageAmount} damage! Remaining HP: {currentHealth}/{maxHealth}");
 
         if (currentHealth <= 0f)
@@ -290,6 +293,7 @@ public class SimpleDoor : MonoBehaviour
     private void DestroyDoor()
     {
         isDestroyed = true;
+        AudioService.PlayAt(SoundId.DoorDestroy, transform.position);
         Debug.Log("[Door] Fully destroyed!");
 
         if (doorCollider != null) doorCollider.enabled = false;

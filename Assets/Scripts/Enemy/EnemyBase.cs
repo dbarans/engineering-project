@@ -77,13 +77,12 @@ public abstract class EnemyBase : MonoBehaviour
     [Tooltip("Radius within which random wander points are picked: around the spot where the player was lost (WanderNearLastPosition), or around the spawn position for enemies with no waypoints configured.")]
     [SerializeField] private float wanderRadius = 4f;
 
-<<<<<<< HEAD
     [Header("Performance")]
     [Tooltip("Extra distance added to this enemy's own sensor ranges. Inside the result the AI ticks every frame; outside it, only every throttledTickInterval. A dungeon holds dozens of enemies and nearly all of them are far away at any moment.")]
     [SerializeField] private float fullUpdateMargin = 8f;
     [Tooltip("Tick period for enemies the player is far away from. Movement is compensated for the longer step, so patrols still run at normal speed. Set to 0 to disable throttling.")]
     [SerializeField] private float throttledTickInterval = 0.35f;
-=======
+
     [Header("Drop System")]
     [SerializeField] private GameObject corpsePrefab;
     [SerializeField] private List<DropItem> possibleDrops;
@@ -97,7 +96,6 @@ public abstract class EnemyBase : MonoBehaviour
             [Min(1)] public int maxQuantity;
             [Range(0f, 100f)] public float dropChancePercent;
         }
->>>>>>> origin/dev
 
     protected float currentHealth;
     private IMovementStrategy movementStrategy;

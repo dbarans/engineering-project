@@ -22,7 +22,10 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 12 — GameManager's spawn point drifts out of sync | fixed in code; **baked scenes need one manual regenerate** | see §12 below |
 | 13 — Pathfinding grid covered a quarter of the map | fixed in code; `Dungeon.unity` also hand-edited | see §13 below |
 | 14 — Pathfinding gizmo was invisible | fixed in code; `Dungeon.unity` also hand-edited | see §14 below |
-| 15 — Blocking objects, pillar count, door alignment | done, measured; door fix reworked twice, **needs visual confirmation** | see §15 below |
+| 15 — Blocking objects, pillar count, door alignment | done, measured; door fix reworked twice, confirmed in editor | see §15 below |
+| 16 — Real floor art and paper litter | done, previewed outside Unity; **needs a Setup run and an editor look** | see §16 below |
+| 17 — Doors on one jamb, pillars plugging passages, doors in shadow | fixed and measured headlessly; **needs an editor look** | see §17 below |
+| 17 — Mid-air doors, threshold tile, table pathfinding | done, measured over 200 seeds; **needs an editor look** | see §17 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -1662,6 +1665,387 @@ attempt is a standing reminder that derivation alone did not catch a physics-lif
    edge and how wide, since that tells me whether `Collider2D.bounds` disagreed with what
    is actually visible (e.g. the collider not matching the sprite) rather than a centring
    problem.
+
+---
+
+## Stage 16 — The real floor art, and paper on the ground
+
+Two assets were sitting in `Assets/Art` unused: `FURNITURE_pngy_podloga.png`, a cobbled floor,
+and `FURNITURE_pngy_papier.png`, loose sheets of paper. Both now feed the generator. Neither is
+in a form a tilemap can consume directly, and the two problems are opposite ones.
+
+### 1 — The floor is a slab, not a tile
+
+`podloga` is one 3045×1913 painting of a stretch of cobbles, with torn edges and a
+semi-transparent fringe. It is not seamless and it is not a tile. Cutting independent per-cell
+variants out of it — the shape the existing `floorTiles` array expects — puts a hard
+discontinuity at **every** cell border, because stones are sliced mid-stone on all four sides.
+More variants do not help: the mismatch is at every edge rather than occasionally, so the floor
+reads as a grid of patches no matter how many patches there are.
+
+Cut as a **mosaic** instead. One square region is cut into a 4×4 block of pieces, and
+`DungeonPainter.PickFloor` selects by position — `(x mod 4, y mod 4)` — rather than by seed.
+The pieces were adjacent in the source, so they line up with each other exactly: stone runs
+unbroken across every border inside a block, and only the block boundary repeats, every 4
+cells instead of every 1. `floorMosaicSize` on the painter switches between this and the old
+per-cell scatter, and the setup writes it, so a project without the art still gets the
+generated placeholders and the old behaviour.
+
+**Which square to cut matters more than expected**, and the first two attempts were both
+visibly wrong when rendered out and looked at:
+
+- *Nearest the middle of the image* (the obvious choice, to stay away from the torn edges)
+  landed on a region straddling the painting's lighting gradient. One side of the block was
+  brighter than the other, so every block boundary became a visible step — a grid of faint
+  rectangles.
+- Scoring against moss then failed to find any, because the test was the intuitive one: green
+  above **both** red and blue. This moss is olive. Measured, its green runs only ~10 above red
+  — under the threshold — but 59 to 65 above blue, against 8 for stone. Green-minus-blue
+  separates them cleanly; green-against-both matches none of it.
+
+The search now scores every fully opaque candidate on moss content (weighted heavily) plus the
+tone mismatch between opposite edges, since those are the edges that end up adjacent when the
+block repeats. On the shipped art that picks (1472, 576) at 1024², downsampled 2× to a 512px
+block: **0.319% moss and 1.86 edge tone**, against 0.000%-detected/uneven for the first attempt.
+
+**Verified by rendering it out and looking at it** — the slicing was reimplemented outside Unity
+and the block tiled 3×3 into a 12×12-cell image, which is the only way to see a seam or a repeat
+at all. Per-cell seams: gone. Tonal step at block boundaries: gone.
+
+### 2 — The paper is several sheets on one canvas
+
+`papier` holds four sheets, three of them overlapping into one clump. The first pass took each
+connected clump as a decal, giving a lone sheet and a pile of three. That is the cheap reading
+of the image and it is wrong twice over: every pile then lands at the one angle and arrangement
+the artist happened to draw, and the sheets inside it cannot be told apart or spread out.
+
+Splitting the clump into its three sheets is not the fix either — an overlapped sheet is drawn
+with a bite taken out of it by the one on top, so extracting it yields a notched shape rather
+than a sheet, and no amount of component-tracing recovers pixels that were never painted.
+
+So **exactly one sheet is taken** — the isolated one — and every decal is *composed* from it:
+each sheet placed at its own angle, its own size jitter and its own offset, with a group being
+simply a tile carrying several of them. `PaperSheetCounts` (`{1,1,1,2,2,3}`) sets both the
+number of variants and the mix, since the painter picks between decals uniformly: mostly lone
+dropped pages, with a couple of small scatters. Rotation is a full 0–360°, so no two decals
+share an angle.
+
+The one sheet is identified as the **smallest** group, since a clump contains two or more
+sheets and is therefore larger than any one of them. That holds for this art and for any redraw
+keeping at least one sheet clear; if a redraw ever overlapped every sheet, the code warns rather
+than silently cutting up a pile.
+
+Two things here are easy to get wrong and are worth not rediscovering:
+
+- **Sheets are drawn destination-to-source, not source-to-destination.** Walking the sheet and
+  scattering its pixels forward leaves unwritten gaps wherever rounding sends two source pixels
+  to the same destination, which on a rotated sprite is a dusting of pinholes across it.
+- **Sampling and blending are both premultiplied.** Interpolating straight RGB across the
+  sheet's edge drags in the colour of fully transparent pixels — black — and rings every page
+  in a dark fringe. Same reason the floor's resample is premultiplied, except the floor is
+  opaque throughout and never shows it, while paper is nearly all edge.
+
+Decals go into the existing decal tilemap — no collider, drawn over the floor and under the
+walls — which is what paper on a floor should be, and means `decalChance` and `decalWallBias`
+already place it, litter collecting at room edges.
+
+**Sheets cannot spill out of their cell**, which would show as paper sliced in half at a cell
+border. Worst case, at 45° and maximum jitter: a half-diagonal of
+`0.5 × (0.42 × 128 ÷ 255 × 1.12) × √(211² + 255²) = 39.1px`, plus a maximum centre offset of
+`0.17 × 128 = 21.8px`, is 60.9 against the tile's 64px half-width. That is a bound on the
+geometry, not a property of the particular random numbers that came out.
+
+### Also
+
+Tiles cut from art are 128px with their PPU set to match, so they still cover exactly one world
+unit and sit on the same tilemap as the 32px generated placeholders without either being scaled
+to the other. They also import bilinear rather than point: point filtering keeps the
+placeholders' deliberate pixel grain crisp, but on downsampled painted art it aliases stonework
+into shimmering speckle as the camera moves.
+
+### Not done
+
+- **The moss tuft still repeats every 4 cells.** 0.319% is the *minimum* across all 126
+  candidate squares — the art has moss scattered throughout, so no crop avoids it. It is the
+  one landmark in an otherwise uniform texture, and the eye finds it in a flat lit preview.
+  Whether it matters in game is a genuinely different question, because the dungeon is rendered
+  under a vision cone with everything else dark, and a 4-cell repeat is rarely all on screen
+  and lit at once. **This is the thing to judge in the editor.** If it does read as a pattern,
+  the next step is several mosaic blocks chosen per block-position from the seed, which
+  dissolves the grid at the cost of reintroducing a seam at block boundaries only.
+- **The old `FloorTile`/`FloorTileB`/`FloorTileC` assets are left in place**, unused while the
+  art is present. Deleting assets is not something a setup re-run should do, and they are the
+  fallback if the art ever goes missing.
+- **Papers are decoration, not readable items.** They are decals, so they cannot be picked up
+  or interacted with. Worth knowing if notes-as-lore is ever wanted — that would be a prop or
+  an interactable, not this.
+- **Only one of the four drawn sheets is used.** The other three are unrecoverable as
+  individual sheets, being drawn overlapped (see above), so every page in the dungeon is the
+  same sheet at a different angle and size. Not visible in practice — sheets of paper are the
+  same shape as each other — but if genuinely different pages are wanted, the cheapest route is
+  the artist drawing the four sheets *separated* on the canvas, at which point this code picks
+  all four up with no changes beyond taking every group instead of the smallest.
+- **Paper is now 6 of 10 decal variants**, up from 2 of 6, because the mix is expressed as the
+  number of variants. If that reads as too much litter, the fix is `PaperSheetCounts`, not
+  `decalChance` — the latter changes how much of everything there is.
+
+### 3 — Neither the floor nor the paper was actually wired into either scene
+
+Reported as "paper 0 looks right, I never see paper 1 anywhere" — asked about the tiles
+directly, which was the tell, because both tiles are fine: `DecalPaperA.png` and
+`DecalPaperB.png` both render correctly on their own (checked by eye). The bug was never in the
+art or the composite code. It was that **neither scene's `DungeonPainter` had ever been told the
+new tiles exist.**
+
+`Setup Scene Tilemaps` cuts the art and calls `WireGenerator`, which is the only place that
+writes `floorTiles`, `floorMosaicSize` and `decalTiles` onto the painter component. Checking
+`Dungeon.unity` and `DungeonBN.unity` directly (`grep decalTiles`) showed both painters still
+serialized with exactly the four original crack/stain/grit decals and the three original
+`FloorTile`/`B`/`C` placeholders — the mosaic and every paper tile were present as assets on
+disk and referenced by nothing in either scene. `RegenerateTiles` doesn't touch scene wiring
+either, by design (see its own doc comment) — it only recuts the PNGs, so a floor or decal set
+that was never wired in the first place stays never wired no matter how many times it runs.
+
+**A dungeon regenerated in either scene was never going to show *any* paper**, not "paper 1
+specifically" — the report undersold the bug relative to what was actually broken. It also means
+the whole of Stage 16's Section 1 (the floor mosaic) has never appeared in either scene until
+now, on top of the paper.
+
+Fixed by hand-editing both scenes' serialized `decalTiles` and `floorTiles` arrays to the full
+sets (10 and 16 entries respectively, by GUID) and adding `floorMosaicSize: 4`, rather than
+running the editor tool — there is no Unity instance available to run it. This is the same
+outcome `Setup Scene Tilemaps` would have produced for these two fields, done directly because
+the tool couldn't be. Everything else `WireGenerator` sets (wall tiles, doorway, pillar, rubble,
+the builder and populator references) was already correct and untouched.
+
+**Not verified in the editor** — same limitation as the rest of this stage. What can be
+verified without it: field counts match (`floorTiles` 16, `decalTiles` 10) and every GUID in
+both edits matches an existing `.asset.meta` in `Assets/Generation/Tiles`, checked by grep
+against both scenes after the edit.
+
+### In-editor checklist for this stage
+
+1. Open `Dungeon.unity` (or `DungeonBN.unity`) and select the `DungeonRoot`'s `DungeonPainter`.
+   Confirm `Floor Tiles` shows 16 entries and `Decal Tiles` shows 10, with `Floor Mosaic Size`
+   at 4 — these were hand-patched into the scene YAML rather than written by the tool (see §3),
+   so this is the first real check that the patch took. If either count is wrong, running
+   **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** rewires both from whatever is on disk in
+   `Assets/Generation/Tiles` and is safe to run again — it does not duplicate or overwrite
+   existing tile assets, only the component references.
+2. Regenerate a dungeon and look at a large room's floor. Stone should run continuously across
+   cell borders — no grid of patches, no rectangular tonal steps.
+3. Walk a room and watch the moss. Judge whether the 4-cell repeat reads as a pattern *in game
+   lighting*, not in the scene view with everything lit — that difference is the whole question.
+4. Check paper is showing up, at a believable size against the player and the barrels, and that
+   no two pages sit at the same angle. `decalChance` on the painter tunes how much litter there
+   is; paper is 6 of 10 decal variants now, so if the floor reads as too papery that is the
+   knob, or drop entries from `PaperSheetCounts`.
+
+---
+
+## Stage 17 — Doors hung on nothing, the threshold tile, and the table
+
+### 1 — One in eight doors hung in mid-air
+
+Reported from a screenshot of two doors near each other with open floor down their sides, as
+"doors are not fixed to the wall on both sides". The screenshot's own reading — two doorway
+cells side by side — turned out to be wrong, and checking it rather than acting on it is what
+found the real fault.
+
+Measured first, over 200 seeds at the shipped settings: **zero** doorway cells anywhere touch
+another doorway cell, and every doorway is a clump of exactly one cell. So doors are never
+adjacent and the width-1 normalisation is doing its job. What the same run did find:
+**1131 of 9479 doorway cells (11.93%) have no solid neighbours on either axis.**
+
+`SpawnDoors` only ever asked one question:
+
+```csharp
+bool wallEast  = !layout.IsWalkable(x + 1, y);
+bool wallWest  = !layout.IsWalkable(x - 1, y);
+rotation = wallEast && wallWest ? 90° : identity;
+```
+
+North and south were never tested. "Not walled east-west" was taken to mean "walled
+north-south then", and for 11.9% of doorways neither is true — so a door was spawned upright,
+by default, into an opening with nothing on any side to hang from. That is the mid-air door in
+the screenshot; two of them happening to land near each other is what made it look like an
+adjacency problem.
+
+Both pairs are tested now, and a cell with neither pair solid gets no door and stays an open
+arch — which is already what the layout does with an opening too wide to narrow (see
+`DoorwayNormalizer`, which leaves those unmarked for exactly this reason).
+
+**Measured after the fix**, same 200 seeds: 8348 doors spawn (41.7 per map, down from 47.4),
+**0** of them unjambed, 4146 rotated against 4202 upright — an even split, which is the
+sanity check that the newly-tested axis is real and not just always answering the same way.
+No map is left without doors.
+
+### 2 — The threshold tile broke the floor it now sits in
+
+`doorwayTile` painted a dark slab with two lit jambs on every doorway cell, and `OrientDoorways`
+turned it to face along its passage. That earned its place when the floor was flat generated
+noise and an opening needed help reading as an opening. Against the real floor art it does the
+opposite: a doorway is the one cell that is always looked at straight on, and a different tile
+there cuts the stone that now runs continuously through it, so the threshold reads as a patch
+rather than as the floor carrying on under the door.
+
+Doorway cells take the ordinary floor now. `doorwayTile` and `OrientDoorways` are gone
+(the rotation existed only to orient that tile, and rotating a *mosaic* tile would tear the
+very continuity the mosaic is for), along with the setup's `DoorwayTile` generation and its
+wiring. The `TileStyle.Doorway` drawing routine is kept, unused, as the record of what the
+threshold looked like. The stale `doorwayTile:` line left in both scenes' YAML is harmless —
+Unity drops serialized fields that no longer exist on the class.
+
+### 3 — The table stopped blocking pathfinding
+
+Fallout from Stage 15's `useTriggers = false`, and a real gap rather than a regression of that
+change. `Table.prefab` carries a trigger on its root (layer 11 `ObstaclePathOnly`) and its
+**solid** collider on a child, `Solid`, on layer 13 `CrouchPassable` — the layer
+`PlayerHiding` makes the player's body stop colliding with while crouched, so a
+crouching player fits under the table. `PathfindingGrid.obstacleMask` was 2816: layers 8, 9 and
+11. Layer 13 is not in it. So once the trigger stopped counting, nothing about the table was
+visible to pathfinding at all and enemies walked through it.
+
+The mask is now 11008 — layers 8, 9, 11 and **13** — in both scenes. Layer 13 stays out of
+`FieldOfView`'s mask (4864: layers 8, 9, 12), so a table blocks movement without blocking
+sight, which is the project's standing convention for props.
+
+Checked every prefab for the same shape of problem: only `Table` has a non-trigger collider on
+a layer outside the pathfinding mask. `Barrel` is layer 11 with a **non-trigger** collider, so
+it was never affected by the trigger change and still blocks correctly.
+
+### Not done
+
+- **`ObstaclePathOnly` (layer 11) is now close to dead** for pathfinding, since the one thing
+  using it does so with a trigger and triggers are ignored. It stays in the mask because a
+  non-trigger collider placed there would still be a legitimate path-only obstacle; worth
+  revisiting if nothing ever uses it that way.
+- **The 11.9% of openings that lose their door are not compensated for.** They become arches.
+  Whether the dungeon wants a door there at all is a layout question — the opening genuinely
+  has no jamb to hang one on — and forcing one would mean the normaliser walling a cell to
+  build a frame, which is a change to generation rather than to spawning.
+
+### In-editor checklist for this stage
+
+1. Regenerate a dungeon and look along a few corridors: every door should meet solid wall or
+   pillar at both ends of its leaf. Openings with no frame should simply be gaps, no door.
+2. Look at a doorway floor — the stone should run through it unbroken, with no darker slab or
+   rotated patch marking the threshold.
+3. Walk an enemy into a table (or watch one path around one). It should treat the table as
+   solid. Then crouch and confirm the player still fits under it — that is layer 13 doing two
+   jobs and the change only touched the pathfinding half.
+
+---
+
+## Stage 17 — Doors on one jamb, pillars in passages, doors in shadow
+
+Four reports from playing the generated dungeon. Unlike Stage 16 this one is **measured**: the
+layout assembly is engine-free, so it was run headlessly over 200 seeds at the shipped settings
+and each claim checked as a number before anything was changed. That immediately settled which
+reports were what they looked like and which were not.
+
+### 1 — "Two doors side by side, not fixed to the wall on both sides"
+
+The obvious reading is that the layout put two doorway cells next to each other. **It never
+does**: across 200 seeds, adjacent `Door` cell pairs came to **0**, and the closest two doorways
+ever get is 2 cells apart. So the pair in the screenshot was not two halves of one wide opening.
+
+The real fault is one door per opening, hung on nothing. `SpawnDoors` tested only the east/west
+pair to decide rotation and took "no" to mean "north/south then", without ever checking:
+
+```csharp
+bool wallEast = !layout.IsWalkable(x + 1, y);
+bool wallWest = !layout.IsWalkable(x - 1, y);
+doorInstance.transform.rotation = wallEast && wallWest ? …90° : …identity;
+```
+
+A doorway cell with, say, solid to the north but open to the south falls into the `else` and gets
+an upright leaf with open floor down one side. Measured: **1131 of 9483 doorway cells (11.9%),
+5.7 per map, on 196 of 200 maps** have neither a solid east/west nor a solid north/south pair.
+Not an edge case, and two of them near each other is exactly the screenshot.
+
+Fixed by testing both pairs and spawning nothing when neither is solid. Those cells stay open
+arches — which is already what the layout does with an opening too wide to narrow, so it is the
+existing convention rather than a new one.
+
+### 2 — "A pillar blocking the way"
+
+Real, and the most common of the four. `RoomInteriorDecorator.Apply` writes a batch of solid
+cells and rolls back if `RoomStaysWhole` fails. That check asks whether the room is still in one
+piece — and a pillar dropped into a one-cell gap leaves it perfectly connected whenever any other
+way round exists. So the rollback never fires, and the pillar stays: floor either side of it,
+wall above and below, sitting square in the channel.
+
+Worth being precise about what is and is not broken here. **Connectivity is never actually lost**
+— 0 of 200 maps had a single stranded walkable cell, before or after. The generator's own
+validation was doing its job. The complaint is about how it reads, and it reads as a blocked
+corridor whether or not a detour exists.
+
+Fixed with `ClearPassagePlugs`, which re-opens any cell of a batch that ends up with floor on both
+sides of one axis and solid on both sides of the other. Run to a fixed point, because opening one
+cell can leave a neighbour of the same batch newly flanked and so newly a plug; each pass only
+turns solid into floor, so it terminates.
+
+**Measured, 200 seeds:** plugging pillars away from any doorway **1948 → 202, down 90%**. Total
+pillars fell only 1.2% (26102 → 25786), so the interior patterns are intact rather than
+dismantled. Connectivity still 0 stranded cells.
+
+Doorway jambs are deliberately untouched: those come from `DoorwayNormalizer` walling an opening
+down to door width, are *supposed* to sit beside a gap, and never appear in a batch this sees.
+They are the 745 plugging cells that remain next to a door.
+
+### 3 — Doors rendered in shadow while walls stayed lit
+
+Nothing to do with materials, and nothing to do with the vision mask — the door leaf does not use
+the FOV-masked material at all. It is purely sorting order. `DarknessOverlayQuad` draws at order
+**6**; `WallSortingOrder` is **7**, which is *why* walls read as lit — they are simply drawn over
+the darkness. The door leaf was at **0**, i.e. underneath it.
+
+Raised the leaf to **8** and the three barricade stages to **9/10/11**, keeping their relative
+order. 8 rather than 7 also fixes a second thing, noted as known-and-unaddressed in
+`DungeonSceneSetup`'s own comment on `WallSortingOrder`: a leaf wider than its cell used to draw
+partly *behind* the jamb tiles it swings across. Above the walls, it no longer can.
+
+### 4 — The table was not blocking pathfinding
+
+Already fixed in the scene by the time this stage was written (`obstacleMask` 2816 → 11008), but
+worth recording why, because the layer split is not obvious. The table is deliberately two
+colliders: a **trigger on the root** on `ObstaclePathOnly`, which is the `CrouchHideout` footprint
+the player hides inside, and a **solid child** on `CrouchPassable`, which is what stops a standing
+player. Stage 15 made the pathfinding grid ignore triggers — correct, and what was asked for — but
+the grid's mask covered layers 8/9/11 and *not* 13, so with the trigger ignored nothing was left
+to sample and the table became invisible to A\*. Adding `CrouchPassable` to the mask is what makes
+the solid child do the blocking, which is what was wanted: the trigger is a gameplay volume, not a
+navigation hint.
+
+Vision is untouched by this and must stay that way — `FieldOfView` samples 8/9/12, so neither the
+table's trigger nor its solid child blocks sight, per the project's rule that only walls and trees
+occlude.
+
+### Not done
+
+- **~202 plugging pillars remain across 200 seeds** (about 1 per map, down from ~10). They are not
+  from `RoomInteriorDecorator`'s batches, which are now clean by construction, so they come from
+  another pass — most likely `RoomShaper`'s perimeter detail, which pushes the odd wall cell
+  inwards after the interiors are placed. Catching those needs either the same treatment there or
+  one global sweep at the end of generation, skipping cells beside a doorway so the jambs survive.
+  Left alone for now: a global sweep late in the pipeline can undo shaping the earlier passes did
+  on purpose, and that is worth measuring properly rather than bolting on.
+- **None of this is verified in the editor.** Everything above is a headless measurement of the
+  layout plus a sorting-order change that cannot be checked without rendering. The numbers say the
+  layouts no longer contain these shapes; they do not say the dungeon looks right.
+
+### In-editor checklist for this stage
+
+1. Regenerate and walk a few corridors: no pillar should be standing in a one-cell gap with floor
+   either side of it. About one per map may still be, per "Not done" above.
+2. Check several doorways. Every door should meet wall on both sides; openings with nothing to
+   hang on are now empty arches rather than a leaf floating in the gap. If a doorway that clearly
+   *does* have two jambs is missing its door, that is a new bug, not this fix.
+3. Doors should now be lit like walls rather than sitting under the darkness, including when
+   swung open across a wall.
+4. Confirm an enemy paths *around* a table rather than through it, and that the table still does
+   not block vision.
 
 ---
 

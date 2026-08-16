@@ -27,6 +27,13 @@ public class DungeonPainter : MonoBehaviour
              "for a cell is chosen from the dungeon seed, so it is stable across rebuilds.")]
     [SerializeField] private TileBase[] floorTiles;
 
+    [Tooltip("Set above 1 when the floor tiles are the pieces of one larger image rather " +
+             "than interchangeable variants. The tiles are then laid out in row-major order " +
+             "across an N by N block and repeated, so the artwork stays continuous across " +
+             "cell borders inside a block and only repeats every N cells. Needs exactly " +
+             "N*N floor tiles. 1 picks an independent variant per cell from the seed.")]
+    [Min(1)] [SerializeField] private int floorMosaicSize = 1;
+
     [Tooltip("Wall seen from above.")]
     [SerializeField] private TileBase wallTile;
 
@@ -50,9 +57,6 @@ public class DungeonPainter : MonoBehaviour
     [Tooltip("Optional. Collapsed masonry; falls back to the wall tile. Solid like a wall " +
              "despite reading as debris.")]
     [SerializeField] private TileBase rubbleTile;
-
-    [Tooltip("Optional. Painted on doorway cells to make openings readable; falls back to the floor tile.")]
-    [SerializeField] private TileBase doorwayTile;
 
     [Tooltip("Optional. Marks scattered over the floor. Needs the decal tilemap to be assigned.")]
     [SerializeField] private TileBase[] decalTiles;
@@ -137,7 +141,6 @@ public class DungeonPainter : MonoBehaviour
         var floors = new TileBase[count];
         var walls = new TileBase[count];
 
-        TileBase doorway = doorwayTile != null ? doorwayTile : floorTiles[0];
         TileBase wallFace = wallFaceTile != null ? wallFaceTile : wallTile;
         TileBase pillar = pillarTile != null ? pillarTile : wallTile;
         TileBase rubble = rubbleTile != null ? rubbleTile : wallTile;
@@ -199,8 +202,16 @@ public class DungeonPainter : MonoBehaviour
                 // Floor goes under the painted walls too: without it, any gap the wall
                 // collider leaves would show the void through the structure. Under the
                 // *unpainted* rock it would defeat the point, so that stays empty.
-                if (cell == CellType.Door) floors[index] = doorway;
-                else if (cell != CellType.Wall || walls[index] != null) floors[index] = PickFloor(seedHash, x, y);
+                //
+                // Doorways get the ordinary floor, like everything else. They used to get a
+                // tile of their own — a dark slab between two lit jambs — which earned its
+                // place while the floor was flat generated noise and an opening needed help
+                // to read as an opening. Against the real floor art it stopped helping and
+                // started hurting: a doorway is the one cell guaranteed to be looked at
+                // straight on, and a different tile there breaks the stone that now runs
+                // continuously through it, so the threshold reads as a patch rather than as
+                // the floor carrying on under the door.
+                if (cell != CellType.Wall || walls[index] != null) floors[index] = PickFloor(seedHash, x, y);
                 else floors[index] = null;
             }
         }
@@ -210,7 +221,6 @@ public class DungeonPainter : MonoBehaviour
         floorTilemap.SetTilesBlock(bounds, floors);
         wallTilemap.SetTilesBlock(bounds, walls);
 
-        if (doorwayTile != null) OrientDoorways(layout);
         PaintDecals(layout, bounds, seedHash);
 
         RebuildColliders();
@@ -258,35 +268,6 @@ public class DungeonPainter : MonoBehaviour
         }
 
         decalTilemap.SetTilesBlock(bounds, decals);
-    }
-
-    /// <summary>
-    /// Turns the threshold tile to face along the passage it sits in.
-    ///
-    /// The tile is drawn with its jambs on the left and right, which is right for a
-    /// doorway walked through north-south and ninety degrees wrong for one walked through
-    /// east-west. Rotating is a per-cell call and cannot go through
-    /// <see cref="Tilemap.SetTilesBlock"/>, but there are only a handful of doorways in a
-    /// dungeon, so it costs nothing to do it afterwards.
-    /// </summary>
-    private void OrientDoorways(DungeonLayout layout)
-    {
-        Matrix4x4 quarterTurn = Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, 90f));
-
-        for (int y = 0; y < layout.Height; y++)
-        {
-            for (int x = 0; x < layout.Width; x++)
-            {
-                if (layout[x, y] != CellType.Door) continue;
-
-                // Solid above and below means the jambs are the north and south stubs,
-                // so the passage runs east-west and the tile has to turn.
-                bool blockedNorthSouth = !layout.IsWalkable(x, y - 1) && !layout.IsWalkable(x, y + 1);
-                if (!blockedNorthSouth) continue;
-
-                floorTilemap.SetTransformMatrix(new Vector3Int(x, y, 0), quarterTurn);
-            }
-        }
     }
 
     /// <summary>
@@ -393,13 +374,49 @@ public class DungeonPainter : MonoBehaviour
     }
 
     /// <summary>
-    /// Floor variant for a cell, chosen from the seed and the coordinates so the same
-    /// dungeon always looks the same — the map is rebuilt from its seed on every load,
-    /// and a floor that reshuffled each time would be visibly wrong.
+    /// Floor variant for a cell.
+    ///
+    /// Two modes, selected by <see cref="floorMosaicSize"/>:
+    ///
+    /// <para>
+    /// <b>Mosaic</b> (size &gt; 1): the tiles are consecutive pieces of one larger image, so
+    /// the cell's position within the block decides which piece goes there and the artwork
+    /// runs continuously across the borders inside a block. This is what lets a floor texture
+    /// that is not seamless still read as a floor: only the block boundary repeats, every
+    /// <see cref="floorMosaicSize"/> cells, instead of every single cell. The floor's own
+    /// world position drives it, not the seed — pieces have to line up with their neighbours,
+    /// which is the one thing a random pick cannot do.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Scatter</b> (size 1): an independent variant per cell, chosen from the seed and the
+    /// coordinates. For tile sets whose members are interchangeable rather than positional.
+    /// </para>
+    ///
+    /// Both are a pure function of the seed and the cell, so the same dungeon always looks the
+    /// same — the map is rebuilt from its seed on every load, and a floor that reshuffled each
+    /// time would be visibly wrong.
     /// </summary>
     private TileBase PickFloor(uint seedHash, int x, int y)
     {
         if (floorTiles.Length == 1) return floorTiles[0];
+
+        if (floorMosaicSize > 1)
+        {
+            // Floor-modulo, not C#'s remainder: cell coordinates are never negative today,
+            // but a layout origin that ever moved below zero would otherwise index backwards
+            // off the array and throw, and the bug would look like "the floor is fine except
+            // in one corner of the map".
+            int size = floorMosaicSize;
+            int column = ((x % size) + size) % size;
+            int row = ((y % size) + size) % size;
+            int index = row * size + column;
+
+            // A short array means the mosaic was only partly generated; fall through to the
+            // scatter path rather than throwing, so the dungeon still paints and the fault
+            // is visible as a mismatched floor rather than as a failed build.
+            if (index < floorTiles.Length) return floorTiles[index];
+        }
 
         uint hash = DeterministicRandom.Hash(seedHash, x, y);
         return floorTiles[hash % (uint)floorTiles.Length];

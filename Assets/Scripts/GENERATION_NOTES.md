@@ -24,8 +24,9 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 14 — Pathfinding gizmo was invisible | fixed in code; `Dungeon.unity` also hand-edited | see §14 below |
 | 15 — Blocking objects, pillar count, door alignment | done, measured; door fix reworked twice, confirmed in editor | see §15 below |
 | 16 — Real floor art and paper litter | done, previewed outside Unity; **needs a Setup run and an editor look** | see §16 below |
-| 17 — Doors on one jamb, pillars plugging passages, doors in shadow | fixed and measured headlessly; **needs an editor look** | see §17 below |
-| 17 — Mid-air doors, threshold tile, table pathfinding | done, measured over 200 seeds; **needs an editor look** | see §17 below |
+| 17 — Doors on one jamb, threshold tile, pillars in passages, doors in shadow, table pathfinding | fixed, measured over 200 seeds; **needs an editor look** | see §17 below |
+| 18 — Mushroom and sleeping-bag decals | done; **needs a Setup run and an editor look** | see §18 below |
+| 19 — Statues, a scene-wiring gap, a build-order bug, and a fragile footprint formula | fixed, one confirmed by static proof rather than measurement; **needs an editor look** | see §19 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -1843,106 +1844,12 @@ against both scenes after the edit.
 
 ---
 
-## Stage 17 — Doors hung on nothing, the threshold tile, and the table
+## Stage 17 — Doors on one jamb, the threshold tile, pillars in passages, doors in shadow, table pathfinding
 
-### 1 — One in eight doors hung in mid-air
-
-Reported from a screenshot of two doors near each other with open floor down their sides, as
-"doors are not fixed to the wall on both sides". The screenshot's own reading — two doorway
-cells side by side — turned out to be wrong, and checking it rather than acting on it is what
-found the real fault.
-
-Measured first, over 200 seeds at the shipped settings: **zero** doorway cells anywhere touch
-another doorway cell, and every doorway is a clump of exactly one cell. So doors are never
-adjacent and the width-1 normalisation is doing its job. What the same run did find:
-**1131 of 9479 doorway cells (11.93%) have no solid neighbours on either axis.**
-
-`SpawnDoors` only ever asked one question:
-
-```csharp
-bool wallEast  = !layout.IsWalkable(x + 1, y);
-bool wallWest  = !layout.IsWalkable(x - 1, y);
-rotation = wallEast && wallWest ? 90° : identity;
-```
-
-North and south were never tested. "Not walled east-west" was taken to mean "walled
-north-south then", and for 11.9% of doorways neither is true — so a door was spawned upright,
-by default, into an opening with nothing on any side to hang from. That is the mid-air door in
-the screenshot; two of them happening to land near each other is what made it look like an
-adjacency problem.
-
-Both pairs are tested now, and a cell with neither pair solid gets no door and stays an open
-arch — which is already what the layout does with an opening too wide to narrow (see
-`DoorwayNormalizer`, which leaves those unmarked for exactly this reason).
-
-**Measured after the fix**, same 200 seeds: 8348 doors spawn (41.7 per map, down from 47.4),
-**0** of them unjambed, 4146 rotated against 4202 upright — an even split, which is the
-sanity check that the newly-tested axis is real and not just always answering the same way.
-No map is left without doors.
-
-### 2 — The threshold tile broke the floor it now sits in
-
-`doorwayTile` painted a dark slab with two lit jambs on every doorway cell, and `OrientDoorways`
-turned it to face along its passage. That earned its place when the floor was flat generated
-noise and an opening needed help reading as an opening. Against the real floor art it does the
-opposite: a doorway is the one cell that is always looked at straight on, and a different tile
-there cuts the stone that now runs continuously through it, so the threshold reads as a patch
-rather than as the floor carrying on under the door.
-
-Doorway cells take the ordinary floor now. `doorwayTile` and `OrientDoorways` are gone
-(the rotation existed only to orient that tile, and rotating a *mosaic* tile would tear the
-very continuity the mosaic is for), along with the setup's `DoorwayTile` generation and its
-wiring. The `TileStyle.Doorway` drawing routine is kept, unused, as the record of what the
-threshold looked like. The stale `doorwayTile:` line left in both scenes' YAML is harmless —
-Unity drops serialized fields that no longer exist on the class.
-
-### 3 — The table stopped blocking pathfinding
-
-Fallout from Stage 15's `useTriggers = false`, and a real gap rather than a regression of that
-change. `Table.prefab` carries a trigger on its root (layer 11 `ObstaclePathOnly`) and its
-**solid** collider on a child, `Solid`, on layer 13 `CrouchPassable` — the layer
-`PlayerHiding` makes the player's body stop colliding with while crouched, so a
-crouching player fits under the table. `PathfindingGrid.obstacleMask` was 2816: layers 8, 9 and
-11. Layer 13 is not in it. So once the trigger stopped counting, nothing about the table was
-visible to pathfinding at all and enemies walked through it.
-
-The mask is now 11008 — layers 8, 9, 11 and **13** — in both scenes. Layer 13 stays out of
-`FieldOfView`'s mask (4864: layers 8, 9, 12), so a table blocks movement without blocking
-sight, which is the project's standing convention for props.
-
-Checked every prefab for the same shape of problem: only `Table` has a non-trigger collider on
-a layer outside the pathfinding mask. `Barrel` is layer 11 with a **non-trigger** collider, so
-it was never affected by the trigger change and still blocks correctly.
-
-### Not done
-
-- **`ObstaclePathOnly` (layer 11) is now close to dead** for pathfinding, since the one thing
-  using it does so with a trigger and triggers are ignored. It stays in the mask because a
-  non-trigger collider placed there would still be a legitimate path-only obstacle; worth
-  revisiting if nothing ever uses it that way.
-- **The 11.9% of openings that lose their door are not compensated for.** They become arches.
-  Whether the dungeon wants a door there at all is a layout question — the opening genuinely
-  has no jamb to hang one on — and forcing one would mean the normaliser walling a cell to
-  build a frame, which is a change to generation rather than to spawning.
-
-### In-editor checklist for this stage
-
-1. Regenerate a dungeon and look along a few corridors: every door should meet solid wall or
-   pillar at both ends of its leaf. Openings with no frame should simply be gaps, no door.
-2. Look at a doorway floor — the stone should run through it unbroken, with no darker slab or
-   rotated patch marking the threshold.
-3. Walk an enemy into a table (or watch one path around one). It should treat the table as
-   solid. Then crouch and confirm the player still fits under it — that is layer 13 doing two
-   jobs and the change only touched the pathfinding half.
-
----
-
-## Stage 17 — Doors on one jamb, pillars in passages, doors in shadow
-
-Four reports from playing the generated dungeon. Unlike Stage 16 this one is **measured**: the
-layout assembly is engine-free, so it was run headlessly over 200 seeds at the shipped settings
-and each claim checked as a number before anything was changed. That immediately settled which
-reports were what they looked like and which were not.
+Five reports from playing the generated dungeon. Measured wherever the claim could be —
+the layout assembly is engine-free, so it was run headlessly over 200 seeds at the shipped
+settings and each claim checked as a number before anything was changed. That immediately
+settled which reports were what they looked like and which were not.
 
 ### 1 — "Two doors side by side, not fixed to the wall on both sides"
 
@@ -1966,9 +1873,32 @@ Not an edge case, and two of them near each other is exactly the screenshot.
 
 Fixed by testing both pairs and spawning nothing when neither is solid. Those cells stay open
 arches — which is already what the layout does with an opening too wide to narrow, so it is the
-existing convention rather than a new one.
+existing convention rather than a new one (see `DoorwayNormalizer`, which leaves an opening too
+wide to narrow unmarked for exactly this reason).
 
-### 2 — "A pillar blocking the way"
+**Measured after the fix**, same 200 seeds: 8348 doors spawn (41.7 per map, down from 47.4),
+**0** of them unjambed, 4146 rotated against 4202 upright — an even split, which is the sanity
+check that the newly-tested axis is real and not just always answering the same way. No map is
+left without doors.
+
+### 2 — The threshold tile broke the floor it now sits in
+
+Found while fixing §1, not separately reported. `doorwayTile` painted a dark slab with two lit
+jambs on every doorway cell, and `OrientDoorways` turned it to face along its passage. That
+earned its place when the floor was flat generated noise and an opening needed help reading as
+an opening. Against the real floor art (Stage 16) it does the opposite: a doorway is the one
+cell that is always looked at straight on, and a different tile there cuts the stone that now
+runs continuously through it, so the threshold reads as a patch rather than as the floor
+carrying on under the door.
+
+Doorway cells take the ordinary floor now. `doorwayTile` and `OrientDoorways` are gone (the
+rotation existed only to orient that tile, and rotating a *mosaic* tile would tear the very
+continuity the mosaic is for), along with the setup's `DoorwayTile` generation and its wiring.
+The `TileStyle.Doorway` drawing routine is kept, unused, as the record of what the threshold
+looked like. The stale `doorwayTile:` line left in both scenes' YAML is harmless — Unity drops
+serialized fields that no longer exist on the class.
+
+### 3 — "A pillar blocking the way"
 
 Real, and the most common of the four. `RoomInteriorDecorator.Apply` writes a batch of solid
 cells and rolls back if `RoomStaysWhole` fails. That check asks whether the room is still in one
@@ -1994,7 +1924,7 @@ Doorway jambs are deliberately untouched: those come from `DoorwayNormalizer` wa
 down to door width, are *supposed* to sit beside a gap, and never appear in a batch this sees.
 They are the 745 plugging cells that remain next to a door.
 
-### 3 — Doors rendered in shadow while walls stayed lit
+### 4 — Doors rendered in shadow while walls stayed lit
 
 Nothing to do with materials, and nothing to do with the vision mask — the door leaf does not use
 the FOV-masked material at all. It is purely sorting order. `DarknessOverlayQuad` draws at order
@@ -2006,46 +1936,320 @@ order. 8 rather than 7 also fixes a second thing, noted as known-and-unaddressed
 `DungeonSceneSetup`'s own comment on `WallSortingOrder`: a leaf wider than its cell used to draw
 partly *behind* the jamb tiles it swings across. Above the walls, it no longer can.
 
-### 4 — The table was not blocking pathfinding
+### 5 — The table was not blocking pathfinding
 
-Already fixed in the scene by the time this stage was written (`obstacleMask` 2816 → 11008), but
-worth recording why, because the layer split is not obvious. The table is deliberately two
-colliders: a **trigger on the root** on `ObstaclePathOnly`, which is the `CrouchHideout` footprint
-the player hides inside, and a **solid child** on `CrouchPassable`, which is what stops a standing
-player. Stage 15 made the pathfinding grid ignore triggers — correct, and what was asked for — but
-the grid's mask covered layers 8/9/11 and *not* 13, so with the trigger ignored nothing was left
-to sample and the table became invisible to A\*. Adding `CrouchPassable` to the mask is what makes
-the solid child do the blocking, which is what was wanted: the trigger is a gameplay volume, not a
-navigation hint.
+Fallout from Stage 15's `useTriggers = false`, and a real gap rather than a regression of that
+change. The table is deliberately two colliders: a **trigger on the root**, on `ObstaclePathOnly`,
+which is the `CrouchHideout` footprint the player hides inside, and a **solid child**, `Solid`,
+on `CrouchPassable` — the layer `PlayerHiding` makes the player's body stop colliding with while
+crouched, so a crouching player fits under the table. Stage 15 made the pathfinding grid ignore
+triggers, correctly, but `PathfindingGrid.obstacleMask` covered layers 8, 9 and 11 and not 13, so
+with the trigger ignored nothing about the table was left for pathfinding to sample and enemies
+walked through it.
 
-Vision is untouched by this and must stay that way — `FieldOfView` samples 8/9/12, so neither the
-table's trigger nor its solid child blocks sight, per the project's rule that only walls and trees
-occlude.
+The mask is now 11008 — layers 8, 9, 11 and **13** — in both scenes. Adding `CrouchPassable` is
+what makes the solid child do the blocking, which is what was wanted: the trigger is a gameplay
+volume, not a navigation hint. Checked every prefab for the same shape of problem: only `Table`
+has a non-trigger collider on a layer outside the pathfinding mask. `Barrel` is layer 11 with a
+**non-trigger** collider, so it was never affected by the trigger change and still blocks
+correctly.
+
+Layer 13 stays out of `FieldOfView`'s mask (4864: layers 8, 9, 12), so a table blocks movement
+without blocking sight, per the project's standing rule that only walls and trees occlude.
 
 ### Not done
 
-- **~202 plugging pillars remain across 200 seeds** (about 1 per map, down from ~10). They are not
-  from `RoomInteriorDecorator`'s batches, which are now clean by construction, so they come from
-  another pass — most likely `RoomShaper`'s perimeter detail, which pushes the odd wall cell
-  inwards after the interiors are placed. Catching those needs either the same treatment there or
-  one global sweep at the end of generation, skipping cells beside a doorway so the jambs survive.
-  Left alone for now: a global sweep late in the pipeline can undo shaping the earlier passes did
-  on purpose, and that is worth measuring properly rather than bolting on.
+- **`ObstaclePathOnly` (layer 11) is now close to dead** for pathfinding, since the one thing
+  using it does so with a trigger and triggers are ignored. It stays in the mask because a
+  non-trigger collider placed there would still be a legitimate path-only obstacle; worth
+  revisiting if nothing ever uses it that way.
+- **The 11.9% of openings that lose their door are not compensated for** (§1). They become
+  arches. Whether the dungeon wants a door there at all is a layout question — the opening
+  genuinely has no jamb to hang one on — and forcing one would mean the normaliser walling a
+  cell to build a frame, which is a change to generation rather than to spawning.
+- **~202 plugging pillars remain across 200 seeds** (about 1 per map, down from ~10, §3). They
+  are not from `RoomInteriorDecorator`'s batches, which are now clean by construction, so they
+  come from another pass — most likely `RoomShaper`'s perimeter detail, which pushes the odd
+  wall cell inwards after the interiors are placed. Catching those needs either the same
+  treatment there or one global sweep at the end of generation, skipping cells beside a doorway
+  so the jambs survive. Left alone for now: a global sweep late in the pipeline can undo shaping
+  the earlier passes did on purpose, and that is worth measuring properly rather than bolting on.
 - **None of this is verified in the editor.** Everything above is a headless measurement of the
-  layout plus a sorting-order change that cannot be checked without rendering. The numbers say the
-  layouts no longer contain these shapes; they do not say the dungeon looks right.
+  layout plus two rendering changes (the threshold tile's removal, the sorting order) that
+  cannot be checked without rendering. The numbers say the layouts no longer contain these
+  shapes; they do not say the dungeon looks right.
 
 ### In-editor checklist for this stage
 
-1. Regenerate and walk a few corridors: no pillar should be standing in a one-cell gap with floor
-   either side of it. About one per map may still be, per "Not done" above.
-2. Check several doorways. Every door should meet wall on both sides; openings with nothing to
-   hang on are now empty arches rather than a leaf floating in the gap. If a doorway that clearly
-   *does* have two jambs is missing its door, that is a new bug, not this fix.
-3. Doors should now be lit like walls rather than sitting under the darkness, including when
+1. Regenerate a dungeon and look along a few corridors: every door should meet solid wall or
+   pillar at both ends of its leaf. Openings with no frame should simply be gaps, no door.
+2. Look at a doorway floor — the stone should run through it unbroken, with no darker slab or
+   rotated patch marking the threshold.
+3. Walk a few corridors: no pillar should be standing in a one-cell gap with floor either side
+   of it. About one per map may still be, per "Not done" above.
+4. Doors should now be lit like walls rather than sitting under the darkness, including when
    swung open across a wall.
-4. Confirm an enemy paths *around* a table rather than through it, and that the table still does
-   not block vision.
+5. Walk an enemy into a table (or watch one path around one) — it should treat the table as
+   solid — then crouch and confirm the player still fits under it, which is layer 13 doing two
+   jobs and this change only touching the pathfinding half. Confirm the table still does not
+   block vision either.
+
+---
+
+## Stage 18 — Mushroom and sleeping-bag decals
+
+Three sprites added to `Assets/Art`: `mushroom.png`, `mushroom02.png` (a cluster of caps), and
+`sleepingbag01.png`. Asked for as decals — everything else drawn from these sprites becomes a
+prop/prefab by hand instead, so this stage only covers the three that go through the generator.
+
+Structurally simpler than Stage 16's paper: each file is already exactly one thing to place,
+with nothing overlapping that needs separating out first. `EnsureNatureDecals` crops straight to
+the artwork's opaque region (via `FindOpaqueGroups`, so a stray anti-aliasing fleck outside the
+real drawing can't widen the crop the way a plain alpha bounding box would) and composites it
+once per tile with a random rotation and a small scale jitter — reusing `CompositeRotated` and
+`ExtractGroup`, the same building blocks a lone paper sheet uses. Fill is 0.8 of the tile's
+longest side rather than paper's 0.42: these read as ground cover you notice, not litter you
+glance past.
+
+**Rarity is not a second weighted-pick system.** `DungeonPainter.PaintDecals` already picks
+uniformly over the decal array; asking it to weight entries would mean threading a weight
+through the hash-based picker for every decal type, generated and hand-drawn alike, for the sake
+of three sprites. Cheaper and just as correct: write the *same* `Tile` reference into the
+returned array `weight` times. Three mushroom-source repeats each against one sleeping-bag
+repeat is a 6:1 mix — mushrooms common, a dropped sleeping bag a small find. Tune by editing
+`NatureDecals`' weight column in `DungeonSceneSetup.cs`, not by adding selection logic.
+
+Distinct decal tiles: 10 → 13 (4 generated + 6 paper + 3 nature). The painter's `Decal Tiles`
+array is longer than that, at 17, because each nature tile's reference is repeated by its
+weight — 3 mushroom, 3 mushroom-cluster, 1 sleeping bag — so the uniform picker's odds land on
+the intended 6:1 mix without knowing weights exist.
+
+**Not generated yet.** Unlike Stage 16, no PNGs were fabricated outside Unity this time: with
+`WriteArtTile` only writing a texture when the file is missing, a hand-approximated placeholder
+would permanently block the real Setup output the next time `Setup Scene Tilemaps` runs without
+`overwrite`, rather than being replaced by it. Since the floor and paper art was in fact produced
+by you running the tool in the editor rather than by anything fabricated outside it, the same
+path is correct here too. Compiles clean against the full project; nothing about the actual
+cropped images, their rotation, or their placement in a cell has been seen by anyone yet.
+
+### In-editor checklist for this stage
+
+1. Run **Tools ▸ Dungeon ▸ Setup Scene Tilemaps**. It should cut three new tiles into
+   `Assets/Generation/Tiles` — `DecalMushroomA`, `DecalMushroomB`, `DecalSleepingBag` — and wire
+   the painter's `Decal Tiles` to 17 entries (up from 10): 4 generated + 6 paper + the 7 nature
+   slots described above.
+2. Regenerate a dungeon and confirm mushrooms and the sleeping bag actually appear, at a
+   believable size and with varied rotation — no two should sit at the same angle by
+   construction, but confirm none reads as stamped or oversized against the barrels and table.
+3. Judge the mix by eye: mushrooms should read as noticeably more common than the sleeping bag.
+   If the balance feels off, or nature decals are crowding out paper and the generated marks,
+   `NatureDecals`' weights and `decalChance` are the two knobs, in that order.
+
+---
+
+## Stage 19 — Statues, a scene-wiring gap, a build-order bug, and a fragile footprint formula
+
+Four reports at once, arriving in the middle of each other, so they are numbered by report
+rather than by when each was found. §2 and §3 were found investigating §1's "collide with each
+other" half; §1's "not fixed to pathfinding" half turned out to be a real bug that also explains
+why the sleeping bag from Stage 18 was never seen despite being generated.
+
+### 1a — Tables did not show as blocked on the pathfinding gizmo, at all
+
+Not a gizmo problem, not the trigger/layer question Stage 17 already fixed — the collider
+genuinely was not there yet when the grid sampled it. `DungeonBuilder.Build` configured
+`PathfindingGrid` (a physics query) immediately after painting, then fired `Built`, whose only
+subscriber is `DungeonPopulator.Populate` — the thing that spawns every table, statue, barrel
+and chest. So the grid always sampled physics *before* a single prop existed. Painting's own
+colliders (the composite collider on the wall tilemap) were already final by then, which is
+exactly what the surrounding comment was checking for, so nothing about wall blocking ever
+looked wrong — only content that arrives through `Populate` was affected, silently, regardless
+of its layer or trigger flag, which is why Stage 17's mask fix did not fix this on its own.
+
+Fixed by reordering: paint, fire `Built` (spawns everything, synchronously — a C# multicast
+delegate invocation blocks until every subscriber returns), *then* configure the grid.
+`DungeonPopulator` was checked for the reverse dependency first — does it need the grid to be
+valid before it runs — and it does not: every placement decision in it reads
+`DungeonLayout.IsWalkable`, the pre-physics abstract layout, never the live `PathfindingGrid`
+component. The class doc on `DungeonBuilder` asserted the opposite ("the grid must be valid
+before anything spawns, because spawn placement checks walkability") — conflating the two
+different kinds of "walkable" — and has been corrected along with the reorder.
+
+This is also, very likely, why the Stage 18 sleeping bag was reported as never appearing even
+though its tile existed on disk and was described as generating: it was never the placement
+logic, it was that the scene had not been rewired since Stage 18 shipped (§2 below) — a
+separate, compounding gap, not this one, but worth naming since both were live at once and
+either alone would have hidden the sleeping bag.
+
+### 1b — "Tables still collide with other tables"
+
+Investigated at length and **not conclusively reproduced analytically**. `FootprintCells`'
+spacing check, `IsClearOfPlaced`, `TryTakeAnchor` and `TryTakeSpaced` were each worked through
+by hand against the table's actual measurements (a 9.84×5.2 local-unit collider at 0.18 prefab
+scale, spawned under a `DungeonRoot` scaled 2×, on a grid whose cells are also 2 world units) —
+every check comes out requiring *more* real-world clearance than two tables need, not less. The
+minimum-allowed spacing case leaves roughly half a world unit of gap by this arithmetic.
+
+Two things came out of the attempt anyway, both worth keeping regardless of whether they were
+the cause:
+
+- **§3 below**: the footprint formula was only numerically correct by a coincidence (cell size
+  happening to equal `DungeonRoot`'s scale) and has been made correct by construction instead.
+  It produces the *same* number today, so this by itself does not explain an already-observed
+  overlap — but it does mean the *next* person to retune either value would have silently
+  reintroduced real overlap with no code change of their own to blame.
+- **The likeliest actual explanation is staleness**, not a live bug: §1a means every dungeon
+  generated before this fix had its tables spawn with no working pathfinding block at all, and
+  the baked `Dungeon.unity` may be carrying tables placed by an even older build than that. A
+  regenerate after this stage's fixes is the next real data point, not another round of static
+  reasoning — see the checklist.
+
+Also actioned directly, independent of the investigation: **`prop.table`'s weight halved**
+(0.6 → 0.3) per request, so there are fewer tables regardless of the spacing question.
+
+### 2 — The scene was never rewired for Stage 18's nature decals
+
+`Setup Scene Tilemaps` is the only thing that writes `decalTiles` and `floorMosaicSize` onto the
+painter — the same gap Stage 17 hit for the floor mosaic and paper. Checking `Dungeon.unity`
+directly found `decalTiles` still at 10 entries (4 generated + 6 paper) despite
+`DecalMushroomA/B` and `DecalSleepingBag` existing on disk with real timestamps, meaning
+**Regenerate Placeholder Tiles was run — which only recuts art — and Setup Scene Tilemaps,
+which wires the scene, was not.** The tool's own naming makes that an easy mix-up.
+
+Hand-patched to 17 entries (mushroom ×3 each, sleeping bag ×1, matching `NatureDecals`' weights)
+the same way Stage 17's wiring gap was patched, since there is no Unity instance here to run the
+tool itself.
+
+### 3 — `FootprintCells` divided by nothing
+
+Flagged investigating §1b, not separately reported. The formula converted a prefab's world size
+straight to a cell count with no division step at all:
+
+```csharp
+int cells = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(size.x, size.y)));
+```
+
+That silently assumes one world unit is one cell. It is not — cells are 2 world units on the
+shipped grid — so this should have under-counted by half. It didn't, because `size` itself was
+measured from the *prefab asset*, which has no parent and therefore no idea it is about to be
+instantiated under a `DungeonRoot` scaled 2×; the missing "×2 for the real spawn scale" and the
+missing "÷2 for the cell size" cancelled exactly, because both factors happen to be 2 in this
+project today. Correct answer, wrong reason — and a reason that stops being true the moment
+either number changes on its own.
+
+Fixed to compute honestly: prefab asset size × `_contentRoot.lossyScale` (the scale it will
+actually spawn at) ÷ `builder.CellSize`. Also extended to measure a `CircleCollider2D` — needed
+for the statues below, which have no `BoxCollider2D` at all and previously fell back to sprite
+bounds alone.
+
+### 4 — Statues
+
+Two prefabs added (`Statue01`, `Statue02`), each a `CircleCollider2D`, non-trigger, on layer
+`Default`. Registered as `prop.statue01`/`prop.statue02` in `PrefabRegistry` and in
+`RoomContentSettings.props`, the same list `prop.barrel` and `prop.table` are in, weight 0.3
+each — rarer than a barrel, matching the table's own new weight. Layer changed to
+`ObstaclePathOnly` (11) on both, the same layer `Barrel` already uses: already in
+`PathfindingGrid.obstacleMask` (blocks pathfinding) and not in `FieldOfView`'s mask (does not
+block sight), which is the project's standing convention for this kind of prop.
+
+They fall into the same shared clustering system every other prop uses
+(`propsPerClusterMin`/`Max`), which has no concept of "this prop type does not cluster" — a room
+could get 2–4 of the same statue standing together. Not addressed here; see "Not done".
+
+### 5 — A guaranteed sleeping bag in the hub
+
+Asked for on top of Stage 18's random scatter, not instead of it: exactly one sleeping-bag decal
+in the hub every generation, in addition to its existing rare chance of turning up anywhere else.
+`DungeonPainter` gained a dedicated `hubGuaranteedDecalTile` slot — separate from the `decalTiles`
+pool, because the pool has no concept of "this one is special" once it is flattened into an
+array — and a pass that finds `RoomKind.Hub`, hashes every eligible cell (walkable, not a
+doorway) with a salted seed so the pick does not just replay the ordinary scatter's own numbers,
+and paints the tile on whichever hashes highest. Runs regardless of `decalChance`, deliberately:
+turning that down to inspect bare floor should not also remove the one decal that is meant to
+always be there.
+
+### Not done
+
+- **Statues cluster like barrels.** The shared `propsPerClusterMin`/`Max` system has no
+  per-prefab override, so a statue can be placed 2–4 at once same as a barrel would. A single
+  imposing statue reads very differently from a small crowd of identical ones; giving individual
+  `PrefabChoice` entries their own cluster range (or a `neverClusters` flag) is a
+  `RoomContentSettings` change this stage did not make.
+- **§1b's table-table overlap is not confirmed fixed**, only investigated without finding a
+  live bug in the placement arithmetic itself. The checklist below is the actual test.
+- **Nothing in this stage is verified in the editor.** The build-order fix, the footprint
+  formula, and the guaranteed hub decal are all either headless-unverifiable (they depend on
+  physics sampling and rendering) or hand-reasoned rather than measured.
+
+### In-editor checklist for this stage
+
+1. Regenerate a dungeon. Open the painter's inspector first and confirm `Decal Tiles` reads 17
+   and `Hub Guaranteed Decal Tile` is set to `DecalSleepingBag` — the scene patch from §2 taking
+   is a precondition for everything else here being visible at all.
+2. Turn the pathfinding gizmo on and look under a table and a statue: both should read red now.
+   This is the direct test of §1a — if either is still walkable, the build-order fix did not
+   take, or something else is spawning outside `DungeonPopulator.Populate`.
+3. Walk several rooms' worth of tables specifically, looking for physical overlap. This is the
+   real test §1b never got — note whether it still happens, and if so, roughly how close (touch?
+   overlap by half a table?) since that distinguishes "still needs a code fix" from "was just
+   stale content that regenerating already cleared."
+4. Confirm statues spawn, block movement, and do not block the player's line of sight.
+5. Find the hub and confirm exactly one sleeping bag is on its floor, every time the dungeon is
+   regenerated (try two or three different seeds).
+
+---
+
+## Stage 20 — Props standing inside walls, and a weight slider for the spawn tables
+
+### 1 — Props overlapped the map geometry
+
+Reported with screenshots: a statue's circle collider sunk well into the wall tiles beside it.
+This is the same class of mistake §1b of Stage 19 went looking for and did not find, but on the
+*wall* side rather than between two props — and here it reproduces exactly.
+
+A cell is the unit the generator places on, not the size the thing being placed actually is.
+`TryTakeFixtureCell`, which furnishes the hub, already accounted for that: it requires
+`HasClearance(footprint / 2)` and reads "against a wall" as solid ground exactly one ring
+*past* that clearance. The prop and chest path, `TryTakeAnchor`, did not check clearance at
+all, and its wall-bias pass actively preferred cells satisfying `layout.TouchesSolid(cell)` —
+i.e. cells directly adjacent to rock. `Statue01`'s collider is a 1.59-radius circle at 0.8
+prefab scale, spawned under a 2× `DungeonRoot` on 2-unit cells: about 2.6 world units, three
+cells across. Anchored on a wall-side cell, more than half a cell of it is inside the wall,
+which is both a physical overlap and (since Stage 8's sorting order) painted over by the wall
+tilemap.
+
+Fixed by giving `TryTakeAnchor` and `TryTakeSpaced` the same clearance rule the hub's fixtures
+already used, so "against a wall" means the object's own edge touches it rather than its centre
+cell doing so. The two near-identical fallback loops in `TryTakeAnchor` (blocking and
+non-blocking, differing only in the chokepoint test) were merged while the clearance check was
+being added to both. Props with a one-cell footprint — barrels, candles — are unaffected:
+clearance is 0 and the wall test reduces to the old `TouchesSolid`.
+
+### 2 — Spawn frequency was tunable but not legible
+
+The per-entry `weight` on `PrefabChoice` and `ItemChoice` has always controlled how often
+something appears, but as a bare float field it could not answer the question it was being used
+to ask. Whether `0.3` is rare or common depends entirely on the other entries in the same list,
+which the inspector never showed, so tuning a table meant summing the column by hand.
+
+`Editor/SpawnChoiceDrawer.cs` draws each entry as a slider plus the share it currently works
+out to (`0.3` of a four-entry table reads `15%`). The slider's top end is 3, raised to fit any
+entry already authored above it so opening the inspector can never clamp a weight it cannot
+reach. The share is computed over the whole list with no depth gating — gating is per-room and
+depth-dependent, so any single figure for it would be wrong nearly everywhere — and `Min Depth`
+sits directly beneath it to say when the entry is eligible at all.
+
+No serialized data changed: this is presentation over the existing `weight` field, so existing
+`RoomContentSettings` assets are untouched.
+
+### In-editor checks this stage needs
+
+1. Regenerate a few seeds and look specifically at statues and tables placed against walls:
+   their sprites and colliders must stop at the wall, not cross it.
+2. Confirm rooms are not visibly emptier than before — the clearance rule rejects candidate
+   cells, so a cramped room may now place fewer props than it did.
+3. Open `RoomContentSettings` and check the sliders read sensibly, and that dragging one moves
+   every share in that list.
 
 ---
 

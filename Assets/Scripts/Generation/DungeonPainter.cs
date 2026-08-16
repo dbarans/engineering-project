@@ -69,6 +69,13 @@ public class DungeonPainter : MonoBehaviour
              "as noise laid over the floor rather than as wear on it.")]
     [Range(1f, 8f)] [SerializeField] private float decalWallBias = 3.5f;
 
+    [Tooltip("Optional. Painted on exactly one open floor cell of the hub, every generation, " +
+             "in addition to (not instead of) that tile's ordinary chance of turning up " +
+             "anywhere else via decalTiles — a detail the hub is guaranteed to have, on top " +
+             "of the same thing being rare scatter everywhere else. The cell is chosen from " +
+             "the seed, so it is the same cell on every rebuild of the same dungeon.")]
+    [SerializeField] private TileBase hubGuaranteedDecalTile;
+
     [Header("Shape")]
     [Tooltip("How many cells of rock are painted around the open areas. Rock further in " +
              "than this is left unpainted and reads as void — which is what makes the " +
@@ -240,34 +247,93 @@ public class DungeonPainter : MonoBehaviour
         if (decalTilemap == null) return;
 
         decalTilemap.ClearAllTiles();
-        if (decalTiles == null || decalTiles.Length == 0 || decalChance <= 0f) return;
 
         var decals = new TileBase[layout.Width * layout.Height];
 
-        for (int y = 0; y < layout.Height; y++)
+        if (decalTiles != null && decalTiles.Length > 0 && decalChance > 0f)
         {
-            int row = y * layout.Width;
-            for (int x = 0; x < layout.Width; x++)
+            for (int y = 0; y < layout.Height; y++)
             {
-                if (!layout.IsWalkable(x, y)) continue;
+                int row = y * layout.Width;
+                for (int x = 0; x < layout.Width; x++)
+                {
+                    if (!layout.IsWalkable(x, y)) continue;
 
-                // Doorways stay clean: the threshold tile is already a strong shape, and
-                // anything on top of it stops the opening reading as an opening.
-                if (layout[x, y] == CellType.Door) continue;
+                    // Doorways stay clean: the threshold tile is already a strong shape, and
+                    // anything on top of it stops the opening reading as an opening.
+                    if (layout[x, y] == CellType.Door) continue;
 
-                float chance = decalChance * (layout.TouchesSolid(x, y) ? decalWallBias : 1f);
+                    float chance = decalChance * (layout.TouchesSolid(x, y) ? decalWallBias : 1f);
 
-                // Two independent draws off one hash: the low half decides whether there
-                // is a mark, the high half which one, so raising the chance does not also
-                // reshuffle every decal already placed.
-                uint hash = DeterministicRandom.Hash(seedHash, x, y);
-                if ((hash & 0xFFFF) / 65535f >= chance) continue;
+                    // Two independent draws off one hash: the low half decides whether there
+                    // is a mark, the high half which one, so raising the chance does not also
+                    // reshuffle every decal already placed.
+                    uint hash = DeterministicRandom.Hash(seedHash, x, y);
+                    if ((hash & 0xFFFF) / 65535f >= chance) continue;
 
-                decals[row + x] = decalTiles[(hash >> 16) % (uint)decalTiles.Length];
+                    decals[row + x] = decalTiles[(hash >> 16) % (uint)decalTiles.Length];
+                }
             }
         }
 
+        // Independent of the scatter above and of decalChance entirely — a guarantee, not
+        // an increased chance, so turning decalChance down to look at bare floor does not
+        // also take the hub's guaranteed detail with it.
+        PaintGuaranteedHubDecal(layout, decals, seedHash);
+
         decalTilemap.SetTilesBlock(bounds, decals);
+    }
+
+    /// <summary>
+    /// Salts <see cref="PaintGuaranteedHubDecal"/>'s cell pick away from the ordinary decal
+    /// scatter's own hash sequence, purely so the two draws are visibly independent rather
+    /// than a coincidence of reusing the same numbers for a different question.
+    /// </summary>
+    private const uint HubDecalSalt = 0x48554221; // "HUB!" in ASCII, arbitrarily
+
+    /// <summary>
+    /// Places <see cref="hubGuaranteedDecalTile"/> on exactly one open floor cell of the
+    /// hub room, every generation. Does nothing when no tile is assigned, or the layout
+    /// has no hub — which should not happen (<see cref="RoomKind.Hub"/> is always exactly
+    /// one per dungeon) but a painter is not the place to assert that.
+    ///
+    /// The cell is not randomly walked to and accepted on the first hit, because a small
+    /// hub with few eligible cells would then favour whichever happened to be tested
+    /// first. Every eligible cell in the room gets a hash, and the highest wins — a
+    /// uniform pick over the whole eligible set, and deterministic like everything else
+    /// derived from the seed.
+    /// </summary>
+    private void PaintGuaranteedHubDecal(DungeonLayout layout, TileBase[] decals, uint seedHash)
+    {
+        if (hubGuaranteedDecalTile == null) return;
+
+        Room hub = null;
+        foreach (Room room in layout.Rooms)
+        {
+            if (room.Kind != RoomKind.Hub) continue;
+            hub = room;
+            break;
+        }
+        if (hub == null) return;
+
+        bool found = false;
+        uint bestHash = 0;
+        Vector2Int bestCell = default;
+
+        foreach (Vector2Int cell in hub.Cells)
+        {
+            if (!layout.IsWalkable(cell) || layout[cell] == CellType.Door) continue;
+
+            uint hash = DeterministicRandom.Hash(seedHash ^ HubDecalSalt, cell.x, cell.y);
+            if (found && hash <= bestHash) continue;
+
+            found = true;
+            bestHash = hash;
+            bestCell = cell;
+        }
+
+        if (!found) return;
+        decals[bestCell.y * layout.Width + bestCell.x] = hubGuaranteedDecalTile;
     }
 
     /// <summary>

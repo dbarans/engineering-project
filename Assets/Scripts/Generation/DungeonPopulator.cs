@@ -639,15 +639,27 @@ public class DungeonPopulator : MonoBehaviour
     private readonly Dictionary<string, int> _footprintCache = new Dictionary<string, int>();
 
     /// <summary>
-    /// How many cells a prefab actually occupies: the wider of what it collides with and
-    /// what it draws, in world space via the transform's lossy scale, rounded up.
+    /// How many cells a prefab actually occupies once spawned: the wider of what it
+    /// collides with and what it draws, converted from the prefab *asset*'s own world size
+    /// to cells at the size cells are actually spawned at, rounded up.
     ///
     /// Both halves are read from serialized data rather than from
     /// <c>Renderer.bounds</c>/<c>Collider2D.bounds</c>, because those are computed from an
     /// object's live placement in a scene and are unreliable — often zero — on a prefab
     /// *asset* that has never been instantiated, which is exactly what
     /// <see cref="PrefabRegistry.Resolve"/> hands back here. `BoxCollider2D.size`,
-    /// `Sprite.bounds` and `Transform.lossyScale` all read correctly either way.
+    /// `CircleCollider2D.radius`, `Sprite.bounds` and `Transform.lossyScale` all read
+    /// correctly either way.
+    ///
+    /// <paramref name="prefab"/>'s own `lossyScale` chain only ever reflects the asset's
+    /// *internal* hierarchy — it has no parent, so it cannot know it is about to be spawned
+    /// under <see cref="_contentRoot"/>, which inherits the generated dungeon's own scale
+    /// (2× on the shipped `DungeonRoot`). Multiplying by <c>_contentRoot.lossyScale</c> and
+    /// dividing by <c>builder.CellSize</c> converts to the actual spawn-time world size and
+    /// then to cells at that size — explicitly, rather than relying on the two factors
+    /// happening to be equal (as they currently are: root scale 2, cell size 2), which
+    /// would silently space every prop wrong again the day either one changes without the
+    /// other. See GENERATION_NOTES.md Stage 19.
     ///
     /// The drawn size counts as much as the collider, and for placement against a wall it
     /// counts for more. Since Stage 8 the wall tilemap draws at sorting order 7, above
@@ -669,12 +681,26 @@ public class DungeonPopulator : MonoBehaviour
         BoxCollider2D box = prefab != null ? prefab.GetComponentInChildren<BoxCollider2D>(true) : null;
         if (box != null) size = Vector2.Max(size, Abs(Vector2.Scale(box.size, box.transform.lossyScale)));
 
+        // A statue's footprint is a circle, not a box — measured as its bounding square so
+        // it composes with the box/sprite maximum below the same way a box does.
+        CircleCollider2D circle = prefab != null ? prefab.GetComponentInChildren<CircleCollider2D>(true) : null;
+        if (circle != null)
+        {
+            Vector2 scale = Abs(circle.transform.lossyScale);
+            float diameter = circle.radius * 2f * Mathf.Max(scale.x, scale.y);
+            size = Vector2.Max(size, new Vector2(diameter, diameter));
+        }
+
         SpriteRenderer sprite = prefab != null
             ? prefab.GetComponentInChildren<SpriteRenderer>(true)
             : null;
         if (sprite != null) size = Vector2.Max(size, Abs(DrawnSize(sprite)));
 
-        int cells = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(size.x, size.y)));
+        float spawnScale = _contentRoot != null ? _contentRoot.lossyScale.x : 1f;
+        float cellSize = builder.CellSize > 0f ? builder.CellSize : 1f;
+        float worldSize = Mathf.Max(size.x, size.y) * spawnScale;
+
+        int cells = Mathf.Max(1, Mathf.CeilToInt(worldSize / cellSize));
         _footprintCache[prefabId] = cells;
         return cells;
     }
@@ -749,6 +775,15 @@ public class DungeonPopulator : MonoBehaviour
     /// footprint, rounded up, is the same clearance <see cref="SpawnFixture"/> uses for the
     /// hub's own furniture, for the same reason.
     ///
+    /// The anchor also has to have <see cref="HasClearance"/> for half its own footprint,
+    /// the same rule <see cref="TryTakeFixtureCell"/> applies to the hub's furniture and for
+    /// the same reason: a cell is the unit the generator places on, not the size the thing
+    /// being placed actually is. "Against a wall" therefore cannot mean "on a cell touching
+    /// one" — a statue is three cells across, so anchored on a wall-side cell it stands more
+    /// than a cell deep inside the rock, colliding with the map and painted over by the wall
+    /// tilemap. It means solid ground exactly one ring past the clearance, which is what
+    /// standing against a wall looks like once the object's own width is accounted for.
+    ///
     /// Also checked here, against <paramref name="occupied"/>: every blocking object
     /// already standing in the room, from any earlier cluster or chest — not just this
     /// prop's own. An anchor is the start of a new cluster, so it is exactly the placement
@@ -759,6 +794,7 @@ public class DungeonPopulator : MonoBehaviour
         out Vector2Int anchor)
     {
         int chokepointRadius = Mathf.CeilToInt(footprint / 2f);
+        int clearance = footprint / 2;
 
         if (random.Chance(content.propWallBias))
         {
@@ -766,7 +802,8 @@ public class DungeonPopulator : MonoBehaviour
             // choice stays governed by the same shuffle everything else uses.
             for (int i = free.Count - 1; i >= 0; i--)
             {
-                if (!layout.TouchesSolid(free[i])) continue;
+                if (!HasClearance(layout, free[i], clearance)) continue;
+                if (HasClearance(layout, free[i], clearance + 1)) continue; // not against a wall
                 if (blocking && layout.NearAnyChokepoint(free[i], chokepointRadius)) continue;
                 if (!IsClearOfPlaced(free[i], footprint, occupied)) continue;
 
@@ -776,24 +813,10 @@ public class DungeonPopulator : MonoBehaviour
             }
         }
 
-        if (!blocking)
-        {
-            for (int i = free.Count - 1; i >= 0; i--)
-            {
-                if (!IsClearOfPlaced(free[i], footprint, occupied)) continue;
-
-                anchor = free[i];
-                free.RemoveAt(i);
-                return true;
-            }
-
-            anchor = default;
-            return false;
-        }
-
         for (int i = free.Count - 1; i >= 0; i--)
         {
-            if (layout.NearAnyChokepoint(free[i], chokepointRadius)) continue;
+            if (!HasClearance(layout, free[i], clearance)) continue;
+            if (blocking && layout.NearAnyChokepoint(free[i], chokepointRadius)) continue;
             if (!IsClearOfPlaced(free[i], footprint, occupied)) continue;
 
             anchor = free[i];
@@ -820,6 +843,10 @@ public class DungeonPopulator : MonoBehaviour
     /// already *is* this prop's footprint here, so a fixed radius of one was never
     /// consistent with the value sitting right next to it in the parameter list.
     ///
+    /// Clearance is checked here too, for the same reason as in <see cref="TryTakeAnchor"/>:
+    /// a cluster member is placed on a cell like the anchor is, and a prop wider than one
+    /// cell placed on a cell beside a wall reaches into it.
+    ///
     /// <paramref name="occupied"/> is checked in addition to <paramref name="placed"/>: the
     /// latter is this cluster's own members, the former is everything else already
     /// standing in the room. A cluster member can be correctly spaced from its own anchor
@@ -837,6 +864,7 @@ public class DungeonPopulator : MonoBehaviour
         {
             Vector2Int candidate = free[i];
             if (Chebyshev(candidate, anchor) > radius) continue;
+            if (!HasClearance(layout, candidate, spacing / 2)) continue;
             if (blocking && layout.NearAnyChokepoint(candidate, chokepointRadius)) continue;
             if (!IsClearOfPlaced(candidate, spacing, occupied)) continue;
 

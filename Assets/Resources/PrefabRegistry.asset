@@ -25,6 +25,10 @@ MonoBehaviour:
     prefab: {fileID: 7108180406061880555, guid: 6640c9367df2ece47a60f6a221c44b48, type: 3}
   - id: prop.table
     prefab: {fileID: 4820117563302941188, guid: 2b6f10d4c893a0f4e8517c4a9d3b62e5, type: 3}
+  - id: prop.statue01
+    prefab: {fileID: 8342154479092525223, guid: ef28a0eb54e964e408138a524cf1600c, type: 3}
+  - id: prop.statue02
+    prefab: {fileID: 8342154479092525223, guid: 6fa2a28fa5e9d9d44a01d08e84e63257, type: 3}
   - id: enemy.skullguy
     prefab: {fileID: 7423423773025333378, guid: 9fcb20d09d999c34c9420d6778e33bdc, type: 3}
   - id: enemy.blindlistener

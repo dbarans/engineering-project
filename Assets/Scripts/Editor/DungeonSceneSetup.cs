@@ -107,6 +107,23 @@ public static class DungeonSceneSetup
     private const string PaperArtPath = ArtFolder + "/FURNITURE_pngy_papier.png";
 
     /// <summary>
+    /// Ground clutter cut whole, one sprite per source — unlike the paper art, each of these
+    /// files is already exactly one thing to place, with nothing overlapping to separate out.
+    /// <see cref="NatureDecalWeight"/> is the frequency the painter's uniform pick gives it,
+    /// realised as how many times its tile is repeated in the decal array rather than as a
+    /// second selection step, so the existing uniform picker in <c>DungeonPainter.PaintDecals</c>
+    /// does not need to learn about weights at all.
+    /// </summary>
+    private static readonly (string name, string artPath, int weight)[] NatureDecals =
+    {
+        ("DecalMushroomA", ArtFolder + "/mushroom.png", 3),
+        ("DecalMushroomB", ArtFolder + "/mushroom02.png", 3),
+        // A dropped sleeping bag reads as a small scene — someone was here — which is worth
+        // more if it stays uncommon than if it turns up as often as a mushroom.
+        ("DecalSleepingBag", ArtFolder + "/sleepingbag01.png", 1),
+    };
+
+    /// <summary>
     /// Resolution of a tile cut from hand-drawn art, with its PPU set to match so it still
     /// covers exactly one world unit. Higher than <see cref="TilePixels"/> because the
     /// generated placeholders are flat noise that survives being tiny, while the real art has
@@ -151,6 +168,19 @@ public static class DungeonSceneSetup
     /// </summary>
     private const float PaperGroupSpread = 0.17f;
 
+    /// <summary>
+    /// How much of a tile a nature decal's longest side covers. Larger than
+    /// <see cref="PaperSheetFill"/> — these are meant to read as ground cover you notice, not
+    /// litter you glance past.
+    /// </summary>
+    private const float NatureDecalFill = 0.8f;
+
+    /// <summary>How much a nature decal's size jitters, either side of <see cref="NatureDecalFill"/>.</summary>
+    private const float NatureScaleJitter = 0.1f;
+
+    /// <summary>How far a nature decal drifts from the middle of its cell, as a fraction of it.</summary>
+    private const float NatureSpread = 0.04f;
+
     /// <summary>Alpha at or above which a source pixel counts as solid when hunting for a crop.</summary>
     private const byte OpaqueAlpha = 250;
 
@@ -184,7 +214,14 @@ public static class DungeonSceneSetup
         Tile wallFaceTile = EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid);
         Tile pillarTile = EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Grid);
         Tile rubbleTile = EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid);
-        Tile[] decalTiles = CombineDecals(EnsureDecalTiles(), EnsurePaperDecals());
+        Tile[] natureDecals = EnsureNatureDecals();
+        Tile[] decalTiles = CombineDecals(EnsureDecalTiles(), EnsurePaperDecals(), natureDecals);
+
+        // Also guaranteed once in the hub, on top of being rare scatter everywhere else via
+        // decalTiles above — see DungeonPainter.hubGuaranteedDecalTile. Found by name in the
+        // already-composited array rather than composited a second time, so this stays the
+        // same Tile reference decalTiles carries and never risks the two disagreeing.
+        Tile sleepingBagTile = FindTileByName(natureDecals, "DecalSleepingBag");
         Tile[] wallAutotiles = EnsureWallAutotiles();
         PrefabRegistry registry = EnsureRegistry();
         EnsureRegistryEntries(registry);
@@ -198,7 +235,7 @@ public static class DungeonSceneSetup
 
         WarnOnCellSizeMismatch(grid);
         WireGenerator(grid, floor, decals, walls, floorTiles, floorMosaicSize, wallTile,
-            wallFaceTile, pillarTile, rubbleTile, decalTiles, wallAutotiles,
+            wallFaceTile, pillarTile, rubbleTile, decalTiles, sleepingBagTile, wallAutotiles,
             settings, contentSettings, registry);
 
         EditorSceneManager.MarkSceneDirty(grid.gameObject.scene);
@@ -303,7 +340,7 @@ public static class DungeonSceneSetup
     private static void WireGenerator(Grid grid, Tilemap floor, Tilemap decals, Tilemap walls,
         Tile[] floorTiles, int floorMosaicSize, Tile wallTile, Tile wallFaceTile,
         Tile pillarTile, Tile rubbleTile,
-        Tile[] decalTiles, Tile[] wallAutotiles,
+        Tile[] decalTiles, Tile hubGuaranteedDecalTile, Tile[] wallAutotiles,
         DungeonGenerationSettings settings,
         RoomContentSettings contentSettings, PrefabRegistry registry)
     {
@@ -314,6 +351,7 @@ public static class DungeonSceneSetup
         SetRef(painter, "decalTilemap", decals);
         SetRef(painter, "wallTilemap", walls);
         SetArray(painter, "decalTiles", decalTiles);
+        SetRef(painter, "hubGuaranteedDecalTile", hubGuaranteedDecalTile);
         SetArray(painter, "wallAutotiles", wallAutotiles);
         SetArray(painter, "floorTiles", floorTiles);
         SetInt(painter, "floorMosaicSize", floorMosaicSize);
@@ -829,6 +867,8 @@ public static class DungeonSceneSetup
             ("world.chest", "Assets/Prefabs/World/Chest.prefab"),
             ("prop.barrel", "Assets/Prefabs/Barrel.prefab"),
             ("prop.table", "Assets/Prefabs/Table.prefab"),
+            ("prop.statue01", "Assets/Prefabs/Statue01.prefab"),
+            ("prop.statue02", "Assets/Prefabs/Statue02.prefab"),
             ("enemy.skullguy", "Assets/Prefabs/SkullGuyEnemy.prefab"),
             ("enemy.blindlistener", "Assets/Prefabs/BlindListenerEnemy.prefab")
         };
@@ -1171,6 +1211,83 @@ public static class DungeonSceneSetup
         {
             Object.DestroyImmediate(art);
         }
+    }
+
+    /// <summary>
+    /// Ground clutter cut from <see cref="NatureDecals"/>: mushroom clusters and a dropped
+    /// sleeping bag, each its own source file with exactly one thing drawn on it.
+    ///
+    /// Unlike <see cref="EnsurePaperDecals"/>, there is no clump to pick apart — the whole
+    /// opaque region of the file <i>is</i> the decal — so this crops to it directly rather than
+    /// separating groups first. It is still found via <see cref="FindOpaqueGroups"/> and not a
+    /// plain alpha bounding box, because that rejects stray flecks under
+    /// <c>minimumArea</c> the same way it does for paper, instead of letting a speck of anti-
+    /// aliasing outside the real drawing widen the crop.
+    ///
+    /// Composed once per tile with a random rotation and a small scale jitter, the same
+    /// building blocks <see cref="EnsurePaperDecals"/> uses for a lone sheet — ground cover
+    /// lying at a fixed angle every time would read as stamped rather than dropped.
+    ///
+    /// Rarity is not a second weighted-pick system: <see cref="NatureDecals"/>' weight is
+    /// realised by writing the same <see cref="Tile"/> reference into the returned array that
+    /// many times, so <c>DungeonPainter.PaintDecals</c>' existing uniform pick over the array is
+    /// the only selection logic that ever runs.
+    /// </summary>
+    private static Tile[] EnsureNatureDecals(bool overwrite = false)
+    {
+        var tiles = new List<Tile>();
+
+        foreach (var (name, artPath, weight) in NatureDecals)
+        {
+            Texture2D art = LoadArtTexture(artPath);
+            if (art == null) continue;
+
+            Tile tile;
+            try
+            {
+                Color32[] pixels = art.GetPixels32();
+                List<OpaqueGroup> groups = FindOpaqueGroups(pixels, art.width, art.height);
+                if (groups.Count == 0)
+                {
+                    Debug.LogWarning($"[DungeonSetup] No opaque artwork found in '{artPath}'.");
+                    continue;
+                }
+
+                // Largest group: the drawing itself, as opposed to any fleck too small to
+                // clear minimumArea and therefore already excluded, or — if the source ever
+                // gained a second, smaller mark on the same canvas — that mark rather than
+                // the subject.
+                OpaqueGroup subject = groups[0];
+                Color32[] subjectPixels = ExtractGroup(pixels, art.width, subject);
+                int subjectWidth = subject.Bounds.width, subjectHeight = subject.Bounds.height;
+
+                var random = new DeterministicRandom(name);
+                var composed = new Color32[ArtTilePixels * ArtTilePixels];
+
+                float longestSide = Mathf.Max(subjectWidth, subjectHeight);
+                float scale = NatureDecalFill * ArtTilePixels / longestSide
+                            * Mathf.Lerp(1f - NatureScaleJitter, 1f + NatureScaleJitter,
+                                random.NextFloat());
+                var centre = new Vector2(
+                    ArtTilePixels * (0.5f + (random.NextFloat() * 2f - 1f) * NatureSpread),
+                    ArtTilePixels * (0.5f + (random.NextFloat() * 2f - 1f) * NatureSpread));
+
+                CompositeRotated(subjectPixels, subjectWidth, subjectHeight, composed, ArtTilePixels,
+                    centre, scale, random.NextFloat() * 360f);
+
+                tile = WriteArtTile(name, composed, ArtTilePixels, ArtTilePixels,
+                    Tile.ColliderType.None, overwrite);
+            }
+            finally
+            {
+                Object.DestroyImmediate(art);
+            }
+
+            if (tile == null) continue;
+            for (int i = 0; i < weight; i++) tiles.Add(tile);
+        }
+
+        return tiles.Count > 0 ? tiles.ToArray() : null;
     }
 
     /// <summary>
@@ -1620,19 +1737,34 @@ public static class DungeonSceneSetup
     }
 
     /// <summary>
-    /// Joins the generated decals to the ones cut from art, skipping either if it is absent.
-    /// The painter picks between decals uniformly, so this is also the mix: four generated
-    /// marks to two paper groups today, i.e. a third of the litter on a floor is paper.
+    /// Joins every decal source into one array, skipping any that is absent (art not on disk,
+    /// nothing found in it). The painter picks between decals uniformly, so this array's
+    /// composition <i>is</i> the mix — including within one source, for callers like
+    /// <see cref="EnsureNatureDecals"/> that repeat a tile reference to weight it.
     /// </summary>
-    private static Tile[] CombineDecals(Tile[] generated, Tile[] fromArt)
+    private static Tile[] CombineDecals(params Tile[][] sources)
     {
-        if (fromArt == null || fromArt.Length == 0) return generated;
-        if (generated == null || generated.Length == 0) return fromArt;
+        var all = new List<Tile>();
+        foreach (Tile[] source in sources)
+        {
+            if (source == null) continue;
+            foreach (Tile tile in source) if (tile != null) all.Add(tile);
+        }
+        return all.Count > 0 ? all.ToArray() : null;
+    }
 
-        var all = new List<Tile>(generated.Length + fromArt.Length);
-        foreach (Tile tile in generated) if (tile != null) all.Add(tile);
-        foreach (Tile tile in fromArt) if (tile != null) all.Add(tile);
-        return all.ToArray();
+    /// <summary>
+    /// Finds one already-composited tile by its asset name, e.g. picking the sleeping bag
+    /// back out of <see cref="EnsureNatureDecals"/>' weighted array for
+    /// <see cref="DungeonPainter"/>'s separate guaranteed-hub-decal slot. A Tile asset's
+    /// <c>name</c> is the asset's file name once loaded via <c>AssetDatabase</c>, which is
+    /// exactly the name it was written under in <see cref="WriteArtTile"/>.
+    /// </summary>
+    private static Tile FindTileByName(Tile[] tiles, string name)
+    {
+        if (tiles == null) return null;
+        foreach (Tile tile in tiles) if (tile != null && tile.name == name) return tile;
+        return null;
     }
 
     /// <summary>
@@ -1668,6 +1800,7 @@ public static class DungeonSceneSetup
         // up cut to a version of the art that is no longer on disk.
         EnsureFloorMosaic(overwrite: true);
         EnsurePaperDecals(overwrite: true);
+        EnsureNatureDecals(overwrite: true);
 
         AssetDatabase.SaveAssets();
         Debug.Log($"[DungeonSetup] Placeholder tiles redrawn in '{TilesFolder}'.");

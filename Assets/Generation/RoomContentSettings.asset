@@ -122,7 +122,13 @@ MonoBehaviour:
     weight: 1
     minDepth: 0
   - prefabId: prop.table
-    weight: 0.6
+    weight: 0.3
+    minDepth: 0
+  - prefabId: prop.statue01
+    weight: 0.3
+    minDepth: 0
+  - prefabId: prop.statue02
+    weight: 0.3
     minDepth: 0
   propsPerHundredFloorCells: 6
   propsPerClusterMin: 2

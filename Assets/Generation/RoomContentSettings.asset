@@ -17,9 +17,11 @@ MonoBehaviour:
   - prefabId: enemy.skullguy
     weight: 1
     minDepth: 0
+    solitary: 0
   - prefabId: enemy.blindlistener
     weight: 0.7
     minDepth: 2
+    solitary: 0
   enemiesAtFirstDepth: 0.9
   enemiesPerDepth: 0.64
   maxEnemiesPerRoom: 2
@@ -121,18 +123,34 @@ MonoBehaviour:
   - prefabId: prop.barrel
     weight: 1
     minDepth: 0
+    solitary: 0
   - prefabId: prop.table
     weight: 0.14
     minDepth: 0
+    solitary: 1
   - prefabId: prop.statue01
     weight: 0.03
-    minDepth: 0
+    minDepth: 2
+    solitary: 1
   - prefabId: prop.statue02
     weight: 0.11
+    minDepth: 2
+    solitary: 1
+  - prefabId: prop.sack01
+    weight: 0.3
     minDepth: 0
+    solitary: 0
+  - prefabId: prop.sack02
+    weight: 0.3
+    minDepth: 0
+    solitary: 0
+  - prefabId: prop.candle01
+    weight: 0.35
+    minDepth: 0
+    solitary: 1
   propsPerHundredFloorCells: 4
   propsPerClusterMin: 2
-  propsPerClusterMax: 3
+  propsPerClusterMax: 5
   propWallBias: 0.8
   alcoveAmbushChance: 0.35
   chokepointGuardChance: 0.2

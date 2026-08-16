@@ -587,6 +587,11 @@ public class DungeonPopulator : MonoBehaviour
     /// after another had no way to know about each other and could land close enough to
     /// overlap. Chests placed earlier in the room are in this same list too, for the same
     /// reason.
+    ///
+    /// A choice marked <see cref="RoomContentSettings.PrefabChoice.solitary"/> spends its
+    /// whole budget hit as one anchor and stops there — no cluster follows it. Clustering
+    /// reads right for a barrel or a crate; a statue picked twice in the same corner reads
+    /// as a mistake instead of scenery.
     /// </summary>
     private void SpawnProps(DungeonLayout layout, Room room, List<Vector2Int> free,
         List<(Vector2Int cell, int footprint)> occupied, DeterministicRandom random, ref int slot)
@@ -614,6 +619,8 @@ public class DungeonPopulator : MonoBehaviour
                 SlotGuid(layout.Seed, room.Index, slot++));
             budget--;
             occupied.Add((anchor, spacing));
+
+            if (choice.solitary) continue;
 
             // The rest of the cluster is the same prop, spaced by its own footprint so
             // members never overlap — a heap of one thing standing apart, not stacked.

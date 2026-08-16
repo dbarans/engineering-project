@@ -133,7 +133,11 @@ public static class DoorwayNormalizer
         if (clump.Count <= doorwayWidth)
         {
             // Already no wider than a door. Nothing to wall up; the prefabs fill the gap.
-            foreach (Vector2Int cell in clump) layout[cell] = CellType.Door;
+            bool eitherAxis = clump.Count == 1;
+            foreach (Vector2Int cell in clump)
+            {
+                if (LeadsThrough(layout, cell, alongY, eitherAxis)) layout[cell] = CellType.Door;
+            }
             return;
         }
 
@@ -145,6 +149,20 @@ public static class DoorwayNormalizer
 
         kept.Clear();
         for (int i = first; i < first + doorwayWidth; i++) kept.Add(clump[i]);
+
+        // A straight corridor running alongside a room's wall is collinear too, and until
+        // this check it was narrowed like any other opening. The result was the reported
+        // fault: a column of pillars parallel to the wall with a door in the middle, room
+        // on one side and untouched bedrock on the other — a door that opens into rock.
+        // The connectivity test below does not catch it, because the corridor still
+        // reaches the room by whatever route it took before running past.
+        //
+        // A doorway is a doorway only when the passage goes through it, so require that
+        // of every cell about to become one.
+        foreach (Vector2Int cell in kept)
+        {
+            if (!LeadsThrough(layout, cell, alongY, false)) return;
+        }
 
         // The excess is walled up, and the couple of cells nearest the door become Pillar
         // rather than Wall. Both are solid and both stop vision, so this changes nothing
@@ -176,6 +194,25 @@ public static class DoorwayNormalizer
         }
 
         foreach (Vector2Int cell in clump) layout[cell] = CellType.Floor;
+    }
+
+    /// <summary>
+    /// True when open ground continues on both sides of the axis the opening is crossed by
+    /// — the room on one side, the corridor on the other.
+    ///
+    /// The axis is the one perpendicular to the opening: a clump running north-south lies
+    /// in a wall that faces east-west, so that is the way through it. A one-cell clump has
+    /// no direction of its own — <see cref="IsCollinear"/> reports an arbitrary one for it
+    /// — so <paramref name="eitherAxis"/> lets either satisfy the test.
+    /// </summary>
+    private static bool LeadsThrough(DungeonLayout layout, Vector2Int cell, bool alongY,
+        bool eitherAxis)
+    {
+        bool acrossX = layout.IsWalkable(cell.x - 1, cell.y) && layout.IsWalkable(cell.x + 1, cell.y);
+        bool acrossY = layout.IsWalkable(cell.x, cell.y - 1) && layout.IsWalkable(cell.x, cell.y + 1);
+
+        if (eitherAxis) return acrossX || acrossY;
+        return alongY ? acrossX : acrossY;
     }
 
     /// <summary>

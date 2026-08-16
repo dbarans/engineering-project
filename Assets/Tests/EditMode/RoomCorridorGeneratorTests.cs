@@ -228,6 +228,41 @@ public class RoomCorridorGeneratorTests
         Assert.Greater(doors, 0, "no doorways were marked at all");
     }
 
+    /// <summary>
+    /// A doorway must be something the player can walk through, which means open ground on
+    /// both sides of it. The case that used to fail was a corridor running straight past a
+    /// room's wall: collinear like a real opening, so it was narrowed like one, leaving a
+    /// door with the room on one side and untouched bedrock on the other.
+    /// </summary>
+    [Test]
+    public void EveryDoorwayHasOpenGroundOnBothSides()
+    {
+        var parameters = SmallParams();
+        parameters.CorridorWidth = 1;
+        parameters.MaxCorridorWidth = 4;
+
+        // Swept rather than run on one seed: the fault appeared on roughly one doorway in
+        // fourteen, so a single layout can easily contain none of them.
+        for (int seed = 0; seed < 40; seed++)
+        {
+            DungeonLayout layout = Generate($"doorway{seed}", parameters);
+
+            for (int y = 0; y < layout.Height; y++)
+            {
+                for (int x = 0; x < layout.Width; x++)
+                {
+                    if (layout[x, y] != CellType.Door) continue;
+
+                    bool acrossX = layout.IsWalkable(x - 1, y) && layout.IsWalkable(x + 1, y);
+                    bool acrossY = layout.IsWalkable(x, y - 1) && layout.IsWalkable(x, y + 1);
+
+                    Assert.IsTrue(acrossX || acrossY,
+                        $"seed doorway{seed}: door at ({x},{y}) opens onto solid rock");
+                }
+            }
+        }
+    }
+
     [Test]
     public void LoopsAreCreatedWhenRequested()
     {

@@ -26,6 +26,10 @@ public class RoomContentSettings : ScriptableObject
 
         [Tooltip("Never appears in rooms closer than this many hops from the hub.")]
         [Min(0)] public int minDepth;
+
+        [Tooltip("Props only. Always placed alone, never as the anchor or a member of a " +
+                 "cluster — for things that read wrong repeated, like a statue.")]
+        public bool solitary;
     }
 
     /// <summary>An item that may be dropped as loot, with its relative likelihood.</summary>

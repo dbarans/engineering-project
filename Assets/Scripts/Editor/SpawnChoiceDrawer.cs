@@ -137,7 +137,7 @@ public class PrefabChoiceDrawer : SpawnChoiceDrawer
 {
     protected override string IdLabel => "Prefab Id";
     protected override string IdProperty => "prefabId";
-    protected override string[] TrailingProperties { get; } = { "minDepth" };
+    protected override string[] TrailingProperties { get; } = { "minDepth", "solitary" };
 }
 
 /// <summary>Weight slider for the item tables: floor loot, chest contents, treasure.</summary>

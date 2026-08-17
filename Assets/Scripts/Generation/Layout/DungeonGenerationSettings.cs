@@ -29,6 +29,13 @@ public class DungeonGenerationSettings : ScriptableObject
     [Tooltip("Placement tries per room before giving up on it. Higher = denser maps, slower.")]
     [Min(1)] public int placementAttemptsPerRoom = 40;
 
+    [Header("Hub")]
+    [Tooltip("Side of the square hub room reserved at the middle of the map — the one " +
+             "place in the dungeon with a save station and a crafting table. It is " +
+             "placed before any other room and counts against the target room count, " +
+             "and it is clamped to the ordinary room size range.")]
+    [Min(3)] public int hubRoomSize = 14;
+
     [Header("Room shape")]
     [Tooltip("Chance a room is cut to a non-rectangular plan — an L, a T, a ring or a " +
              "cavern. A rectangle is read in one glance from the doorway; a shaped room " +
@@ -38,7 +45,7 @@ public class DungeonGenerationSettings : ScriptableObject
     [Tooltip("How hard the interior pass works to break a room's sightlines with pillars, " +
              "partitions and rubble. 0 = leave rooms empty. Raising it lowers the share of " +
              "a room the player can see from its doorway, which the metrics report.")]
-    [Range(0f, 1f)] public float interiorDensity = 0.5f;
+    [Range(0f, 1f)] public float interiorDensity = 0.25f;
 
     [Tooltip("How hard the outline pass works on a room's walls: chamfering the corners " +
              "and pushing the odd cell of a long wall inwards, so the perimeter has the " +
@@ -90,6 +97,7 @@ public class DungeonGenerationSettings : ScriptableObject
             MaxRoomSize = maxRoomSize,
             RoomSpacing = roomSpacing,
             PlacementAttemptsPerRoom = placementAttemptsPerRoom,
+            HubRoomSize = hubRoomSize,
             CorridorWidth = corridorWidth,
             MaxCorridorWidth = maxCorridorWidth,
             DoorwayWidth = doorwayWidth,
@@ -118,5 +126,7 @@ public class DungeonGenerationSettings : ScriptableObject
         int maxUsable = Mathf.Min(mapWidth, mapHeight) / 2 - roomSpacing - 1;
         if (maxUsable >= 3 && maxRoomSize > maxUsable) maxRoomSize = maxUsable;
         if (minRoomSize > maxRoomSize) minRoomSize = maxRoomSize;
+
+        hubRoomSize = Mathf.Clamp(hubRoomSize, minRoomSize, maxRoomSize);
     }
 }

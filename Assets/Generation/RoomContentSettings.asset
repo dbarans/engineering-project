@@ -1,4 +1,4 @@
-﻿%YAML 1.1
+%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -17,12 +17,14 @@ MonoBehaviour:
   - prefabId: enemy.skullguy
     weight: 1
     minDepth: 0
+    solitary: 0
   - prefabId: enemy.blindlistener
     weight: 0.7
     minDepth: 2
-  enemiesAtFirstDepth: 0.6
-  enemiesPerDepth: 0.5
-  maxEnemiesPerRoom: 4
+    solitary: 0
+  enemiesAtFirstDepth: 0.9
+  enemiesPerDepth: 0.64
+  maxEnemiesPerRoom: 2
   loot:
   - itemId: 5050d2d519e64e13be6c3dacaac66b8a
     weight: 1.2
@@ -139,19 +141,24 @@ MonoBehaviour:
   maxTreasureChestStacks: 4
   props:
   - prefabId: prop.barrel
-    weight: 1
+    weight: 0.49
     minDepth: 0
+    solitary: 0
   - prefabId: prop.table
-    weight: 0.6
+    weight: 0.26
     minDepth: 0
-  propsPerHundredFloorCells: 6
+    solitary: 1
+  propsPerHundredFloorCells: 4
   propsPerClusterMin: 2
-  propsPerClusterMax: 4
+  propsPerClusterMax: 5
   propWallBias: 0.8
   alcoveAmbushChance: 0.35
   chokepointGuardChance: 0.2
-  maxCorridorEnemies: 6
+  maxCorridorEnemies: 2
   saveStationPrefabId: world.savestation
+  craftingTablePrefabId: world.craftingtable
   lightPrefabId: world.lamp
+  hubLamps: 1
+  hubChests: 2
   templates: []
   templateChance: 0.4

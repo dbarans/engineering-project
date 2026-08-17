@@ -28,7 +28,7 @@ Transform:
   m_GameObject: {fileID: 4938097524118985193}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: -0.7071068, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 0.19, z: 0}
+  m_LocalPosition: {x: 0.36, y: -0, z: 0}
   m_LocalScale: {x: 2, y: 2, z: 2}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -462,7 +462,7 @@ CircleCollider2D:
   m_CompositeOperation: 0
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
-  m_Radius: 0.23
+  m_Radius: 0.51
 --- !u!114 &570698690213097878
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -479,6 +479,8 @@ MonoBehaviour:
   repathInterval: 0.25
   waypointReachDistance: 0.1
   targetRepathDistance: 0.5
+  maxExploredNodes: 4000
+  failedPathRetryInterval: 0.75
   drawPathGizmos: 1
   pathColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!114 &7892708207933928237
@@ -497,7 +499,7 @@ MonoBehaviour:
   moveSpeed: 1.8
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
-  alwaysDetectRange: 0.5
+  alwaysDetectRange: 1.6
   gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
   detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
@@ -513,6 +515,8 @@ MonoBehaviour:
   skipInvestigateWhenLostPlayer: 0
   postInvestigateBehavior: 0
   wanderRadius: 4
+  fullUpdateMargin: 8
+  throttledTickInterval: 0.35
   corpsePrefab: {fileID: 7566011447024258560, guid: 2a4fe617542b3ed4ab6fd77ba156f5bb, type: 3}
   possibleDrops: []
   possibleRandomDrops:

@@ -17,7 +17,7 @@ public class DungeonRoomTemplate : MonoBehaviour
     [Tooltip("Footprint in cells. The template is only used in rooms at least this large.")]
     [SerializeField] private Vector2Int size = new Vector2Int(5, 5);
 
-    [Tooltip("Room roles this template may fill. Empty means any role except Start.")]
+    [Tooltip("Room roles this template may fill. Empty means any role except Hub.")]
     [SerializeField] private RoomKind[] allowedKinds = { RoomKind.Normal };
 
     [Tooltip("Relative likelihood against the other templates that fit.")]
@@ -33,7 +33,7 @@ public class DungeonRoomTemplate : MonoBehaviour
     public bool Fits(Room room)
     {
         if (room == null) return false;
-        if (room.Kind == RoomKind.Start) return false; // the start room stays empty
+        if (room.Kind == RoomKind.Hub) return false; // the hub stays empty and legible
         if (room.Bounds.width < size.x || room.Bounds.height < size.y) return false;
         if (!FootprintIsInside(room)) return false;
 

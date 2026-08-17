@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 46f9b248689dc5a40b4dcc3389122b22
+guid: dd4a9cbbf0e5bef44bba5c57068ef04e
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 4170416730611579338
-    second: door01_0
+      213: -7773951638589178532
+    second: PlaceholderProp_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -96,17 +96,30 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: door01_0
+      name: PlaceholderProp_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 1316
-        height: 248
+        width: 256
+        height: 256
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -115,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: ac9f271bbeb40e930800000000000000
-      internalID: 4170416730611579338
+      spriteID: c5d73d04c206d1490800000000000000
+      internalID: -7773951638589178532
       vertices: []
       indices: 
       edges: []
@@ -135,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      door01_0: 4170416730611579338
+      PlaceholderProp_0: -7773951638589178532
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

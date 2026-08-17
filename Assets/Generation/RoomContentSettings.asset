@@ -128,26 +128,6 @@ MonoBehaviour:
     weight: 0.26
     minDepth: 0
     solitary: 1
-  - prefabId: prop.statue01
-    weight: 0.06
-    minDepth: 2
-    solitary: 1
-  - prefabId: prop.statue02
-    weight: 0.11
-    minDepth: 2
-    solitary: 1
-  - prefabId: prop.sack01
-    weight: 0.3
-    minDepth: 0
-    solitary: 0
-  - prefabId: prop.sack02
-    weight: 0.3
-    minDepth: 0
-    solitary: 0
-  - prefabId: prop.candle01
-    weight: 0.22
-    minDepth: 0
-    solitary: 1
   propsPerHundredFloorCells: 4
   propsPerClusterMin: 2
   propsPerClusterMax: 5

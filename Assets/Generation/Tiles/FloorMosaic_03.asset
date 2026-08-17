@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: FloorMosaic_03
   m_EditorClassIdentifier: UnityEngine.dll::UnityEngine.Tilemaps.Tile
   m_Sprite: {fileID: 21300000, guid: 36b87687145f4614c81ee545a02cc1a7, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.8867924, g: 0.8867924, b: 0.8867924, a: 1}
   m_Transform:
     e00: 1
     e01: 0

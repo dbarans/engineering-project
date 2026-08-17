@@ -121,15 +121,15 @@ MonoBehaviour:
   maxTreasureChestStacks: 4
   props:
   - prefabId: prop.barrel
-    weight: 1
+    weight: 0.49
     minDepth: 0
     solitary: 0
   - prefabId: prop.table
-    weight: 0.14
+    weight: 0.26
     minDepth: 0
     solitary: 1
   - prefabId: prop.statue01
-    weight: 0.03
+    weight: 0.06
     minDepth: 2
     solitary: 1
   - prefabId: prop.statue02
@@ -145,7 +145,7 @@ MonoBehaviour:
     minDepth: 0
     solitary: 0
   - prefabId: prop.candle01
-    weight: 0.35
+    weight: 0.22
     minDepth: 0
     solitary: 1
   propsPerHundredFloorCells: 4
@@ -158,7 +158,7 @@ MonoBehaviour:
   saveStationPrefabId: world.savestation
   craftingTablePrefabId: world.craftingtable
   lightPrefabId: world.lamp
-  hubLamps: 6
+  hubLamps: 1
   hubChests: 2
   templates: []
   templateChance: 0.4

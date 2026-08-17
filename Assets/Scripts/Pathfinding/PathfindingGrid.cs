@@ -12,7 +12,16 @@ using UnityEngine;
 /// Each walkable cell also carries a connected-region id (4-connectivity, matching the movement
 /// rules in <see cref="AStarPathfinder"/>), so "is this target reachable at all?" is an O(1)
 /// comparison instead of an exhaustive A* flood over the whole map.
+///
+/// <see cref="ExecuteAlways"/> is load-bearing, not decoration — the same reason it is on
+/// <see cref="DungeonPopulator"/> (see the Stage 7 write-up in <c>GENERATION_NOTES.md</c>).
+/// <c>_walkable</c> is never serialized, so without it the gizmo has nothing to draw the
+/// moment a baked dungeon scene is opened: a plain <see cref="MonoBehaviour"/> only runs
+/// <see cref="Awake"/> when entering Play, and a scene authored by baking runs with
+/// <c>buildOnStart</c> off, so nothing else calls <see cref="BuildGrid"/> either. With this,
+/// opening the scene alone is enough for the grid to exist and the gizmo to have data.
 /// </summary>
+[ExecuteAlways]
 public class PathfindingGrid : MonoBehaviour
 {
     [Header("Grid")]
@@ -20,6 +29,7 @@ public class PathfindingGrid : MonoBehaviour
     [SerializeField] private float cellSize = 1f;
     [SerializeField] private int width = 20;
     [SerializeField] private int height = 20;
+    [Tooltip("Layers checked for obstacles. Trigger colliders on these layers are ignored (see BuildGrid), so an interactable's trigger volume never blocks a path the way its solid collider would.")]
     [SerializeField] private LayerMask obstacleMask = ~0;
     [Tooltip("Extra clearance radius for moving agents. Increase when enemy collider is larger than a grid cell center sample.")]
     [SerializeField] private float agentRadius = 0f;
@@ -28,14 +38,18 @@ public class PathfindingGrid : MonoBehaviour
     [Tooltip("Overall opacity of the grid gizmo. 0 = fully hidden, 1 = colors below at full strength.")]
     [Range(0f, 1f)]
     [SerializeField] private float gizmoOpacity = 0f;
-    [Tooltip("Hard cap on gizmo cubes drawn per repaint. A 500x500 grid is 250 000 cells; drawing them all stalls the Scene view. Cells beyond the cap are skipped.")]
-    [SerializeField] private int maxGizmoCells = 5000;
+    [Tooltip("Hard cap on gizmo cubes drawn per repaint. A 500x500 grid is 250 000 cells; drawing them all stalls the Scene view. Above the cap, cells are sampled by stride across the whole grid rather than truncated, so raising or lowering this only changes density, never which part of the map is visible.")]
+    [SerializeField] private int maxGizmoCells = 30000;
     [SerializeField] private Color walkableColor = new Color(0f, 1f, 0f, 0.3f);
     [SerializeField] private Color blockedColor = new Color(1f, 0f, 0f, 0.5f);
 
     private bool[] _walkable;
     private int[] _regionIds;
     private int _regionCount;
+
+    // Reused across every OverlapCircle call in BuildGrid to avoid a per-cell allocation —
+    // only the count matters, never the collider itself.
+    private readonly Collider2D[] _overlapBuffer = new Collider2D[1];
 
     /// <summary>Bumped by every <see cref="BuildGrid"/>. Lets caches keyed on grid topology invalidate themselves.</summary>
     public int TopologyVersion { get; private set; }
@@ -53,23 +67,36 @@ public class PathfindingGrid : MonoBehaviour
 
     /// <summary>
     /// Resizes the grid to cover a procedurally generated dungeon and rebuilds it.
-    /// The authored width/height/origin only fit a hand-built scene, so a generator
-    /// must call this before the grid is first used.
+    /// The authored width/height/origin/cellSize only fit a hand-built scene, so a
+    /// generator must call this before the grid is first used.
+    ///
+    /// <paramref name="gridCellSize"/> exists because the authored <see cref="cellSize"/>
+    /// is not a safe default to fall back on: it is whatever was last set by hand in the
+    /// inspector, with no guarantee it matches the tilemap the generator just painted.
+    /// One dungeon shipped with the tilemap's <c>DungeonRoot</c> scaled 2× and this field
+    /// left at an unrelated value from a different scene entirely — the grid sampled a
+    /// quarter of the map's actual area, all of it clustered at the corner nearest the
+    /// origin, because every cell was checked at half its real spacing. The caller — which
+    /// knows the tilemap's actual world-space cell size, via <see cref="DungeonPainter.CellSize"/>
+    /// — is the only one in a position to get this right.
     ///
     /// Caller's responsibility: the colliders must already be final. The grid samples
     /// physics, so calling this before <c>CompositeCollider2D.GenerateGeometry()</c>
     /// yields a grid that silently disagrees with the visible walls.
     /// </summary>
-    public void Configure(Vector2 gridOrigin, int gridWidth, int gridHeight)
+    public void Configure(Vector2 gridOrigin, float gridCellSize, int gridWidth, int gridHeight)
     {
-        if (gridWidth <= 0 || gridHeight <= 0)
+        if (gridWidth <= 0 || gridHeight <= 0 || gridCellSize <= 0f)
         {
             Debug.LogError(
-                $"[PathfindingGrid] Refusing size {gridWidth}x{gridHeight}; both must be positive.", this);
+                $"[PathfindingGrid] Refusing size {gridWidth}x{gridHeight} at cell size " +
+                $"{gridCellSize}; width and height must be positive and cell size must be " +
+                "greater than zero.", this);
             return;
         }
 
         origin = gridOrigin;
+        cellSize = gridCellSize;
         width = gridWidth;
         height = gridHeight;
         BuildGrid();
@@ -88,12 +115,15 @@ public class PathfindingGrid : MonoBehaviour
         }
 
         float radius = GetObstacleCheckRadius();
+        var filter = new ContactFilter2D { useTriggers = false };
+        filter.SetLayerMask(obstacleMask);
+
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
                 Vector2 center = CellToWorld(x, y);
-                _walkable[y * width + x] = !Physics2D.OverlapCircle(center, radius, obstacleMask);
+                _walkable[y * width + x] = Physics2D.OverlapCircle(center, radius, filter, _overlapBuffer) == 0;
             }
         }
 
@@ -258,27 +288,32 @@ public class PathfindingGrid : MonoBehaviour
     /// Draws the walkability grid in the Scene view. Off by default (gizmoOpacity 0) and capped
     /// at maxGizmoCells: an uncapped 500x500 grid issues a quarter of a million draw calls per
     /// repaint, which alone drops the editor to single-digit fps.
+    ///
+    /// Cells beyond the cap are skipped by <b>stride</b>, not by stopping partway through a
+    /// row-major scan. The scan version always drew the same low-y rows first and cut off
+    /// there once the cap was hit — on a map bigger than the cap, that reliably meant one
+    /// corner was fully drawn and the rest of the map showed nothing, regardless of where in
+    /// the scene anyone was actually looking. A stride draws sparser but reaches every part
+    /// of the grid whatever the cap is, which is what "capped" should mean here.
     /// </summary>
     private void OnDrawGizmos()
     {
         if (gizmoOpacity <= 0f || maxGizmoCells <= 0) return;
         if (_walkable == null || _walkable.Length != width * height) return;
 
-        int drawn = 0;
+        int cellCount = width * height;
+        int stride = Mathf.Max(1, Mathf.CeilToInt(cellCount / (float)maxGizmoCells));
         var size = new Vector3(cellSize * 0.9f, cellSize * 0.9f, 0.01f);
 
-        for (int y = 0; y < height; y++)
+        for (int index = 0; index < cellCount; index += stride)
         {
-            for (int x = 0; x < width; x++)
-            {
-                if (drawn >= maxGizmoCells) return;
+            int x = index % width;
+            int y = index / width;
 
-                Color baseColor = _walkable[y * width + x] ? walkableColor : blockedColor;
-                Gizmos.color = new Color(baseColor.r, baseColor.g, baseColor.b, baseColor.a * gizmoOpacity);
-                Vector2 center = CellToWorld(x, y);
-                Gizmos.DrawCube(new Vector3(center.x, center.y, 0f), size);
-                drawn++;
-            }
+            Color baseColor = _walkable[index] ? walkableColor : blockedColor;
+            Gizmos.color = new Color(baseColor.r, baseColor.g, baseColor.b, baseColor.a * gizmoOpacity);
+            Vector2 center = CellToWorld(x, y);
+            Gizmos.DrawCube(new Vector3(center.x, center.y, 0f), size);
         }
     }
 

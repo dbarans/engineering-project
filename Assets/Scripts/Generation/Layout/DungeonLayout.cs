@@ -35,17 +35,23 @@ public enum CellType
 /// <summary>Role a room plays in the run; drives what gets spawned inside it.</summary>
 public enum RoomKind
 {
-    /// <summary>Where the player starts. Always empty of enemies.</summary>
-    Start = 0,
+    /// <summary>
+    /// The one safe room of the dungeon, holding the save station and the crafting table.
+    /// Where the player starts, and the origin every other room's depth is measured
+    /// from. Always empty of enemies, always at the middle of the map, and always exactly
+    /// one per dungeon — saving, crafting and the spawn point are meant to be somewhere
+    /// the player has to walk back to, which only works while there is a single such
+    /// place to walk to. There used to be a separate <c>Start</c> role; once the player's
+    /// spawn point and the safe room became the same place, keeping both meant one of them
+    /// was a second safe room with nothing to justify it.
+    /// </summary>
+    Hub = 0,
 
-    /// <summary>Ordinary room: enemies and loot scale with distance from Start.</summary>
+    /// <summary>Ordinary room: enemies and loot scale with distance from the hub.</summary>
     Normal = 1,
 
-    /// <summary>Safe room with a save station and a light source. Always empty of enemies.</summary>
-    Camp = 2,
-
-    /// <summary>The deepest room, holding the run's reward.</summary>
-    Treasure = 3
+    /// <summary>The room farthest from the hub over the room graph, holding the run's reward.</summary>
+    Treasure = 2
 }
 
 /// <summary>
@@ -114,8 +120,8 @@ public sealed class Room
     /// <summary>Role in the run; assigned after the graph is built.</summary>
     public RoomKind Kind { get; internal set; }
 
-    /// <summary>Hop count from the Start room over the room graph; 0 for Start itself.</summary>
-    public int DepthFromStart { get; internal set; }
+    /// <summary>Hop count from the hub over the room graph; 0 for the hub itself.</summary>
+    public int DepthFromHub { get; internal set; }
 
     /// <summary>Number of corridors attached to this room; 1 means a dead end.</summary>
     public int Degree { get; internal set; }
@@ -247,7 +253,7 @@ public sealed class DungeonLayout
     /// <summary>Seed this layout was generated from; stored in saves to rebuild it.</summary>
     public string Seed { get; }
 
-    /// <summary>Cell the player spawns on — the centre of the Start room.</summary>
+    /// <summary>Cell the player spawns on — the centre of the hub.</summary>
     public Vector2Int SpawnCell { get; internal set; }
 
     public IReadOnlyList<Room> Rooms => _rooms;

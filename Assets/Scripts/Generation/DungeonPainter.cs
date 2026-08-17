@@ -27,6 +27,13 @@ public class DungeonPainter : MonoBehaviour
              "for a cell is chosen from the dungeon seed, so it is stable across rebuilds.")]
     [SerializeField] private TileBase[] floorTiles;
 
+    [Tooltip("Set above 1 when the floor tiles are the pieces of one larger image rather " +
+             "than interchangeable variants. The tiles are then laid out in row-major order " +
+             "across an N by N block and repeated, so the artwork stays continuous across " +
+             "cell borders inside a block and only repeats every N cells. Needs exactly " +
+             "N*N floor tiles. 1 picks an independent variant per cell from the seed.")]
+    [Min(1)] [SerializeField] private int floorMosaicSize = 1;
+
     [Tooltip("Wall seen from above.")]
     [SerializeField] private TileBase wallTile;
 
@@ -51,9 +58,6 @@ public class DungeonPainter : MonoBehaviour
              "despite reading as debris.")]
     [SerializeField] private TileBase rubbleTile;
 
-    [Tooltip("Optional. Painted on doorway cells to make openings readable; falls back to the floor tile.")]
-    [SerializeField] private TileBase doorwayTile;
-
     [Tooltip("Optional. Marks scattered over the floor. Needs the decal tilemap to be assigned.")]
     [SerializeField] private TileBase[] decalTiles;
 
@@ -64,6 +68,13 @@ public class DungeonPainter : MonoBehaviour
              "cracks and debris collect at the edges of a room; scattered evenly they read " +
              "as noise laid over the floor rather than as wear on it.")]
     [Range(1f, 8f)] [SerializeField] private float decalWallBias = 3.5f;
+
+    [Tooltip("Optional. Painted on exactly one open floor cell of the hub, every generation, " +
+             "in addition to (not instead of) that tile's ordinary chance of turning up " +
+             "anywhere else via decalTiles — a detail the hub is guaranteed to have, on top " +
+             "of the same thing being rare scatter everywhere else. The cell is chosen from " +
+             "the seed, so it is the same cell on every rebuild of the same dungeon.")]
+    [SerializeField] private TileBase hubGuaranteedDecalTile;
 
     [Header("Shape")]
     [Tooltip("How many cells of rock are painted around the open areas. Rock further in " +
@@ -84,14 +95,34 @@ public class DungeonPainter : MonoBehaviour
     /// <summary>World position of the lower-left corner of cell (0,0).</summary>
     public Vector2 Origin => Grid.CellToWorld(Vector3Int.zero);
 
-    /// <summary>Cell size in world units, taken from the tilemap grid.</summary>
-    public float CellSize => Grid.cellSize.x;
+    /// <summary>
+    /// Cell size in *world* units.
+    ///
+    /// <see cref="UnityEngine.Grid.cellSize"/> alone is the Grid component's own local
+    /// value and does not include the GameObject's transform scale — <see cref="Grid.CellToWorld"/>
+    /// applies it, but reading <c>cellSize</c> directly does not. Every scene shipped by
+    /// this project has `DungeonRoot` scaled 2×, so the unscaled value under-reported the
+    /// real spacing between painted tiles by half. That silently broke everything fed by
+    /// this property: <see cref="PathfindingGrid.Configure"/> is the one with the visible
+    /// symptom (it sampled a grid a quarter of the map's actual area, in the corner
+    /// nearest the origin, because it thought each cell was half as wide as it is), but
+    /// this is the one property responsible for both that and <see cref="CellCenter"/>.
+    /// </summary>
+    public float CellSize => Grid.cellSize.x * Grid.transform.lossyScale.x;
 
     /// <summary>World position of the centre of a layout cell.</summary>
     public Vector2 CellCenter(Vector2Int cell)
     {
         Vector3 corner = Grid.CellToWorld(new Vector3Int(cell.x, cell.y, 0));
-        return new Vector2(corner.x + Grid.cellSize.x * 0.5f, corner.y + Grid.cellSize.y * 0.5f);
+        Vector3 scale = Grid.transform.lossyScale;
+
+        // Half the *world*-space cell, not half of Grid.cellSize's unscaled value — the
+        // same distinction CellSize exists to make. Kept per-axis rather than reusing
+        // CellSize on both, since a non-square cell is otherwise representable here even
+        // though nothing in this project currently authors one.
+        return new Vector2(
+            corner.x + Grid.cellSize.x * scale.x * 0.5f,
+            corner.y + Grid.cellSize.y * scale.y * 0.5f);
     }
 
     /// <summary>Layout cell containing a world position.</summary>
@@ -117,7 +148,6 @@ public class DungeonPainter : MonoBehaviour
         var floors = new TileBase[count];
         var walls = new TileBase[count];
 
-        TileBase doorway = doorwayTile != null ? doorwayTile : floorTiles[0];
         TileBase wallFace = wallFaceTile != null ? wallFaceTile : wallTile;
         TileBase pillar = pillarTile != null ? pillarTile : wallTile;
         TileBase rubble = rubbleTile != null ? rubbleTile : wallTile;
@@ -179,8 +209,16 @@ public class DungeonPainter : MonoBehaviour
                 // Floor goes under the painted walls too: without it, any gap the wall
                 // collider leaves would show the void through the structure. Under the
                 // *unpainted* rock it would defeat the point, so that stays empty.
-                if (cell == CellType.Door) floors[index] = doorway;
-                else if (cell != CellType.Wall || walls[index] != null) floors[index] = PickFloor(seedHash, x, y);
+                //
+                // Doorways get the ordinary floor, like everything else. They used to get a
+                // tile of their own — a dark slab between two lit jambs — which earned its
+                // place while the floor was flat generated noise and an opening needed help
+                // to read as an opening. Against the real floor art it stopped helping and
+                // started hurting: a doorway is the one cell guaranteed to be looked at
+                // straight on, and a different tile there breaks the stone that now runs
+                // continuously through it, so the threshold reads as a patch rather than as
+                // the floor carrying on under the door.
+                if (cell != CellType.Wall || walls[index] != null) floors[index] = PickFloor(seedHash, x, y);
                 else floors[index] = null;
             }
         }
@@ -190,7 +228,6 @@ public class DungeonPainter : MonoBehaviour
         floorTilemap.SetTilesBlock(bounds, floors);
         wallTilemap.SetTilesBlock(bounds, walls);
 
-        if (doorwayTile != null) OrientDoorways(layout);
         PaintDecals(layout, bounds, seedHash);
 
         RebuildColliders();
@@ -210,63 +247,93 @@ public class DungeonPainter : MonoBehaviour
         if (decalTilemap == null) return;
 
         decalTilemap.ClearAllTiles();
-        if (decalTiles == null || decalTiles.Length == 0 || decalChance <= 0f) return;
 
         var decals = new TileBase[layout.Width * layout.Height];
 
-        for (int y = 0; y < layout.Height; y++)
+        if (decalTiles != null && decalTiles.Length > 0 && decalChance > 0f)
         {
-            int row = y * layout.Width;
-            for (int x = 0; x < layout.Width; x++)
+            for (int y = 0; y < layout.Height; y++)
             {
-                if (!layout.IsWalkable(x, y)) continue;
+                int row = y * layout.Width;
+                for (int x = 0; x < layout.Width; x++)
+                {
+                    if (!layout.IsWalkable(x, y)) continue;
 
-                // Doorways stay clean: the threshold tile is already a strong shape, and
-                // anything on top of it stops the opening reading as an opening.
-                if (layout[x, y] == CellType.Door) continue;
+                    // Doorways stay clean: the threshold tile is already a strong shape, and
+                    // anything on top of it stops the opening reading as an opening.
+                    if (layout[x, y] == CellType.Door) continue;
 
-                float chance = decalChance * (layout.TouchesSolid(x, y) ? decalWallBias : 1f);
+                    float chance = decalChance * (layout.TouchesSolid(x, y) ? decalWallBias : 1f);
 
-                // Two independent draws off one hash: the low half decides whether there
-                // is a mark, the high half which one, so raising the chance does not also
-                // reshuffle every decal already placed.
-                uint hash = DeterministicRandom.Hash(seedHash, x, y);
-                if ((hash & 0xFFFF) / 65535f >= chance) continue;
+                    // Two independent draws off one hash: the low half decides whether there
+                    // is a mark, the high half which one, so raising the chance does not also
+                    // reshuffle every decal already placed.
+                    uint hash = DeterministicRandom.Hash(seedHash, x, y);
+                    if ((hash & 0xFFFF) / 65535f >= chance) continue;
 
-                decals[row + x] = decalTiles[(hash >> 16) % (uint)decalTiles.Length];
+                    decals[row + x] = decalTiles[(hash >> 16) % (uint)decalTiles.Length];
+                }
             }
         }
+
+        // Independent of the scatter above and of decalChance entirely — a guarantee, not
+        // an increased chance, so turning decalChance down to look at bare floor does not
+        // also take the hub's guaranteed detail with it.
+        PaintGuaranteedHubDecal(layout, decals, seedHash);
 
         decalTilemap.SetTilesBlock(bounds, decals);
     }
 
     /// <summary>
-    /// Turns the threshold tile to face along the passage it sits in.
-    ///
-    /// The tile is drawn with its jambs on the left and right, which is right for a
-    /// doorway walked through north-south and ninety degrees wrong for one walked through
-    /// east-west. Rotating is a per-cell call and cannot go through
-    /// <see cref="Tilemap.SetTilesBlock"/>, but there are only a handful of doorways in a
-    /// dungeon, so it costs nothing to do it afterwards.
+    /// Salts <see cref="PaintGuaranteedHubDecal"/>'s cell pick away from the ordinary decal
+    /// scatter's own hash sequence, purely so the two draws are visibly independent rather
+    /// than a coincidence of reusing the same numbers for a different question.
     /// </summary>
-    private void OrientDoorways(DungeonLayout layout)
+    private const uint HubDecalSalt = 0x48554221; // "HUB!" in ASCII, arbitrarily
+
+    /// <summary>
+    /// Places <see cref="hubGuaranteedDecalTile"/> on exactly one open floor cell of the
+    /// hub room, every generation. Does nothing when no tile is assigned, or the layout
+    /// has no hub — which should not happen (<see cref="RoomKind.Hub"/> is always exactly
+    /// one per dungeon) but a painter is not the place to assert that.
+    ///
+    /// The cell is not randomly walked to and accepted on the first hit, because a small
+    /// hub with few eligible cells would then favour whichever happened to be tested
+    /// first. Every eligible cell in the room gets a hash, and the highest wins — a
+    /// uniform pick over the whole eligible set, and deterministic like everything else
+    /// derived from the seed.
+    /// </summary>
+    private void PaintGuaranteedHubDecal(DungeonLayout layout, TileBase[] decals, uint seedHash)
     {
-        Matrix4x4 quarterTurn = Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, 90f));
+        if (hubGuaranteedDecalTile == null) return;
 
-        for (int y = 0; y < layout.Height; y++)
+        Room hub = null;
+        foreach (Room room in layout.Rooms)
         {
-            for (int x = 0; x < layout.Width; x++)
-            {
-                if (layout[x, y] != CellType.Door) continue;
-
-                // Solid above and below means the jambs are the north and south stubs,
-                // so the passage runs east-west and the tile has to turn.
-                bool blockedNorthSouth = !layout.IsWalkable(x, y - 1) && !layout.IsWalkable(x, y + 1);
-                if (!blockedNorthSouth) continue;
-
-                floorTilemap.SetTransformMatrix(new Vector3Int(x, y, 0), quarterTurn);
-            }
+            if (room.Kind != RoomKind.Hub) continue;
+            hub = room;
+            break;
         }
+        if (hub == null) return;
+
+        bool found = false;
+        uint bestHash = 0;
+        Vector2Int bestCell = default;
+
+        foreach (Vector2Int cell in hub.Cells)
+        {
+            if (!layout.IsWalkable(cell) || layout[cell] == CellType.Door) continue;
+
+            uint hash = DeterministicRandom.Hash(seedHash ^ HubDecalSalt, cell.x, cell.y);
+            if (found && hash <= bestHash) continue;
+
+            found = true;
+            bestHash = hash;
+            bestCell = cell;
+        }
+
+        if (!found) return;
+        decals[bestCell.y * layout.Width + bestCell.x] = hubGuaranteedDecalTile;
     }
 
     /// <summary>
@@ -373,13 +440,49 @@ public class DungeonPainter : MonoBehaviour
     }
 
     /// <summary>
-    /// Floor variant for a cell, chosen from the seed and the coordinates so the same
-    /// dungeon always looks the same — the map is rebuilt from its seed on every load,
-    /// and a floor that reshuffled each time would be visibly wrong.
+    /// Floor variant for a cell.
+    ///
+    /// Two modes, selected by <see cref="floorMosaicSize"/>:
+    ///
+    /// <para>
+    /// <b>Mosaic</b> (size &gt; 1): the tiles are consecutive pieces of one larger image, so
+    /// the cell's position within the block decides which piece goes there and the artwork
+    /// runs continuously across the borders inside a block. This is what lets a floor texture
+    /// that is not seamless still read as a floor: only the block boundary repeats, every
+    /// <see cref="floorMosaicSize"/> cells, instead of every single cell. The floor's own
+    /// world position drives it, not the seed — pieces have to line up with their neighbours,
+    /// which is the one thing a random pick cannot do.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Scatter</b> (size 1): an independent variant per cell, chosen from the seed and the
+    /// coordinates. For tile sets whose members are interchangeable rather than positional.
+    /// </para>
+    ///
+    /// Both are a pure function of the seed and the cell, so the same dungeon always looks the
+    /// same — the map is rebuilt from its seed on every load, and a floor that reshuffled each
+    /// time would be visibly wrong.
     /// </summary>
     private TileBase PickFloor(uint seedHash, int x, int y)
     {
         if (floorTiles.Length == 1) return floorTiles[0];
+
+        if (floorMosaicSize > 1)
+        {
+            // Floor-modulo, not C#'s remainder: cell coordinates are never negative today,
+            // but a layout origin that ever moved below zero would otherwise index backwards
+            // off the array and throw, and the bug would look like "the floor is fine except
+            // in one corner of the map".
+            int size = floorMosaicSize;
+            int column = ((x % size) + size) % size;
+            int row = ((y % size) + size) % size;
+            int index = row * size + column;
+
+            // A short array means the mosaic was only partly generated; fall through to the
+            // scatter path rather than throwing, so the dungeon still paints and the fault
+            // is visible as a mismatched floor rather than as a failed build.
+            if (index < floorTiles.Length) return floorTiles[index];
+        }
 
         uint hash = DeterministicRandom.Hash(seedHash, x, y);
         return floorTiles[hash % (uint)floorTiles.Length];

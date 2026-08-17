@@ -2,7 +2,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Fills a freshly built dungeon with doors, enemies, loot, props and the camp room's
+/// Fills a freshly built dungeon with doors, enemies, loot, props and the hub room's
 /// fixtures, turning a walkable maze into a playable run.
 ///
 /// Subscribes to <see cref="DungeonBuilder.Built"/> rather than being called directly,
@@ -102,6 +102,22 @@ public class DungeonPopulator : MonoBehaviour
             {
                 if (layout[x, y] != CellType.Door) continue;
 
+                // A door needs a jamb on each side to hang between. Solid to the east and
+                // west means the passage runs north-south and the leaf has to turn; solid
+                // north and south means it runs east-west and the leaf stays as drawn.
+                bool jambsEastWest = !layout.IsWalkable(x + 1, y) && !layout.IsWalkable(x - 1, y);
+                bool jambsNorthSouth = !layout.IsWalkable(x, y + 1) && !layout.IsWalkable(x, y - 1);
+
+                // Neither pair solid means this opening has nothing to hang a door on, and
+                // one spawned here stands in mid-air with daylight down both sides. It used
+                // to spawn anyway: only the east-west pair was ever tested, and the answer
+                // "no" was taken to mean "north-south then" without checking. Measured
+                // across 200 seeds at the shipped settings, 1131 of 9479 doorway cells
+                // (11.9%) are this shape, so it was not a rare edge case. They stay open
+                // arches, which is what the layout already does with an opening too wide to
+                // narrow — see DoorwayNormalizer.
+                if (!jambsEastWest && !jambsNorthSouth) continue;
+
                 var cell = new Vector2Int(x, y);
                 Vector3 spawnPos = builder.CellCenter(cell);
 
@@ -109,23 +125,68 @@ public class DungeonPopulator : MonoBehaviour
 
                 if (doorInstance != null)
                 {
-                    bool wallEast = !layout.IsWalkable(x + 1, y);
-                    bool wallWest = !layout.IsWalkable(x - 1, y);
+                    doorInstance.transform.rotation = jambsEastWest
+                        ? Quaternion.Euler(0f, 0f, 90f)
+                        : Quaternion.identity;
 
-                    if (wallEast && wallWest)
-                    {
-                        doorInstance.transform.rotation = Quaternion.Euler(0f, 0f, 90f);
-                        Vector3 pos = doorInstance.transform.position;
-                        pos.x += 1f; 
-                        doorInstance.transform.position = pos;
-                    }
-                    else
-                    {
-                        doorInstance.transform.rotation = Quaternion.identity;
-                    }
+                    CenterOnCollider(doorInstance, spawnPos, builder.CellSize);
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Nudges a spawned door so its collider — not its prefab's off-centre hinge pivot —
+    /// lands exactly on the cell centre. The hinge pivot sits off-centre by design (it has
+    /// to, for the swing-open rotation), so positioning the door's root transform at the
+    /// cell centre leaves the actual door leaf offset from it, opening a gap at the doorway.
+    /// Deriving the correction from the door's own geometry self-corrects for that offset at
+    /// any rotation angle, without needing to know the prefab's internal pivot layout or
+    /// hand-tune a per-orientation constant against it.
+    ///
+    /// <para>
+    /// The centre is computed from the <b>transform hierarchy</b>, deliberately not from
+    /// <see cref="Collider2D.bounds"/>. Bounds are physics-backed, and with
+    /// <see cref="Physics2D.autoSyncTransforms"/> off (the default) they do not reflect a
+    /// transform written this same frame until the next physics step — which in edit mode
+    /// never comes at all. This method runs during edit-mode baking, so reading bounds here
+    /// returned an unsynced centre of roughly the origin, and every door was displaced by
+    /// nearly its own map coordinate, i.e. clean off the map. <c>TransformPoint</c> is pure
+    /// matrix maths on transforms already written, so it is correct the instant the rotation
+    /// above is set.
+    /// </para>
+    ///
+    /// <para>
+    /// <see cref="Collider2D.offset"/> is the shape centre in the collider's local space for
+    /// the box, circle and capsule shapes; a polygon or edge collider whose vertices are not
+    /// centred on their own offset would need its bounds instead, and a synced read to go
+    /// with them. Doors are box-collidered, and the guard below catches the mismatch loudly
+    /// rather than silently flinging a door somewhere if that ever changes.
+    /// </para>
+    /// </summary>
+    private static void CenterOnCollider(GameObject doorInstance, Vector2 cellCenter, float cellSize)
+    {
+        Collider2D doorCollider = doorInstance.GetComponentInChildren<Collider2D>();
+        if (doorCollider == null) return;
+
+        Vector2 colliderCenter = doorCollider.transform.TransformPoint(doorCollider.offset);
+        Vector2 correction = cellCenter - colliderCenter;
+
+        // A door's pivot sits a fraction of a cell off centre; anything approaching a whole
+        // cell means the centre was misread, and applying it would move the door somewhere
+        // unrelated to its doorway. Leaving it at the raw spawn position is wrong by at most
+        // that same fraction, and stays visibly *at* the doorway where the fault can be seen.
+        if (correction.magnitude > cellSize)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] Door at {cellCenter} wanted a {correction.magnitude:F2}-unit " +
+                $"centring correction, more than one {cellSize}-unit cell. Leaving it uncentred; " +
+                "its collider geometry likely no longer matches what CenterOnCollider assumes.",
+                doorInstance);
+            return;
+        }
+
+        doorInstance.transform.position += (Vector3)correction;
     }
 
     // ---------------------------------------------------------------- rooms
@@ -140,6 +201,14 @@ public class DungeonPopulator : MonoBehaviour
             List<Vector2Int> free = FreeCells(layout, room, roomRandom);
             int slot = 0;
 
+            // Shared across every blocking object spawned in this room — chests, then
+            // props — so a later cluster can see what an earlier one (or the chests
+            // before it) already occupied. Each cluster used to track spacing only
+            // against its own members and reset the list on the next one, which is
+            // exactly how a barrel cluster and a table cluster ended up overlapping:
+            // neither knew the other existed.
+            var roomOccupied = new List<(Vector2Int cell, int footprint)>();
+
             // An authored interior replaces the room's scatter, so the design is not
             // buried under random loot and props. Enemies still come from the table:
             // difficulty has to keep scaling with depth either way.
@@ -147,11 +216,11 @@ public class DungeonPopulator : MonoBehaviour
 
             switch (room.Kind)
             {
-                case RoomKind.Start:
-                    break; // deliberately empty: the player must not open their eyes in a fight
-
-                case RoomKind.Camp:
-                    SpawnCampFixtures(layout, room, free, ref slot);
+                case RoomKind.Hub:
+                    // No SpawnEnemies call, and that is the room's whole purpose rather
+                    // than an oversight: the hub is the one place in the dungeon nothing
+                    // is waiting for the player.
+                    SpawnHubFixtures(layout, room, free, ref slot);
                     break;
 
                 case RoomKind.Treasure:
@@ -163,7 +232,7 @@ public class DungeonPopulator : MonoBehaviour
                         var treasureTable = content.treasureChestLoot.Count > 0
                             ? content.treasureChestLoot
                             : content.chestLoot;
-                        SpawnChests(layout, room, free, roomRandom.Derive("chests"),
+                        SpawnChests(layout, room, free, roomOccupied, roomRandom.Derive("chests"),
                             content.treasureChests, treasureTable,
                             content.minTreasureChestStacks, content.maxTreasureChestStacks, ref slot);
                     }
@@ -181,27 +250,31 @@ public class DungeonPopulator : MonoBehaviour
                         int chestCount = 0;
                         for (int i = 0; i < content.maxChestsPerRoom; i++)
                         {
-                            if (chestRandom.Chance(content.ChestChanceFor(room.DepthFromStart)))
+                            if (chestRandom.Chance(content.ChestChanceFor(room.DepthFromHub)))
                                 chestCount++;
                         }
-                        SpawnChests(layout, room, free, chestRandom, chestCount, content.chestLoot,
-                            content.minChestStacks, content.maxChestStacks, ref slot);
+                        SpawnChests(layout, room, free, roomOccupied, chestRandom, chestCount,
+                            content.chestLoot, content.minChestStacks, content.maxChestStacks, ref slot);
                     }
                     break;
             }
 
-            if (!authored) SpawnProps(layout, room, free, roomRandom, ref slot);
+            // The hub is left bare on purpose. It is the one room the player has to be
+            // able to walk into and use, and prop clusters are placed against the walls —
+            // exactly where its fixtures stand.
+            if (!authored && room.Kind != RoomKind.Hub)
+                SpawnProps(layout, room, free, roomOccupied, roomRandom, ref slot);
         }
     }
 
     private void SpawnEnemies(DungeonLayout layout, Room room, List<Vector2Int> free,
         DeterministicRandom random, ref int slot)
     {
-        int count = content.EnemyCountFor(room.DepthFromStart, random);
+        int count = content.EnemyCountFor(room.DepthFromHub, random);
 
         for (int i = 0; i < count; i++)
         {
-            var choice = content.PickPrefab(content.enemies, room.DepthFromStart, random);
+            var choice = content.PickPrefab(content.enemies, room.DepthFromHub, random);
             if (choice == null) return;
             if (!TryTakeCell(free, out Vector2Int cell)) return;
 
@@ -216,21 +289,194 @@ public class DungeonPopulator : MonoBehaviour
         }
     }
 
-    private void SpawnCampFixtures(DungeonLayout layout, Room room, List<Vector2Int> free, ref int slot)
+    /// <summary>
+    /// How far apart the hub's lamps are kept at most. They exist to light the room from
+    /// several sides; two lamps standing together light one side twice and leave the rest
+    /// dark. Scaled down to the room in <see cref="SpawnHubFixtures"/> — a fixed distance
+    /// that does not fit does not spread the lamps out, it loses them.
+    /// </summary>
+    private const int MaxLampSpacing = 5;
+
+    /// <summary>
+    /// Furnishes the hub — the run's only save station and crafting table, lamps enough
+    /// to light it from several sides, and empty chests for the player's own storage.
+    ///
+    /// The station and table exist exactly once per dungeon because the layout guarantees
+    /// exactly one <see cref="RoomKind.Hub"/> room, and nothing else spawns them. That is
+    /// the whole design: saving and crafting are somewhere the player has to walk back to,
+    /// which stops being true the moment there are two of them.
+    ///
+    /// Enemies are conspicuously absent, and that is the point of the room rather than an
+    /// omission — see the switch in <see cref="SpawnRoomContent"/>, which never calls
+    /// <see cref="SpawnEnemies"/> for a hub, and <see cref="SpawnCorridorAmbushes"/>,
+    /// which keeps its distance from the room's approaches.
+    /// </summary>
+    private void SpawnHubFixtures(DungeonLayout layout, Room room, List<Vector2Int> free, ref int slot)
     {
-        if (!string.IsNullOrEmpty(content.saveStationPrefabId) &&
-            TryTakeCell(free, out Vector2Int stationCell))
+        var placed = new List<(Vector2Int cell, int footprint)>();
+
+        // Widest first, lamps last. Everything here competes for the same wall-side cells,
+        // and a lamp is one cell that can go almost anywhere, while a crafting table needs
+        // room around it or it ends up drawn into the wall. Placing the lamps first and
+        // spacing them out measurably crowded the chests into the middle of the room.
+        SpawnFixture(layout, room, free, placed, content.saveStationPrefabId, 0, ref slot);
+        SpawnFixture(layout, room, free, placed, content.craftingTablePrefabId, 0, ref slot);
+
+        for (int i = 0; i < content.hubChests; i++)
         {
-            _prefabs.Spawn(content.saveStationPrefabId, builder.CellCenter(stationCell),
-                _contentRoot, SlotGuid(layout.Seed, room.Index, slot++));
+            GameObject chest = SpawnFixture(layout, room, free, placed,
+                content.chestPrefabId, 0, ref slot);
+
+            // Empty on purpose: these are the player's storage, not loot. Written through
+            // the same path Stage 9 stocks chests by, so a baked hub chest is emptied in
+            // the scene file rather than only in memory.
+            if (chest != null) EmptyChest(chest);
         }
 
-        if (!string.IsNullOrEmpty(content.lightPrefabId) &&
-            TryTakeCell(free, out Vector2Int lightCell))
+        int lampSpacing = Mathf.Clamp(
+            room.Bounds.width / Mathf.Max(1, content.hubLamps), 2, MaxLampSpacing);
+
+        for (int i = 0; i < content.hubLamps; i++)
+            SpawnFixture(layout, room, free, placed, content.lightPrefabId, lampSpacing, ref slot);
+    }
+
+    /// <summary>
+    /// Places one hub fixture near a wall but never touching one, clear of the fixtures
+    /// already standing. Returns the instance, or null when nothing was placed.
+    ///
+    /// <paramref name="minSpacing"/> overrides the prefab's own footprint when something
+    /// needs to be kept further apart than its size demands — the lamps.
+    ///
+    /// Failing to place a fixture is worth saying out loud: a dungeon whose save station
+    /// silently did not spawn cannot be saved in.
+    /// </summary>
+    private GameObject SpawnFixture(DungeonLayout layout, Room room, List<Vector2Int> free,
+        List<(Vector2Int cell, int footprint)> placed, string prefabId, int minSpacing, ref int slot)
+    {
+        if (string.IsNullOrEmpty(prefabId)) return null;
+
+        GameObject prefab = _prefabs.Resolve(prefabId);
+        int footprint = FootprintCells(prefabId, prefab);
+        int spacing = Mathf.Max(footprint, minSpacing);
+        bool blocking = BlocksPathfinding(prefab);
+
+        if (!TryTakeFixtureCell(layout, free, placed, footprint, spacing, blocking, out Vector2Int cell))
         {
-            _prefabs.Spawn(content.lightPrefabId, builder.CellCenter(lightCell),
-                _contentRoot, SlotGuid(layout.Seed, room.Index, slot++));
+            Debug.LogWarning(
+                $"[DungeonPopulator] No room left in the hub for '{prefabId}' — it was not " +
+                "spawned. Raise Hub Room Size on the generation settings.", this);
+            return null;
         }
+
+        GameObject instance = _prefabs.Spawn(prefabId, builder.CellCenter(cell), _contentRoot,
+            SlotGuid(layout.Seed, room.Index, slot++));
+        placed.Add((cell, spacing));
+        return instance;
+    }
+
+    /// <summary>
+    /// Takes a cell for a fixture: as close to a wall as its own size allows without
+    /// overlapping one, and far enough from every fixture already placed that they cannot
+    /// overlap each other.
+    ///
+    /// The clearance is what stops a fixture being drawn half inside a wall, and it is
+    /// not cosmetic pedantry — since Stage 8 the wall tilemap sorts *above* world sprites,
+    /// so the overlapping part is not merely close to the wall, it is painted over by it.
+    /// A cell is the unit the generator places on, not the size the thing being placed
+    /// actually is: an object <c>n</c> cells across needs <c>n / 2</c> cells of walkable
+    /// ground around its own before none of it crosses into rock.
+    ///
+    /// Three passes, giving up one guarantee at a time. The first wants clearance *and*
+    /// a wall just past it, which is what "standing against the wall" looks like once the
+    /// object's own width is accounted for. The second keeps the clearance and drops the
+    /// wall. Only the third drops the clearance, and it exists so that a hub too cramped
+    /// to furnish properly still gets a save station rather than none.
+    /// </summary>
+    private static bool TryTakeFixtureCell(DungeonLayout layout, List<Vector2Int> free,
+        List<(Vector2Int cell, int footprint)> placed, int footprint, int spacing, bool blocking,
+        out Vector2Int cell)
+    {
+        int clearance = footprint / 2;
+
+        // Scaled the same way TryTakeAnchor's is, and for the same reason: a chokepoint
+        // marks one cell, but a fixture this wide reaches past a flat radius of one.
+        int chokepointRadius = Mathf.CeilToInt(footprint / 2f);
+
+        for (int pass = 0; pass < 3; pass++)
+        {
+            // Searched from the end, which is the order TryTakeCell consumes in, so the
+            // choice stays governed by the same shuffle everything else uses.
+            for (int i = free.Count - 1; i >= 0; i--)
+            {
+                Vector2Int candidate = free[i];
+
+                if (pass < 2 && !HasClearance(layout, candidate, clearance)) continue;
+
+                // "Near a wall" means solid ground exactly one ring beyond the clearance:
+                // any closer and the fixture would overlap it, any further and it is
+                // standing out in the room.
+                if (pass == 0 && HasClearance(layout, candidate, clearance + 1)) continue;
+
+                if (blocking && layout.NearAnyChokepoint(candidate, chokepointRadius)) continue;
+                if (!IsClearOfPlaced(candidate, spacing, placed)) continue;
+
+                free.RemoveAt(i);
+                cell = candidate;
+                return true;
+            }
+        }
+
+        cell = default;
+        return false;
+    }
+
+    /// <summary>True when every cell within <paramref name="radius"/> is walkable.</summary>
+    private static bool HasClearance(DungeonLayout layout, Vector2Int cell, int radius)
+    {
+        for (int dy = -radius; dy <= radius; dy++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                if (!layout.IsWalkable(cell.x + dx, cell.y + dy)) return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// True when <paramref name="candidate"/> is far enough (Chebyshev) from every cell in
+    /// <paramref name="placed"/> that their footprints cannot overlap. Shared by the hub's
+    /// own furniture placement and the room-wide prop/chest one — the same question either
+    /// way: is there already something standing close enough to this cell to collide with
+    /// whatever gets put here next.
+    /// </summary>
+    private static bool IsClearOfPlaced(Vector2Int candidate, int footprint,
+        List<(Vector2Int cell, int footprint)> placed)
+    {
+        foreach ((Vector2Int cell, int other) in placed)
+        {
+            if (Chebyshev(candidate, cell) < Mathf.Max(footprint, other)) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Clears a chest's contents through the same path <see cref="StockChest"/> writes
+    /// them, so an emptied chest is emptied in the scene file too rather than only in
+    /// memory — the hub is baked into the scene like the rest of the dungeon.
+    /// </summary>
+    private void EmptyChest(GameObject chest)
+    {
+        var inventory = chest.GetComponent<ChestInventory>();
+        if (inventory == null)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] Prefab id '{content.chestPrefabId}' has no ChestInventory " +
+                "— the hub's chest may come with whatever its prefab carries.", chest);
+            return;
+        }
+
+        inventory.SetStartingItems(System.Array.Empty<(ItemData, int)>());
     }
 
     /// <summary>
@@ -240,23 +486,29 @@ public class DungeonPopulator : MonoBehaviour
     /// chest prefab sits on <c>ObstaclePathOnly</c>, so it really does block
     /// <see cref="PathfindingGrid"/>, and that path already keeps blocking spawns off
     /// chokepoints and biases them against a wall — which is also where a chest reads
-    /// right.
+    /// right. Every chest it places is recorded in <paramref name="occupied"/>, which is
+    /// the same room-wide list <see cref="SpawnProps"/> reads and adds to afterwards — a
+    /// prop cluster placed later in the room has to see chests placed here, or it can
+    /// anchor right against one.
     /// </summary>
     private void SpawnChests(DungeonLayout layout, Room room, List<Vector2Int> free,
-        DeterministicRandom random, int count, List<RoomContentSettings.ItemChoice> table,
-        int minStacks, int maxStacks, ref int slot)
+        List<(Vector2Int cell, int footprint)> occupied, DeterministicRandom random, int count,
+        List<RoomContentSettings.ItemChoice> table, int minStacks, int maxStacks, ref int slot)
     {
         if (string.IsNullOrEmpty(content.chestPrefabId) || count <= 0) return;
 
         GameObject prefab = _prefabs.Resolve(content.chestPrefabId);
+        int spacing = FootprintCells(content.chestPrefabId, prefab);
         bool blocking = BlocksPathfinding(prefab);
 
         for (int i = 0; i < count; i++)
         {
-            if (!TryTakeAnchor(layout, free, blocking, random, out Vector2Int cell)) return;
+            if (!TryTakeAnchor(layout, free, blocking, spacing, occupied, random, out Vector2Int cell))
+                return;
 
             GameObject chest = _prefabs.Spawn(content.chestPrefabId, builder.CellCenter(cell),
                 _contentRoot, SlotGuid(layout.Seed, room.Index, slot++));
+            occupied.Add((cell, spacing));
             if (chest == null) continue;
 
             StockChest(chest, table, minStacks, maxStacks, random.Derive($"chest{slot}"));
@@ -327,9 +579,22 @@ public class DungeonPopulator : MonoBehaviour
     /// it is worth someone reconciling the doc comment with the layer convention, but this
     /// pass works with what actually blocks movement today rather than what a comment says
     /// should.
+    ///
+    /// <paramref name="occupied"/> is the room-wide record every cluster reads and adds
+    /// to, not just its own. Without it, spacing was only ever checked within one
+    /// cluster's own members — the list was created fresh for each anchor and thrown away
+    /// once that cluster finished, so a barrel cluster and a table cluster placed one
+    /// after another had no way to know about each other and could land close enough to
+    /// overlap. Chests placed earlier in the room are in this same list too, for the same
+    /// reason.
+    ///
+    /// A choice marked <see cref="RoomContentSettings.PrefabChoice.solitary"/> spends its
+    /// whole budget hit as one anchor and stops there — no cluster follows it. Clustering
+    /// reads right for a barrel or a crate; a statue picked twice in the same corner reads
+    /// as a mistake instead of scenery.
     /// </summary>
     private void SpawnProps(DungeonLayout layout, Room room, List<Vector2Int> free,
-        DeterministicRandom random, ref int slot)
+        List<(Vector2Int cell, int footprint)> occupied, DeterministicRandom random, ref int slot)
     {
         // The room's own cells, not its bounding box: an L-shaped room covers roughly
         // half its box, and scattering by the box would fill it twice as densely.
@@ -340,18 +605,22 @@ public class DungeonPopulator : MonoBehaviour
 
         while (budget > 0)
         {
-            var choice = content.PickPrefab(content.props, room.DepthFromStart, random);
+            var choice = content.PickPrefab(content.props, room.DepthFromHub, random);
             if (choice == null) return;
 
             GameObject prefab = _prefabs.Resolve(choice.prefabId);
             int spacing = FootprintCells(choice.prefabId, prefab);
             bool blocking = BlocksPathfinding(prefab);
 
-            if (!TryTakeAnchor(layout, free, blocking, random, out Vector2Int anchor)) return;
+            if (!TryTakeAnchor(layout, free, blocking, spacing, occupied, random, out Vector2Int anchor))
+                return;
 
             _prefabs.Spawn(choice.prefabId, builder.CellCenter(anchor), _contentRoot,
                 SlotGuid(layout.Seed, room.Index, slot++));
             budget--;
+            occupied.Add((anchor, spacing));
+
+            if (choice.solitary) continue;
 
             // The rest of the cluster is the same prop, spaced by its own footprint so
             // members never overlap — a heap of one thing standing apart, not stacked.
@@ -362,12 +631,13 @@ public class DungeonPopulator : MonoBehaviour
 
             for (int i = 0; i < cluster && budget > 0; i++)
             {
-                if (!TryTakeSpaced(layout, free, anchor, placed, spacing, blocking, out Vector2Int cell))
+                if (!TryTakeSpaced(layout, free, anchor, placed, spacing, blocking, occupied, out Vector2Int cell))
                     break;
 
                 _prefabs.Spawn(choice.prefabId, builder.CellCenter(cell), _contentRoot,
                     SlotGuid(layout.Seed, room.Index, slot++));
                 placed.Add(cell);
+                occupied.Add((cell, spacing));
                 budget--;
             }
         }
@@ -376,35 +646,87 @@ public class DungeonPopulator : MonoBehaviour
     private readonly Dictionary<string, int> _footprintCache = new Dictionary<string, int>();
 
     /// <summary>
-    /// A prefab's footprint in cells: its <see cref="BoxCollider2D"/> size (world-space,
-    /// via the transform's lossy scale), rounded up to the wider side.
+    /// How many cells a prefab actually occupies once spawned: the wider of what it
+    /// collides with and what it draws, converted from the prefab *asset*'s own world size
+    /// to cells at the size cells are actually spawned at, rounded up.
     ///
-    /// Read from the collider's own serialized size rather than from
+    /// Both halves are read from serialized data rather than from
     /// <c>Renderer.bounds</c>/<c>Collider2D.bounds</c>, because those are computed from an
     /// object's live placement in a scene and are unreliable — often zero — on a prefab
     /// *asset* that has never been instantiated, which is exactly what
-    /// <see cref="PrefabRegistry.Resolve"/> hands back here. `BoxCollider2D.size` and
-    /// `Transform.lossyScale` are plain serialized data and read correctly either way.
+    /// <see cref="PrefabRegistry.Resolve"/> hands back here. `BoxCollider2D.size`,
+    /// `CircleCollider2D.radius`, `Sprite.bounds` and `Transform.lossyScale` all read
+    /// correctly either way.
     ///
-    /// Falls back to 1 for anything without a <see cref="BoxCollider2D"/>: better to
-    /// under-space an oddly-shaped prop than to fail placement for a collider type this
-    /// does not understand. Cached per id — this runs once per cluster, not per cell.
+    /// <paramref name="prefab"/>'s own `lossyScale` chain only ever reflects the asset's
+    /// *internal* hierarchy — it has no parent, so it cannot know it is about to be spawned
+    /// under <see cref="_contentRoot"/>, which inherits the generated dungeon's own scale
+    /// (2× on the shipped `DungeonRoot`). Multiplying by <c>_contentRoot.lossyScale</c> and
+    /// dividing by <c>builder.CellSize</c> converts to the actual spawn-time world size and
+    /// then to cells at that size — explicitly, rather than relying on the two factors
+    /// happening to be equal (as they currently are: root scale 2, cell size 2), which
+    /// would silently space every prop wrong again the day either one changes without the
+    /// other. See GENERATION_NOTES.md Stage 19.
+    ///
+    /// The drawn size counts as much as the collider, and for placement against a wall it
+    /// counts for more. Since Stage 8 the wall tilemap draws at sorting order 7, above
+    /// ordinary world sprites, so any part of an object overlapping a wall cell is painted
+    /// over by the wall — a table whose sprite crosses the boundary does not look like a
+    /// table against a wall, it looks like half a table embedded in one. A prefab whose
+    /// collider is smaller than its art would be placed flush and lose the difference.
+    ///
+    /// Falls back to 1 for anything with neither: better to under-space an oddly-shaped
+    /// prop than to fail placement for a component this does not understand. Cached per
+    /// id — this runs once per cluster, not per cell.
     /// </summary>
     private int FootprintCells(string prefabId, GameObject prefab)
     {
         if (_footprintCache.TryGetValue(prefabId, out int cached)) return cached;
 
-        int cells = 1;
+        Vector2 size = Vector2.zero;
+
         BoxCollider2D box = prefab != null ? prefab.GetComponentInChildren<BoxCollider2D>(true) : null;
-        if (box != null)
+        if (box != null) size = Vector2.Max(size, Abs(Vector2.Scale(box.size, box.transform.lossyScale)));
+
+        // A statue's footprint is a circle, not a box — measured as its bounding square so
+        // it composes with the box/sprite maximum below the same way a box does.
+        CircleCollider2D circle = prefab != null ? prefab.GetComponentInChildren<CircleCollider2D>(true) : null;
+        if (circle != null)
         {
-            Vector2 worldSize = Vector2.Scale(box.size, box.transform.lossyScale);
-            cells = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(worldSize.x, worldSize.y)));
+            Vector2 scale = Abs(circle.transform.lossyScale);
+            float diameter = circle.radius * 2f * Mathf.Max(scale.x, scale.y);
+            size = Vector2.Max(size, new Vector2(diameter, diameter));
         }
 
+        SpriteRenderer sprite = prefab != null
+            ? prefab.GetComponentInChildren<SpriteRenderer>(true)
+            : null;
+        if (sprite != null) size = Vector2.Max(size, Abs(DrawnSize(sprite)));
+
+        float spawnScale = _contentRoot != null ? _contentRoot.lossyScale.x : 1f;
+        float cellSize = builder.CellSize > 0f ? builder.CellSize : 1f;
+        float worldSize = Mathf.Max(size.x, size.y) * spawnScale;
+
+        int cells = Mathf.Max(1, Mathf.CeilToInt(worldSize / cellSize));
         _footprintCache[prefabId] = cells;
         return cells;
     }
+
+    /// <summary>
+    /// A sprite renderer's drawn size in world units. Sliced and tiled renderers draw at
+    /// their own <see cref="SpriteRenderer.size"/> rather than at the sprite's, and this
+    /// project uses that mode — reading the sprite alone would mis-measure them.
+    /// </summary>
+    private static Vector2 DrawnSize(SpriteRenderer renderer)
+    {
+        Vector2 local = renderer.drawMode == SpriteDrawMode.Simple
+            ? (renderer.sprite != null ? (Vector2)renderer.sprite.bounds.size : Vector2.zero)
+            : renderer.size;
+
+        return Vector2.Scale(local, renderer.transform.lossyScale);
+    }
+
+    private static Vector2 Abs(Vector2 value) => new Vector2(Mathf.Abs(value.x), Mathf.Abs(value.y));
 
     /// <summary>Known layers on which a collider physically blocks movement (see ENEMY_NOTES §GU-0036).</summary>
     private static readonly string[] BlockingLayerNames =
@@ -451,18 +773,46 @@ public class DungeonPopulator : MonoBehaviour
     /// through somewhere, and an anchor placed right there — worse, with a cluster fanned
     /// out from it — can wall off a narrow room arm that the generator itself guaranteed
     /// was connected.
+    ///
+    /// "Immediate neighbours" is <paramref name="footprint"/>-scaled, not a flat radius of
+    /// one. A chokepoint marks a single cell; the object anchored on a *nearby* free cell
+    /// can still physically reach it once its real size is accounted for — `Table.prefab`
+    /// is close to three cells wide, so a radius of one let a table's own footprint reach
+    /// past the buffer and cover a chokepoint the check was meant to keep clear. Half the
+    /// footprint, rounded up, is the same clearance <see cref="SpawnFixture"/> uses for the
+    /// hub's own furniture, for the same reason.
+    ///
+    /// The anchor also has to have <see cref="HasClearance"/> for half its own footprint,
+    /// the same rule <see cref="TryTakeFixtureCell"/> applies to the hub's furniture and for
+    /// the same reason: a cell is the unit the generator places on, not the size the thing
+    /// being placed actually is. "Against a wall" therefore cannot mean "on a cell touching
+    /// one" — a statue is three cells across, so anchored on a wall-side cell it stands more
+    /// than a cell deep inside the rock, colliding with the map and painted over by the wall
+    /// tilemap. It means solid ground exactly one ring past the clearance, which is what
+    /// standing against a wall looks like once the object's own width is accounted for.
+    ///
+    /// Also checked here, against <paramref name="occupied"/>: every blocking object
+    /// already standing in the room, from any earlier cluster or chest — not just this
+    /// prop's own. An anchor is the start of a new cluster, so it is exactly the placement
+    /// most likely to land next to something an earlier pass already put down.
     /// </summary>
     private bool TryTakeAnchor(DungeonLayout layout, List<Vector2Int> free, bool blocking,
-        DeterministicRandom random, out Vector2Int anchor)
+        int footprint, List<(Vector2Int cell, int footprint)> occupied, DeterministicRandom random,
+        out Vector2Int anchor)
     {
+        int chokepointRadius = Mathf.CeilToInt(footprint / 2f);
+        int clearance = footprint / 2;
+
         if (random.Chance(content.propWallBias))
         {
             // Searched from the end, which is the order TryTakeCell consumes in, so the
             // choice stays governed by the same shuffle everything else uses.
             for (int i = free.Count - 1; i >= 0; i--)
             {
-                if (!layout.TouchesSolid(free[i])) continue;
-                if (blocking && layout.NearAnyChokepoint(free[i], 1)) continue;
+                if (!HasClearance(layout, free[i], clearance)) continue;
+                if (HasClearance(layout, free[i], clearance + 1)) continue; // not against a wall
+                if (blocking && layout.NearAnyChokepoint(free[i], chokepointRadius)) continue;
+                if (!IsClearOfPlaced(free[i], footprint, occupied)) continue;
 
                 anchor = free[i];
                 free.RemoveAt(i);
@@ -470,11 +820,11 @@ public class DungeonPopulator : MonoBehaviour
             }
         }
 
-        if (!blocking) return TryTakeCell(free, out anchor);
-
         for (int i = free.Count - 1; i >= 0; i--)
         {
-            if (layout.NearAnyChokepoint(free[i], 1)) continue;
+            if (!HasClearance(layout, free[i], clearance)) continue;
+            if (blocking && layout.NearAnyChokepoint(free[i], chokepointRadius)) continue;
+            if (!IsClearOfPlaced(free[i], footprint, occupied)) continue;
 
             anchor = free[i];
             free.RemoveAt(i);
@@ -494,17 +844,36 @@ public class DungeonPopulator : MonoBehaviour
     /// keeps a three- or four-strong cluster of a wide prop from overlapping itself: two
     /// members can each be far enough from the anchor and still be right on top of each
     /// other if only the anchor distance is checked.
+    ///
+    /// The chokepoint check is scaled by <paramref name="spacing"/> the same way
+    /// <see cref="TryTakeAnchor"/>'s is, and for the same reason: <paramref name="spacing"/>
+    /// already *is* this prop's footprint here, so a fixed radius of one was never
+    /// consistent with the value sitting right next to it in the parameter list.
+    ///
+    /// Clearance is checked here too, for the same reason as in <see cref="TryTakeAnchor"/>:
+    /// a cluster member is placed on a cell like the anchor is, and a prop wider than one
+    /// cell placed on a cell beside a wall reaches into it.
+    ///
+    /// <paramref name="occupied"/> is checked in addition to <paramref name="placed"/>: the
+    /// latter is this cluster's own members, the former is everything else already
+    /// standing in the room. A cluster member can be correctly spaced from its own anchor
+    /// and siblings and still land against a chest or an earlier cluster's prop if nothing
+    /// checks the room-wide list too.
     /// </summary>
     private static bool TryTakeSpaced(DungeonLayout layout, List<Vector2Int> free, Vector2Int anchor,
-        List<Vector2Int> placed, int spacing, bool blocking, out Vector2Int cell)
+        List<Vector2Int> placed, int spacing, bool blocking,
+        List<(Vector2Int cell, int footprint)> occupied, out Vector2Int cell)
     {
         int radius = spacing * 2;
+        int chokepointRadius = Mathf.CeilToInt(spacing / 2f);
 
         for (int i = free.Count - 1; i >= 0; i--)
         {
             Vector2Int candidate = free[i];
             if (Chebyshev(candidate, anchor) > radius) continue;
-            if (blocking && layout.NearAnyChokepoint(candidate, 1)) continue;
+            if (!HasClearance(layout, candidate, spacing / 2)) continue;
+            if (blocking && layout.NearAnyChokepoint(candidate, chokepointRadius)) continue;
+            if (!IsClearOfPlaced(candidate, spacing, occupied)) continue;
 
             bool tooClose = false;
             foreach (Vector2Int other in placed)
@@ -544,14 +913,18 @@ public class DungeonPopulator : MonoBehaviour
     /// have to decide whether getting through is worth being seen.
     ///
     /// Both are capped hard by <see cref="RoomContentSettings.maxCorridorEnemies"/>, and
-    /// both skip anything near the start room: the first thing a run does must not be an
-    /// ambush in a corridor the player has no room to back out of.
+    /// both skip anything near the hub: the first thing a run does must not be an ambush
+    /// in a corridor the player has no room to back out of. Enforced twice, for two
+    /// different reasons — <see cref="HubKeepOut"/> is a fixed radius around the hub's
+    /// walls, while <see cref="TrySpawnAmbush"/>'s depth check catches a long corridor
+    /// whose *nearest room* is still the hub well beyond that radius.
     /// </summary>
     private void SpawnCorridorAmbushes(DungeonLayout layout, DeterministicRandom random)
     {
         if (content.maxCorridorEnemies <= 0) return;
         if (content.enemies == null || content.enemies.Count == 0) return;
 
+        Room hub = FindHub(layout);
         var taken = new HashSet<Vector2Int>();
         int placed = 0;
         int slot = 0;
@@ -563,7 +936,7 @@ public class DungeonPopulator : MonoBehaviour
         {
             if (placed >= content.maxCorridorEnemies) break;
             if (!alcoveRandom.Chance(content.alcoveAmbushChance)) continue;
-            if (!IsUsableAmbushCell(layout, cell, taken)) continue;
+            if (!IsUsableAmbushCell(layout, cell, taken, hub)) continue;
 
             if (TrySpawnAmbush(layout, cell, alcoveRandom, "alcove", slot++))
             {
@@ -578,7 +951,7 @@ public class DungeonPopulator : MonoBehaviour
             if (placed >= content.maxCorridorEnemies) break;
             if (!chokeRandom.Chance(content.chokepointGuardChance)) continue;
 
-            if (!TryFindGuardPost(layout, choke, taken, chokeRandom, out Vector2Int post)) continue;
+            if (!TryFindGuardPost(layout, choke, taken, hub, chokeRandom, out Vector2Int post)) continue;
 
             if (TrySpawnAmbush(layout, post, chokeRandom, "guard", slot++))
             {
@@ -593,7 +966,7 @@ public class DungeonPopulator : MonoBehaviour
     /// walls the route off; standing next to it leaves the route open and watched.
     /// </summary>
     private static bool TryFindGuardPost(DungeonLayout layout, Vector2Int choke,
-        HashSet<Vector2Int> taken, DeterministicRandom random, out Vector2Int post)
+        HashSet<Vector2Int> taken, Room hub, DeterministicRandom random, out Vector2Int post)
     {
         var chokeSet = new HashSet<Vector2Int>(layout.Chokepoints);
 
@@ -607,7 +980,7 @@ public class DungeonPopulator : MonoBehaviour
         foreach (Vector2Int option in options)
         {
             if (chokeSet.Contains(option)) continue;
-            if (!IsUsableAmbushCell(layout, option, taken)) continue;
+            if (!IsUsableAmbushCell(layout, option, taken, hub)) continue;
 
             post = option;
             return true;
@@ -618,17 +991,46 @@ public class DungeonPopulator : MonoBehaviour
     }
 
     /// <summary>
-    /// True when the cell is open corridor nobody has claimed. Cells inside rooms are
-    /// excluded because the room pass has its own budget and its own guarantees — the
-    /// start room being empty among them.
+    /// Cells kept free of ambushes around the hub, measured out from its walls.
+    ///
+    /// The room pass already never puts an enemy inside the hub — its case in
+    /// <see cref="SpawnRoomContent"/> spawns fixtures and nothing else — and an ambush
+    /// cell is required to be outside every room anyway. What was left was the corridor
+    /// immediately outside: an enemy posted one cell from the doorway is, from inside the
+    /// room, something waiting in the hub. The keep-out makes "no enemies at the hub" mean
+    /// what a player would take it to mean rather than what the cell test happens to say.
+    /// </summary>
+    private const int HubKeepOut = 4;
+
+    /// <summary>
+    /// True when the cell is open corridor nobody has claimed, and not on the hub's
+    /// doorstep. Cells inside rooms are excluded because the room pass has its own budget
+    /// and its own guarantees — the start room and the hub being empty among them.
     /// </summary>
     private static bool IsUsableAmbushCell(DungeonLayout layout, Vector2Int cell,
-        HashSet<Vector2Int> taken)
+        HashSet<Vector2Int> taken, Room hub)
     {
         if (!layout.IsWalkable(cell)) return false;
         if (taken.Contains(cell)) return false;
         if (layout[cell] == CellType.Door) return false; // never stand in a doorway
+        if (hub != null && IsWithin(hub.Bounds, cell, HubKeepOut)) return false;
         return layout.RoomAt(cell) == null;
+    }
+
+    /// <summary>True when the cell is inside the bounds grown by <paramref name="margin"/>.</summary>
+    private static bool IsWithin(RectInt bounds, Vector2Int cell, int margin)
+    {
+        return cell.x >= bounds.xMin - margin && cell.x < bounds.xMax + margin &&
+               cell.y >= bounds.yMin - margin && cell.y < bounds.yMax + margin;
+    }
+
+    private static Room FindHub(DungeonLayout layout)
+    {
+        foreach (Room room in layout.Rooms)
+        {
+            if (room.Kind == RoomKind.Hub) return room;
+        }
+        return null;
     }
 
     /// <summary>
@@ -643,7 +1045,7 @@ public class DungeonPopulator : MonoBehaviour
         string kind, int slot)
     {
         int depth = NearestRoomDepth(layout, cell);
-        if (depth <= 0) return false; // right beside the start room: not a fair opening move
+        if (depth <= 0) return false; // nearest room is the hub: not a fair opening move
 
         var choice = content.PickPrefab(content.enemies, depth, random);
         if (choice == null) return false;
@@ -669,7 +1071,7 @@ public class DungeonPopulator : MonoBehaviour
             if (distance >= bestDistance) continue;
 
             bestDistance = distance;
-            best = room.DepthFromStart;
+            best = room.DepthFromHub;
         }
 
         return best;
@@ -758,7 +1160,10 @@ public class DungeonPopulator : MonoBehaviour
         var candidates = new List<Room>();
         foreach (var room in layout.Rooms)
         {
-            if (room.Kind != RoomKind.Start) candidates.Add(room);
+            // The hub floor is spoken for by fixtures, and dropping loot there would be
+            // the same "something spawned where it shouldn't" defect this pass exists to
+            // avoid for enemies.
+            if (room.Kind != RoomKind.Hub) candidates.Add(room);
         }
         if (candidates.Count == 0) return;
 

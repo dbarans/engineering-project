@@ -20,6 +20,9 @@ public struct LayoutParams
     public int RoomSpacing;
     public int PlacementAttemptsPerRoom;
 
+    /// <summary>Side of the square hub room reserved at the middle of the map.</summary>
+    public int HubRoomSize;
+
     public int CorridorWidth;
     public int MaxCorridorWidth;
     public int DoorwayWidth;
@@ -44,6 +47,7 @@ public struct LayoutParams
         MaxRoomSize = 14,
         RoomSpacing = 3,
         PlacementAttemptsPerRoom = 40,
+        HubRoomSize = 14,
         CorridorWidth = 1,
         MaxCorridorWidth = 3,
         DoorwayWidth = 1,
@@ -51,7 +55,7 @@ public struct LayoutParams
         DoubleBendChance = 0.35f,
         AlcoveChance = 0.04f,
         ShapedRoomChance = 0.6f,
-        InteriorDensity = 0.5f,
+        InteriorDensity = 0.25f,
         PerimeterDetail = 0.6f,
         MaxGenerationAttempts = 12
     };
@@ -92,6 +96,11 @@ public struct LayoutParams
         int usable = Mathf.Min(p.MapWidth, p.MapHeight) - 2 * (p.RoomSpacing + 1);
         if (usable >= 3) p.MaxRoomSize = Mathf.Min(p.MaxRoomSize, usable);
         p.MinRoomSize = Mathf.Min(p.MinRoomSize, p.MaxRoomSize);
+
+        // Held to the same range as a sampled room, and clamped after MaxRoomSize has
+        // been fitted to the map, so the reserved centre can never be a room shape the
+        // rest of the generator would have rejected.
+        p.HubRoomSize = Mathf.Clamp(p.HubRoomSize, p.MinRoomSize, p.MaxRoomSize);
         return p;
     }
 }

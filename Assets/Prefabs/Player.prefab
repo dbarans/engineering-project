@@ -1479,29 +1479,11 @@ MonoBehaviour:
   - item: {fileID: 11400000, guid: 5a9b2d3e4f6c7b8a9c1d2e3f4a5b6c7d, type: 2}
     count: 1
     toBackpack: 0
-  - item: {fileID: 11400000, guid: 7c1e5a94b2d34f8ea0517c6d9e3b41f2, type: 2}
-    count: 1
-    toBackpack: 0
-  - item: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
-    count: 10
-    toBackpack: 1
-  - item: {fileID: 11400000, guid: 3b8f26d0c14a4e7cb95d08af6271e5d3, type: 2}
-    count: 10
-    toBackpack: 1
   - item: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
     count: 64
     toBackpack: 1
-  - item: {fileID: 11400000, guid: c007459642cf4ea1bf44c6ffe9d32db3, type: 2}
-    count: 3
-    toBackpack: 1
   - item: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
     count: 6
-    toBackpack: 1
-  - item: {fileID: 11400000, guid: 6e99b352a93d14e4e9bc628196155ce9, type: 2}
-    count: 1
-    toBackpack: 1
-  - item: {fileID: 11400000, guid: 69f70701ead828848bfa6c39d52d6bdf, type: 2}
-    count: 7
     toBackpack: 1
 --- !u!114 &6900123456789012345
 MonoBehaviour:

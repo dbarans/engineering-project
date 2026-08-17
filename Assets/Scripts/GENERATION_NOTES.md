@@ -16,6 +16,17 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 6 — Spatial design | done (layout side); needs an editor pass | see §6 below |
 | 7 — Concept-art pass | done; wall autotiling unblocked it, see §8 | see §7 below |
 | 8 — Outline detail, wall autotiling and placement | done, measured; needs an editor pass | see §8 below |
+| 9 — Loot chests | done; needs an editor pass | see §9 below |
+| 10 — Central hub | done, measured; needs an editor pass | see §10 below |
+| 11 — Player spawns in the hub | done, measured; needs an editor pass | see §11 below |
+| 12 — GameManager's spawn point drifts out of sync | fixed in code; **baked scenes need one manual regenerate** | see §12 below |
+| 13 — Pathfinding grid covered a quarter of the map | fixed in code; `Dungeon.unity` also hand-edited | see §13 below |
+| 14 — Pathfinding gizmo was invisible | fixed in code; `Dungeon.unity` also hand-edited | see §14 below |
+| 15 — Blocking objects, pillar count, door alignment | done, measured; door fix reworked twice, confirmed in editor | see §15 below |
+| 16 — Real floor art and paper litter | done, previewed outside Unity; **needs a Setup run and an editor look** | see §16 below |
+| 17 — Doors on one jamb, threshold tile, pillars in passages, doors in shadow, table pathfinding | fixed, measured over 200 seeds; **needs an editor look** | see §17 below |
+| 18 — Mushroom and sleeping-bag decals | done; **needs a Setup run and an editor look** | see §18 below |
+| 19 — Statues, a scene-wiring gap, a build-order bug, and a fragile footprint formula | fixed, one confirmed by static proof rather than measurement; **needs an editor look** | see §19 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -65,7 +76,7 @@ The algorithmic core. Produces an abstract layout; still paints nothing.
 
 **Files**
 - `Generation/CellType.cs` — `enum { Wall, Floor, Door }`
-- `Generation/Room.cs` — `RectInt bounds`, `int index`, `RoomKind kind` (`Start`, `Normal`, `Camp`, `Treasure`)
+- `Generation/Room.cs` — `RectInt bounds`, `int index`, `RoomKind kind` (originally `Start`, `Normal`, `Camp`, `Treasure`; `Camp` became `Hub` in §10, and `Start` was folded into `Hub` in §11 — current values are `Hub`, `Normal`, `Treasure`)
 - `Generation/DungeonLayout.cs` — `CellType[,] cells`, `List<Room> rooms`, corridor cells, `Vector2Int spawnCell`, room adjacency graph
 - `Generation/DungeonGenerationSettings.cs` — `ScriptableObject`: map size, room count range, room size range, corridor width, extra-loop chance, spacing
 - `Generation/DeterministicRandom.cs` — FNV-1a seed hashing + xorshift128; `Next(int, int)`, `NextFloat()`, `Pick<T>(IList<T>)`
@@ -128,7 +139,7 @@ Turns a walkable maze into a playable level. Expect the most iteration here.
 3. Enemies: per room, count and type drawn from a distance-weighted table. `Start` and `Camp` rooms always empty.
 4. Loot: `WorldItemPickup` on floor cells away from doorways; guarantee a minimum of light fuel per dungeon so the run is never unwinnable.
 5. Props: barrels/tables scattered as cover — must not block corridors (respect the vision-blocking convention: props never block vision or pathfinding).
-6. `Camp` room: `SaveStation` + a `StationaryLightSource`.
+6. `Camp` room: `SaveStation` + a `StationaryLightSource`. (Superseded by §10: the camp is now the central `Hub`, and it also carries the crafting table.)
 7. Every spawned object with a `SaveableEntity` gets `SetGuid($"{seed}:{roomIndex}:{slotIndex}")` and its registry `prefabId` recorded — D7.
 
 **Done when:** a generated dungeon can be played start to finish: fight or sneak past enemies, find fuel, reach the camp, save.
@@ -234,7 +245,8 @@ evidence that the feedback loop converges rather than just scattering more clutt
 occludes itself, so the decorator hits the target with fewer solids (141 → 99). Shape is a
 **variety** knob; density is the **oppression** knob. Worth knowing before tuning either.
 
-Start and Camp rooms are deliberately left legible (camp measures ~0.95). A safe room the
+Start and Camp rooms are deliberately left legible (camp measures ~0.95); §10 renamed Camp
+to Hub and the same exemption follows it. A safe room the
 player cannot verify is empty is not a safe room, and the first room of a run is the worst
 possible place to hide something.
 
@@ -843,6 +855,1401 @@ loose floor loot and nothing that reads as a container worth finding.
 4. Take an item, save, quit, load: the chest comes back still missing that item, and every
    other chest keeps its own independent contents (the `GU-0053` guarantee).
 5. Regenerate with the same seed twice: identical chest positions and identical contents.
+
+---
+
+## Stage 10 — The central hub
+
+`GU-0065`. One room in the middle of the map holds a save station and a crafting table,
+and it is the only place in the game that has either.
+
+### What changed, and the one decision the rest follows from
+
+| # | Decision | Rationale |
+|---|----------|-----------|
+| D8 | The hub is **reserved before any other room is placed**, not chosen afterwards | A hub is only a landmark while the player can predict where it is. Rejection sampling routinely leaves the middle of a map empty, so "tag whichever room came out nearest the centre" cannot promise a central room — it promises *a* room, somewhere. Reserving makes the position a guarantee of the layout rather than an outcome of it |
+| D9 | `RoomKind.Camp` **becomes** `RoomKind.Hub` rather than joining it | The camp already held the save station. Keeping both roles would put two save stations in a dungeon, which is exactly the thing this change exists to prevent |
+
+`RoomCorridorGenerator.PlaceHub` writes a square room centred on the map into the room
+list first, and `PlaceRooms` samples the remaining `TargetRoomCount - 1` around it. Nothing
+downstream needed a special case: later rooms are rejected unless they clear the hub by
+`RoomSpacing` exactly as they clear each other, and the spanning tree connects it like any
+other node. `AssignRoomRoles` now only carries the role through, and excludes the hub from
+both Start and Treasure — a reward stashed in the one room the player is safe in is not a
+reward, and starting in the hub would delete the walk that makes it worth anything.
+
+*Superseded by §11: the player does now start in the hub, `RoomKind.Start` no longer
+exists, and the last sentence above is exactly backwards — see below for why.*
+
+The hub is built as a plain rectangle and never passed through `RoomShaper`, and
+`RoomInteriorDecorator` skips it under its existing Start/Camp rule. Same reason as before:
+the player has to be able to see that the safe room is empty.
+
+### What this trades away, stated plainly
+
+The camp was chosen as **the deepest dead end** available, on the argument written into
+`IsBetterCamp` that a safe room the player can be chased *through* is not safe. A room at
+the centre of the map is the opposite of a dead end — it measures **3.67 corridors on
+average**, so it can be entered from several sides at once and never has the one-way-in
+property the camp was picked for.
+
+That is inherent in what was asked for, not an oversight: "in the middle of the map" and
+"a dead end" are mutually exclusive on this generator. It is recorded here because if the
+hub later feels unsafe to sit in, the lever is a door or a scripted quiet zone, **not**
+moving the hub off the centre — that would give up the landmark this stage exists to
+create.
+
+### Fixtures
+
+`DungeonPopulator.SpawnHubFixtures` places the save station, the crafting table, empty
+chests and lamps, each through `SpawnFixture`:
+
+- **Near a wall but never touching one.** This is the correction to the first version of
+  this stage, which anchored fixtures on a wall-adjacent cell the way `SpawnProps` does and
+  produced a crafting table with half of it inside the wall.
+
+  The cause is not placement drift, it is Stage 8's sorting order. `WallSortingOrder` is 7,
+  **above** ordinary world sprites, so any part of an object that overlaps a wall cell is
+  not merely close to the wall — it is painted over by it. `CraftingTable.prefab` draws
+  1.48×0.78 cells (9.84×5.2 at scale 0.15, sprite and collider identical, draw mode
+  Simple), so centred on a cell touching a wall it puts ~0.24 cells under the wall tile at
+  each end, and the wall wins. The chest corner bleed Stage 9 recorded and accepted is the
+  same interaction; this is the general fix for it on generated fixtures.
+
+  `TryTakeFixtureCell` therefore requires `footprint / 2` cells of walkable ground around
+  the anchor, and then prefers the cells where solid rock starts *exactly one ring beyond*
+  that — which is what "standing against the wall" looks like once the object's own width
+  is accounted for. Three passes: clearance and a wall just past it, then clearance
+  anywhere, then anything free at all. Only the last gives up the guarantee, and it exists
+  so a hub too cramped to furnish still gets a save station rather than none.
+- **Measured by what it draws, not only by what it collides with.** `FootprintCells` now
+  takes the larger of the `BoxCollider2D` and the drawn sprite size (`Sprite.bounds`, or
+  `SpriteRenderer.size` for sliced/tiled renderers), both read from serialized data so they
+  are correct on a prefab asset that has never been instantiated. A prefab whose art is
+  wider than its collider — which is the normal case, not an exotic one — would otherwise
+  be placed flush and lose exactly the difference to the wall.
+- **Spaced pairwise** against everything already placed, by the wider of the two. A
+  crafting table sitting inside the save station is the failure mode.
+- **Widest first, lamps last.** All of these compete for the same wall-side cells. A lamp
+  is one cell and fits almost anywhere; a crafting table needs room around it. Placing the
+  lamps first measurably crowded the chests out — 11 in 600 fell through to the last-resort
+  pass at `hubRoomSize` 12. Reordered, that is 0.
+- **Lamp spacing scales with the room**, capped at `MaxLampSpacing` = 5. Lamps are spread
+  so the hub is lit from several sides rather than from one corner, but a fixed distance
+  that does not fit does not spread lamps out — it loses them.
+- **Blocking-aware**, reusing `BlocksPathfinding`, so a fixture never lands on or beside a
+  chokepoint.
+- **Loud on failure.** A dungeon whose save station silently did not spawn cannot be saved
+  in, so a fixture that finds no cell logs a warning naming the prefab and the knob to raise.
+
+Chests are spawned **empty**, through `ChestInventory.SetStartingItems` with nothing in it
+— which also clears whatever the prefab itself carries. They are the player's own storage
+rather than loot, and `ChestSaveable` (`GU-0053`) already persists their contents by guid,
+so what the player leaves there survives a save. Counts are `hubLamps` and `hubChests` on
+`RoomContentSettings`, both 3.
+
+The hub gets **no props**. `SpawnProps` anchors clusters against walls, which is precisely
+where the fixtures stand, and the one room that has to be usable is the wrong place to
+spend the prop budget.
+
+### Nothing spawns in the hub, and what that had to mean
+
+The room pass never put an enemy in the hub — its case in `SpawnRoomContent` calls
+`SpawnHubFixtures` and nothing else — and `SpawnCorridorAmbushes` already refused any cell
+inside a room. What was left was the corridor immediately outside: an ambush placed one
+cell from the doorway is, seen from inside the room, something waiting in the hub.
+
+`IsUsableAmbushCell` now also rejects anything within `HubKeepOut` = 4 cells of the hub's
+bounds, so "no enemies at the hub" means what a player would take it to mean rather than
+what the cell test happened to say.
+
+**This governs spawning only.** Nothing stops an enemy *walking* into the hub during play —
+it is a through-room with several corridors into it (see the trade above). If the hub needs
+to be inviolable rather than merely unpopulated, that is a pathfinding or behaviour change,
+not a generation one.
+
+`craftingTablePrefabId` is new on `RoomContentSettings`; `world.craftingtable` was already
+in the registry and needed nothing. `hubRoomSize` is new on `DungeonGenerationSettings`,
+clamped into the ordinary room size range *after* `MaxRoomSize` has been fitted to the map,
+so the reserved centre can never be a room shape the generator would otherwise have
+rejected. Both are written explicitly into the authored assets rather than left on their C#
+defaults — the Stage 7 lesson about stale assets.
+
+### Saves made before this change
+
+Existing saves do not survive it, and there is no way to make them. A save stores a seed
+(D6), and the same seed now places a room where there was none, shifts every later
+rejection-sampled room, and renumbers the hub's own spawn slots — the crafting table takes
+the slot the lamp used to have. Loading an old save regenerates a *different* dungeon and
+overlays entity state onto guids that no longer exist. This is inherent to changing the
+generator rather than a defect in this stage: any layout change has the same consequence,
+which is the cost of storing seeds instead of worlds. Delete old saves.
+
+### Measured, headlessly, through the Stage 8 harness
+
+| | shipped 160×160, hub 16 | tests 64×48, hub 14→9 | shipped, pure tree |
+|---|---|---|---|
+| Seeds | 200 | 200 | 50 |
+| Validation failures | 0 | 0 | 0 |
+| Layouts with unreachable cells | 0 | 0 | 0 |
+| Retries | 1 | 1 | 1 |
+| Layouts without exactly one hub | 0 | 0 | 0 |
+| Hub off the map centre | 0 | 0 | 0 |
+| Hub tagged Start or Treasure | 0 | 0 | 0 |
+| Spacing violations | 0 | 0 | 0 |
+| Mean rooms | 16.00 | 8.00 | 16.00 |
+| Mean hub degree | 3.67 | 2.99 | 2.34 |
+
+**Mean rooms lands exactly on the target in every configuration**, which is the number that
+answers the only real risk in reserving space: the hub does not cost a room, because it
+*is* one of them. The 14→9 column is the clamp working — `SmallParams` caps rooms at 9.
+
+Fixture placement was measured the same way, by mirroring `TryTakeFixtureCell` against
+generated layouts — 200 seeds, eight fixtures per hub (station, table, 3 chests, 3 lamps):
+
+| `hubRoomSize` | 12 | 14 | **16 (shipped)** | 20 |
+|---|---|---|---|---|
+| Fixtures overlapping rock | 0 | 0 | **0** | 0 |
+| Fixtures overlapping each other | 0 | 0 | **0** | 0 |
+| Placed by the last-resort pass | 0 | 0 | **0** | 0 |
+| Fixtures not placed (of 1600) | 40 | 1 | **3** | 0 |
+
+Every unplaced fixture is a lamp, which is the right thing to lose: the clearance and
+spacing rules are never relaxed to fit one in, and the station, table and chests place in
+every single seed at every size tested. At the shipped size that is 3 missing lamps in
+1600, or roughly one dungeon in 200 logging one warning.
+
+Isolation was checked separately, since the hub is the one room a run cannot do without.
+Forcing `MaxGenerationAttempts` to 1 over 500 seeds so the retry loop cannot hide anything:
+**1 attempt in 500 left a room cut off, and it was an ordinary room, never the hub.** Being
+central, the hub is the best-connected node in the graph and the least likely thing in the
+dungeon to be walled off. The existing validate-and-reseed loop catches that case as it
+always did.
+
+### Not done
+
+- **Making the hub feel safe rather than merely being safe.** See the trade above — it is a
+  through-room now. Nothing stops an enemy wandering in.
+- **A door or threshold that marks the hub as different.** It is currently distinguished
+  only by what stands in it.
+- **Hub-aware ambush placement.** `SpawnCorridorAmbushes` skips depth 0 (beside the start
+  room) but knows nothing about the hub, so a guard can be posted in the corridor right
+  outside it.
+- **`CraftingTable.prefab` carries its player-reach trigger on the root, on
+  `ObstaclePathOnly`** — measured from the asset: a 19.84×15.2 trigger at scale 0.15, so
+  ~3.0×2.3 cells, against a physical collider of ~1.5×0.8. This is the identical defect
+  Stage 9 found on `Chest.prefab` and fixed by moving the trigger to a child on
+  `Interactable`. `queriesHitTriggers` is 1, so those ~3×2 cells are unwalkable to
+  `PathfindingGrid` even though the table is not that big. Consequences are mild — the
+  table stands against a hub wall, `BlocksPathfinding` already keeps it off chokepoints,
+  and player movement is governed by the smaller solid collider — but it is now in every
+  generated dungeon rather than in hand-placed scenes only. Left as a prefab change for
+  whoever picks up the Stage 9 pattern, not done here.
+- **Anything in the other scenes.** `Demo.unity` has hand-placed crafting tables and save
+  stations; this change governs generated dungeons only. If "the only such place in the
+  game" is to hold literally, those scene-authored ones want removing, which is a scene
+  edit rather than a generation change.
+
+### In-editor checklist for this stage
+
+1. Generate a dungeon. **The middle of the map is a square room**, and it has a save
+   station, a crafting table, three lamps and three chests around its edges.
+2. There is **exactly one** save station and **one** crafting table in the whole dungeon.
+   `GeneratedContent` is flat, so a glance down the hierarchy is enough.
+3. **No fixture is drawn into a wall.** This is the check the clearance rule exists for. If
+   any of them is half-buried, `FootprintCells` is under-measuring that prefab — look at
+   whether its art is bigger than both its collider and its sprite bounds.
+4. Walk into the hub and use the fixtures: `E` at the station saves, `E` at the table opens
+   crafting, `E` at a chest opens it and **it is empty**. Put something in one, save, load,
+   and it is still there.
+5. **No enemies in the hub, and none waiting in the corridor just outside it.** One that
+   walked in on its own during play is expected — the keep-out governs spawning, not
+   patrol routes.
+6. Regenerate with the same seed twice: the hub, its fixtures and their guids are identical.
+7. Save in the hub, quit, load. The dungeon comes back with the hub in the same place — it
+   is rebuilt from the seed like everything else, so a hub that moved means the seed did
+   not round-trip, not that placement is random.
+
+   Superseded by §11: this stage originally had the player start far from the centre and
+   walk to the hub. The player now spawns *in* the hub instead — see the checklist there.
+
+---
+
+## Stage 11 — The player spawns in the hub, and `RoomKind.Start` is gone
+
+`GU-0065` again. Stage 10 kept the old "farthest room from the map centre" role — renamed
+nothing, called it `Start`, spawned the player there, and picked it as the origin the
+difficulty curve is measured from. The player was meant to walk from Start to the hub.
+This stage removes that walk: **the player now spawns in the hub itself.**
+
+### Why this could not be a one-line change
+
+Once the player's spawn point moves to the hub, `RoomKind.Start` has nothing left to do.
+Its entire job was (a) being where the player begins and (b) being the origin of
+`DepthFromStart`, the hop-count every difficulty number in `RoomContentSettings` reads.
+Both moved to the hub. Keeping `Start` around regardless would tag some arbitrary
+far-from-centre room as a *second* enemy-free, template-free, undecorated safe room — which
+directly contradicts D9 from Stage 10, the decision that collapsed Camp into Hub for
+exactly this reason: two safe roles is one too many once the player only starts in one
+place.
+
+So `RoomKind.Start` is deleted rather than kept dormant. `RoomKind` is now
+`{ Hub, Normal, Treasure }`, and `Room.DepthFromStart` is renamed `Room.DepthFromHub` —
+because leaving the old name on a value now measured from a different room would be wrong
+in a way nobody reading the code would have reason to suspect.
+
+**Nothing serialized these values**, which is what made the rename safe: rooms are rebuilt
+from a seed every load (D6), never written to a save file, and grepping the project found
+no authored `DungeonRoomTemplate` prefab whose `allowedKinds` array stores an enum int
+against `Start`. If either had been true, this would have been a data migration, not a
+rename.
+
+### What changed
+
+`RoomCorridorGenerator.AssignRoomRoles` no longer picks a farthest-from-centre room and
+tags it `Start`. Instead:
+
+- **The hub is the BFS origin.** `BreadthFirstDepths(adjacency, origin.Index)` now starts
+  from the hub's index, not Start's. `layout.SpawnCell = origin.Center` follows the same
+  origin, so the spawn point and the depth-zero room are, by construction, the same room —
+  there is no longer a separate step that could disagree with itself.
+- **Treasure is unchanged in spirit**: still the Normal room with the greatest
+  `DepthFromHub`. It reads differently now only because "far from Start" and "far from the
+  hub" used to point in *opposite* directions along the same walk (see below) and now don't.
+- **A fallback for when the hub does not exist.** `PlaceHub` can return -1 on a map too
+  small for even the minimum hub size (Stage 10's own defensive case, effectively
+  unreachable once `LayoutParams.Sanitized` clamps `HubRoomSize` into the room-size range,
+  but still handled). `FarthestFromCentre` reproduces the old Start-picking rule as a
+  fallback origin in that case — tagged `Normal`, not `Hub`, since there is no hub to
+  promote it to. This is not a design point, just somewhere to stand.
+
+Every other file that read `RoomKind.Start` or `DepthFromStart` was updated to match:
+`RoomInteriorDecorator` (now skips only `Hub`, its check for `Start` deleted rather than
+kept unreachable), `DungeonRoomTemplate.Fits` (excludes `Hub` where it excluded `Start`),
+`DungeonPopulator`'s room-content switch (the `case RoomKind.Start: break;` arm no longer
+exists — there is no such kind to match), and every depth-scaling read in
+`DungeonPopulator`/`RoomContentSettings` (enemy count, prop table, chest chance, corridor
+ambush gating) now reads `DepthFromHub`.
+
+### A real bug this pass found, not introduced by it
+
+`DungeonPopulator.SpawnGuaranteedItems` — the pass that tops up critical items like lamp
+fuel — built its candidate room list by excluding `RoomKind.Start` only. Since Stage 10
+introduced `Hub` as a *third* kind, that filter had been silently wrong the whole time:
+a `Hub` room was a valid drop candidate, meaning guaranteed-item loot could land on the hub
+floor among the fixtures. Nothing caught it because the hub's `FreeCells` list is thin —
+most of the floor is claimed by fixtures — so it would have taken an unlucky seed to
+actually place something there, and nobody had looked. Now excludes `Hub` instead, which is
+what the comment beside it always implied it should do.
+
+### Why "start far, walk to the hub" was backwards for difficulty anyway
+
+This is worth stating plainly because it explains why this is not just a cosmetic rename.
+With Start as the depth origin and the player walking from Start toward the hub, the rooms
+*right next to the hub* — the first ones a player exploring outward from the hub would ever
+see, back when spawn was still at Start — sat at **high** `DepthFromStart`, because Start
+was deliberately placed as far from the hub as the map allowed. Difficulty would have
+ramped in the wrong direction the moment the spawn point moved to the hub without also
+moving the depth origin: hard rooms beside the safe room, easy ones far away from it. Using
+the hub as the origin for both **at once** is not two independent decisions that happened
+to land together — moving the spawn point without moving the depth origin would have been
+the actual bug.
+
+### Not done
+
+- **Treasure's distance from the hub is not floored.** A pathological layout could in
+  principle place the Treasure room close to the hub if that happens to be the deepest
+  Normal room available — nothing currently guards against a short, unsatisfying treasure
+  hunt the way `HubKeepOut` guards against a spawn-adjacent ambush. Not observed in the 200-
+  seed measurement below, but not structurally prevented either.
+- **The fallback origin (`FarthestFromCentre`) is untested by seed**, since
+  `LayoutParams.Sanitized` makes `hubIndex == -1` effectively unreachable through the public
+  `Generate` API — reaching it would need calling private methods directly. Left as
+  defensive code with a comment rather than a forced test.
+
+### Measured, headlessly
+
+Re-ran the Stage 10 harness with the origin change: 200 seeds at the shipped settings, plus
+a fresh check that the player's actual spawn cell and the hub's centre are the same cell,
+and that the hub always measures depth 0.
+
+| | shipped 160×160 | tests 64×48 |
+|---|---|---|
+| Seeds | 200 | 200 |
+| Validation failures | 0 | 0 |
+| Unreachable cells | 0 | 0 |
+| Not exactly one hub | 0 | 0 |
+| Hub off map centre | 0 | 0 |
+| Hub tagged Treasure | 0 | 0 |
+| **Spawn cell ≠ hub centre** | **0** | **0** |
+| **Hub depth ≠ 0** | **0** | **0** |
+| Spacing violations | 0 | 0 |
+
+Every number that was clean before the change stayed clean, and the two new ones — spawn
+and depth both anchored to the hub — are exactly zero mismatches across 400 seeds. The
+fixture-placement measurements from Stage 10 are unaffected: nothing about where fixtures
+go depends on which room the player starts in, only on which room the hub is, and that
+did not change.
+
+### In-editor checklist for this stage
+
+1. Generate a dungeon and enter Play mode. **The player starts standing inside the hub**,
+   next to the save station and crafting table, not walking in from elsewhere.
+2. Look at a room several corridors away from the hub: it should feel harder than one just
+   outside the hub — more enemies, higher chest chance. That gradient now runs outward from
+   the hub in every direction, not from one edge of the map toward the centre.
+3. Find the Treasure room (deepest from the hub) and confirm it is a genuine walk away, not
+   one hop from spawn.
+4. Regenerate with the same seed twice: the player lands on the exact same cell both times.
+5. Save immediately after spawning, quit, load: the player comes back standing in the hub,
+   not at the map's old Start position.
+
+---
+
+## Stage 12 — GameManager's spawn point drifts out of sync with the hub
+
+`GU-0065` again. Stage 11 made the player spawn in the hub — inside `DungeonBuilder.Build()`,
+via `MovePlayerToSpawn`. That fixed the *live-generation* path. It did not fix what the
+Dungeon scene actually runs.
+
+### The scene this project actually plays
+
+The Dungeon scene is authored by baking (Stage 7): generate once in the editor, save the
+scene, and at runtime `buildOnStart` is off — `DungeonBuilder.Build()` never runs during a
+normal Play session, because the geometry and content are already sitting in the scene file.
+Confirmed by reading it directly: `Dungeon.unity`'s `DungeonBuilder` has `buildOnStart: 0`.
+
+The only thing that positions the player at game start in that scene is
+`GameManager.TeleportPlayerToSpawn()`, called from `Awake()` because `startGameOnAwake: 1`.
+It reads one Transform — a plain empty GameObject named `PlayerSpawnPoint`, wired to
+`GameManager.playerSpawnPoint` — and moves the player there. **`DungeonBuilder.Build()` had
+never touched that Transform.** It only ever moved the live player object during the bake
+session; the marker a later Play session actually reads was left wherever it happened to
+be — in the checked-in scene, `(112.9, 114.7, 0)`, whatever position it held before the hub
+existed. Stage 11's fix never had a chance to run in this scene, and the player kept
+teleporting to a stale marker with no connection to the generated dungeon.
+
+### The fix
+
+`DungeonBuilder` gained an optional field, `playerSpawnMarker`. `MovePlayerToSpawn` now
+sets its position to the hub's centre alongside the live player's, every time it runs —
+including in edit mode while baking, with no live player present, since that is exactly
+when the marker a later Play session will read needs to be correct.
+
+Wiring it by hand in every dungeon scene is the kind of step that gets skipped, so
+`DungeonSceneSetup.WirePlayerSpawnMarker` does it automatically: **Tools ▸ Dungeon ▸ Setup
+Scene Tilemaps** now finds this scene's `GameManager`, reads whatever Transform its own
+`playerSpawnPoint` field already points at, and wires the same Transform into the builder.
+Neither component needs to know about the other's existence beyond that one shared
+reference — `GameManager` still just teleports to a Transform, unchanged, which is also why
+this costs nothing for the hand-built scenes (`Main`, `Demo`) that have no `DungeonBuilder`
+to wire it to.
+
+`Dungeon.unity` had the reference added directly. **Only that scene** — per direction,
+scene edits in this pass are scoped to `Dungeon.unity` and nothing else, even where another
+scene (`DungeonBN.unity`) is set up identically and would take the same one-line fix.
+Whoever owns that scene can pick up the same reference (`GameManager.playerSpawnPoint`
+already points at a `PlayerSpawnPoint` object there too) by hand, or by running **Tools ▸
+Dungeon ▸ Setup Scene Tilemaps** in it — the wiring code is scene-agnostic and works
+wherever it is run; it is only my own direct scene edits that stay confined to `Dungeon.unity`.
+
+### What this does not fix by itself
+
+**The wiring is fixed; the position baked into `Dungeon.unity` right now is not.** I can
+edit the scene's YAML safely to add a field reference — that is a mechanical, unambiguous
+change. I cannot safely hand-compute where `PlayerSpawnPoint` *should* sit: `CellCenter`
+composes the dungeon's grid origin with the `Grid` transform's own position **and a 2×
+local scale**, and getting that arithmetic wrong would silently leave the marker at a
+different wrong position instead of visibly failing. That is worse than leaving it stale
+and saying so.
+
+**Required, once, in the editor:** open `Dungeon.unity`, select `DungeonRoot`, right-click
+the `DungeonBuilder` header ▸ **Generate (current seed)**, then save the scene. That call
+was always going to move the live player and repaint the geometry; it will now also snap
+`PlayerSpawnPoint` to the hub, and saving the scene keeps it there for every future Play
+session.
+
+`DungeonBN.unity` was left alone entirely (see "Scope" above) rather than fixed to the same
+standard as `Dungeon.unity` — worth noting it would not have needed the manual regenerate
+step even if it had been touched, since its `buildOnStart` is already `1` and `Build()` runs
+at the start of every session there regardless.
+
+### Scope
+
+Scene edits in Stages 12 onward are confined to `Dungeon.unity` only, on explicit
+direction — earlier drafts of this stage and the two after it also hand-edited
+`DungeonBN.unity` to the same values; those edits were reverted. The *code* fixes
+(`DungeonBuilder`, `PathfindingGrid`, `DungeonSceneSetup`) are not scene-specific and apply
+equally to any scene that uses them; only the direct, by-hand data edits to a checked-in
+scene file are scoped down. `DungeonBN.unity` is therefore still carrying whatever stale
+values it had before this work, for whoever owns it to pick up separately.
+
+### Not done
+
+- **No test covers this.** The bug was entirely about a *baked scene's* stored state
+  disagreeing with a *live* generator run — not something the layout assembly's headless
+  harness can see, since it never touches a `Transform` or a scene file. Catching a class of
+  bug like this would need an integration test that loads the actual scene, which is outside
+  what runs headlessly today.
+- **`GameManager` still has no idea a dungeon exists.** This fix keeps two independent
+  systems' state in sync by convention (`DungeonBuilder` writes the Transform
+  `GameManager` reads) rather than by `GameManager` asking `DungeonBuilder` directly. That
+  is deliberate — `GameManager` works identically for hand-built scenes this way — but it
+  means any *third* system that also wants "where does the player start" has the same
+  trap waiting for it: read the marker, not the layout, or duplicate this same drift.
+
+### In-editor checklist for this stage
+
+1. Open `Dungeon.unity`. **Before regenerating**, note `PlayerSpawnPoint`'s position in the
+   inspector — expect it to disagree with where the hub visibly sits in the Scene view.
+2. Select `DungeonRoot` ▸ `DungeonBuilder` context menu ▸ **Generate (current seed)**.
+   `PlayerSpawnPoint` should jump to the hub's centre. If it does not move at all, the
+   `playerSpawnMarker` reference did not survive whatever edited the scene — reselect
+   `Tools ▸ Dungeon ▸ Setup Scene Tilemaps` to re-wire it.
+3. Save the scene.
+4. Enter Play mode from a **cold launch of this scene** (not by pressing Play while already
+   in it from a previous session) — `startGameOnAwake` fires once at `Awake`, so this is the
+   path the original bug lived on. The player should appear standing in the hub, not at the
+   map's edge or in solid rock.
+
+---
+
+## Stage 13 — The pathfinding grid covered a quarter of the map
+
+Reported directly: the navigation grid was not covering the whole generated dungeon.
+
+### Root cause
+
+`DungeonPainter.CellSize` read `Grid.cellSize.x` — the Tilemap `Grid` component's own
+local-space cell size — and handed it straight to `PathfindingGrid.Configure`. That value
+excludes the GameObject's transform scale; `Grid.CellToWorld`/`WorldToCell` apply it, but
+reading `cellSize` off the component directly does not, and nothing about the property
+name warns that it is lying about world-space size the moment the transform isn't 1:1.
+
+`Dungeon.unity`'s `DungeonRoot` is scaled **2×** (`m_LocalScale: {2, 2, 2}`, confirmed as
+the root transform itself — `m_Father: {fileID: 0}`, so no parent contributes further
+scale). `Grid.cellSize.x` is `1`, so every tile is actually 2 world units wide, and
+`DungeonPainter.CellSize` was reporting half that. `PathfindingGrid.Configure(origin, width,
+height)` never took a cell size parameter at all — it left whatever was already serialized
+on the component untouched, which was `0.68`, a value with no connection to either the
+correct one (2) or the wrong one this bug would have computed (1). Read directly out of the
+checked-in scene: `origin` and `width`/`height` (160×160) were already correct — only
+`cellSize` was stale.
+
+The consequence compounds through simple multiplication. A `PathfindingGrid` samples
+`width × cellSize` world units across; at the shipped `160 × 0.68 = 108.8`, against the
+dungeon's actual `160 × 2 = 320`. The sampled area is **(108.8/320)² ≈ 11.6%** of the map,
+and because sampling starts at `origin` and walks outward one (wrong-sized) cell at a time,
+that 11.6% is not spread across the map — it is packed into the corner nearest the origin.
+Pathfinding requests for anything past there would land in space the grid never sampled and
+report unwalkable, in a dungeon that is otherwise completely fine.
+
+### The fix
+
+Two changes, so the value is derived once and threaded through rather than fixed in two
+disconnected places:
+
+- **`DungeonPainter.CellSize`** now multiplies by `Grid.transform.lossyScale.x`, so it
+  reports the true world-space cell size regardless of what the root's transform does.
+  `CellCenter` had the identical bug one line down — it added half of the *unscaled*
+  `Grid.cellSize` to an already-correctly-scaled corner from `Grid.CellToWorld`, so every
+  spawn position was off-centre by a quarter of the real cell width. Fixed the same way,
+  per axis rather than reusing the (uniform-only) `CellSize` property, so a non-square cell
+  remains representable even though nothing here currently authors one.
+- **`PathfindingGrid.Configure`** gained a `float gridCellSize` parameter and now writes it
+  into the private `cellSize` field alongside origin/width/height, rejecting zero or
+  negative like the existing size checks. Leaving `cellSize` untouched was the second half
+  of the bug: even a caller that passed the right value nowhere had to actually store it.
+  `DungeonBuilder.Build()` now passes `painter.CellSize` through.
+- **`DungeonSceneSetup.WarnOnCellSizeMismatch`** compared the Tilemap `Grid`'s raw
+  (unscaled) `cellSize` against `PathfindingGrid.CellSize` — which, after this fix, is
+  correctly expressed in world units, so the old comparison would flag a scaled
+  `DungeonRoot` as a mismatch even when everything is fine. Now compares both sides in
+  world units (`grid.cellSize * grid.transform.lossyScale`). Left as an early heads-up
+  rather than removed: `Configure` self-corrects the grid on every build regardless, so a
+  mismatch here can no longer leave anything broken — it can only warn before the first
+  Generate.
+
+### Why `Dungeon.unity` needed a direct edit, not just the code fix
+
+`Dungeon.unity` has `PathfindingGrid.cellSize` serialized as `0.68`. `Awake()` calls
+`BuildGrid()` unconditionally using whatever is currently serialized — `Configure()` only
+overwrites it when `DungeonBuilder.Build()` actually runs, which for `Dungeon.unity`
+(`buildOnStart: 0`, authored by baking) is *never*, at runtime, outside a save load. The
+code fix alone would have left that scene sampling the wrong 26.9% width forever, exactly
+the same shape of gap Stage 12 found in the spawn marker.
+
+Unlike the spawn marker, this one was safe to hand-fix directly: `origin` (`{-46.1,
+-44.7}`) already matched `Grid.CellToWorld(0,0,0)` — no computation needed — and the
+correct `cellSize` is `Grid.cellSize.x (1) × the root's own lossyScale.x (2) = 2`, read
+straight off two values already in the file rather than derived through an opaque transform
+chain. `PathfindingGrid.cellSize` was changed from `0.68` to `2` directly.
+
+Scene edits stay confined to `Dungeon.unity` per the scope note in Stage 12 — `DungeonBN.unity`
+was not touched, and still carries its own stale `0.68`. It would self-correct on its own
+next Play session regardless, since its `buildOnStart` is `1`, but nothing here made that
+happen sooner.
+
+### Not done
+
+- **No regenerate was required for this one** — unlike Stage 12, the fix is complete as
+  checked in. Regenerating is still worth doing to pick up Stage 12's spawn-marker sync in
+  the same pass, not because this stage left anything pending.
+- **The 2× scale on `DungeonRoot` itself was not investigated or changed.** It is very
+  possibly a mistake in its own right — this project's tile art is imported at a PPU that
+  assumes one tile is one world unit (`DungeonSceneSetup.TilePixels`'s own comment says so
+  explicitly), and a 2×-scaled root would render every tile at double that size on screen,
+  which is a different, visible symptom nobody has reported. Left alone because it is a
+  rendering/framing question this fix does not need answered — the code now derives the
+  correct pathfinding coverage from whatever scale the root actually has, so nothing here
+  depends on that scale being 1, 2, or anything else. Worth a second look if the dungeon
+  looks larger on screen than the camera framing in `GENERATION_NOTES.md` §7 describes.
+
+### In-editor checklist for this stage
+
+1. Open `Dungeon.unity` and select the `PathfindingGrid` object. Turn `gizmoOpacity` up from
+   0 temporarily and enter Play (or use the Scene view if the grid was already built) — the
+   coloured cells should extend across the **entire** painted dungeon, corner to corner, not
+   stop a third of the way in.
+2. Walk (or send an enemy) to a room in the far corner of the map, away from the origin.
+   Before this fix that area had no pathfinding coverage at all; confirm A* finds a route
+   there now.
+3. Regenerate (`DungeonBuilder` context menu ▸ Generate) and confirm the grid's `cellSize`
+   in the inspector updates to match the tilemap's real spacing — it should equal
+   `painter.CellSize`, not silently keep whatever was there before.
+4. If `DungeonRoot`'s scale is ever changed on purpose, no dungeon-side code needs touching
+   — `DungeonPainter.CellSize` and everything downstream of it reads the transform live.
+
+---
+
+## Stage 14 — The pathfinding gizmo was invisible
+
+Reported directly, right after Stage 13: turning `gizmoOpacity` up still showed nothing.
+Three causes, layered — the first two were real but not sufficient on their own, which is
+why fixing them alone did not make the gizmo appear.
+
+### Cause 1 (real, not sufficient alone) — `walkableColor`'s alpha was 0.0275, not 0.3
+
+`Dungeon.unity` had `walkableColor: {r: 0, g: 1, b: 0, a: 0.02745098}`. `OnDrawGizmos`
+multiplies that alpha by `gizmoOpacity` before drawing, so even at full `gizmoOpacity`
+(`1`) a walkable cell rendered at 2.75% opacity — visually indistinguishable from nothing,
+especially against the near-black `DarknessOverlay` this project renders with. The
+component's own C# default is `0.3`; whatever set the scene value to a tenth of that was a
+scene edit, not a code path. Reset to `0.3`.
+
+### Cause 2 (real, not sufficient alone) — the cap always drew the same corner
+
+`maxGizmoCells` was `5000` in `Dungeon.unity`. Stage 13 established the map is
+160×160 = 25 600 cells. `OnDrawGizmos` drew in row-major order — `y` outer loop, `x` inner
+— incrementing a counter and returning the instant it hit the cap. With a 5000-cell budget
+on a 25 600-cell grid, that is **the bottom ~31 rows of a 160-row map, full stop** — every
+row above `y ≈ 31` got zero gizmo cubes, unconditionally, regardless of `gizmoOpacity` or
+color. The hub sits at the map's centre, around `y ≈ 80`. Whoever was looking at the hub
+was looking at a region the old code could never draw, capped or not.
+
+Fixed structurally, not just by raising the number: `OnDrawGizmos` now walks the flat cell
+index by a **stride** — `Mathf.CeilToInt(cellCount / (float)maxGizmoCells)` — instead of a
+contiguous run from the start. A grid under the cap draws at stride 1 (everything, as
+before). A grid over the cap draws every *n*th cell across the **entire** map instead of
+every cell across **part** of it. Verified arithmetically (not just by inspection) for
+25 600 cells at a 30 000 cap (stride 1, all drawn), 250 000 cells at the same cap (stride 9,
+≈27 778 drawn, under the cap) — the drawn count never exceeds the cap in either case. The
+default cap was also raised, `5000 → 30000`, comfortably above the shipped map's 25 600
+cells while staying well under the 250 000-cell stall threshold the original comment
+already established.
+
+### Cause 3, the one that actually explains "still nothing" — the grid was never built
+
+Fixing 1 and 2 and still seeing nothing is what exposed this one. `_walkable` is a private,
+**non-serialized** array, populated only by `BuildGrid()`, called only from `Awake()` or
+`Configure()`. `PathfindingGrid` is a plain `MonoBehaviour`: `Awake()` does not run merely
+from opening a scene in the editor, only from entering Play — and `Dungeon.unity` runs with
+`buildOnStart: 0`, so `Configure()` (called from `DungeonBuilder.Build()`) does not run
+either unless someone explicitly triggers Generate. Opening the scene and looking, without
+doing either of those first, means `_walkable == null`, and `OnDrawGizmos` early-returns on
+exactly that check — no color or cap setting anywhere could have mattered.
+
+This is the identical shape of problem `DungeonPopulator` already had and already fixed, in
+Stage 7: a plain `MonoBehaviour`'s edit-mode lifecycle does not include `Awake`, so anything
+that has to be ready the moment a baked scene is opened needs `[ExecuteAlways]`. Added to
+`PathfindingGrid` for the same reason. With it, `Awake()` — and therefore `BuildGrid()` —
+runs when the scene loads in the editor, not only when Play starts, so the grid has data
+and the gizmo has something to draw without any manual step.
+
+### Why `Dungeon.unity` needed a direct edit for causes 1 and 2, but not cause 3
+
+`gizmoOpacity`, `maxGizmoCells` and `walkableColor` are `[SerializeField]` fields with no
+runtime code path that ever corrects them — pure authoring data, read as-is, so a mistaken
+scene value stays mistaken until someone reads and fixes it directly. `Dungeon.unity`'s
+`walkableColor` and `maxGizmoCells` were changed directly, and nowhere else — per the scope
+note in Stage 12, `DungeonBN.unity` was left untouched and still carries its own stale
+`0.0275` alpha and (missing, so code-default) `maxGizmoCells`.
+
+Cause 3 is different in kind: `[ExecuteAlways]` is a code change, not scene data, so it
+applies to *every* scene using `PathfindingGrid` the moment the script recompiles —
+including `DungeonBN.unity`, without touching that scene's file at all. That is not a scope
+violation of the "only `Dungeon.unity`" instruction; a code fix was never scene-scoped to
+begin with, the same way Stage 13's `Configure`/`CellSize` fixes already apply everywhere
+without needing a per-scene edit for the *logic* half of that bug.
+
+### Not done
+
+- **The stride sampling is still uniform, not camera-relative.** A very large map at a
+  tight cap draws a sparse dusting across the whole thing rather than a dense view of
+  wherever the Scene view camera happens to be pointed. Fine at the sizes this project
+  actually uses (stride 1 up to 30 000 cells, comfortably past the shipped 25 600), and
+  not worth the added complexity of reading `SceneView.currentDrawingSceneView` unless a
+  future map size makes it necessary.
+- **`DungeonBN.unity`'s `walkableColor` is still stale at 2.75% alpha**, per the scope note.
+  Causes 2 and 3 are both code fixes (`OnDrawGizmos`'s stride logic, `[ExecuteAlways]`), so
+  that scene gets those for free without a scene edit — only its low `walkableColor` alpha,
+  which is scene data, remains unfixed there.
+
+### In-editor checklist for this stage
+
+1. Open `Dungeon.unity` **without entering Play and without running Generate**. The gizmo
+   should already show something, immediately — this is the check for cause 3 specifically,
+   and the one that would have looked identical to "still broken" before this fix regardless
+   of how correct causes 1 and 2's fixes were.
+2. Look at the hub, at the map's centre — not just near the origin corner. Gizmo cubes
+   should cover it exactly as densely as anywhere else on the map.
+3. Green (walkable) cells should be faintly but clearly visible, not a barely-perceptible
+   tint.
+4. Confirm nothing looks sparse at the shipped map size: 25 600 cells is under the 30 000
+   cap, so every cell should be drawn (stride 1), not a dusting.
+
+---
+
+## Stage 15 — Blocking props, too many pillars, and a door alignment regression
+
+Three reports at once: props spawning somewhere that blocks passage, too many pillars, and
+doors misaligned since a recent change. Three separate causes, one each.
+
+### 1 — The chokepoint check's radius never scaled with the object's own size
+
+`TryTakeAnchor` and `TryTakeSpaced` both call `DungeonLayout.NearAnyChokepoint(cell, radius)`
+to reject a placement too close to a cell whose removal would split the dungeon. The radius
+was hardcoded to `1` in every call, regardless of how big the object actually is —
+`TryTakeSpaced` even had the object's real footprint sitting in its own parameter list
+(`spacing`) and still checked chokepoints with a flat `1`. A chokepoint marks a single cell;
+an object wider than the buffer around it can still physically reach one even while its
+*anchor* cell passes the check.
+
+Fixed by scaling the radius to the object's own footprint — `Mathf.CeilToInt(footprint / 2f)`,
+the same half-footprint clearance `SpawnFixture` already uses for the hub's furniture — in
+all three places that call `NearAnyChokepoint`: `TryTakeAnchor`, `TryTakeSpaced`, and
+`TryTakeFixtureCell` (the hub had the identical flat-`1` bug).
+
+**Measured** (200 seeds, shipped settings): simulating a footprint-5 object with the old
+flat radius of 1 let **49 423 of 643 527** accepted placements have a footprint that still
+touched a chokepoint. With the fix, across the same run and separately at footprint 1 and 3
+(`Table.prefab`'s actual size), **zero**. Footprint 3 alone happened not to show the bug in
+this measurement — its floor-division half-width (1) coincides with the old flat radius —
+which is exactly why the fix reasons from the object's real size rather than from what one
+specific prefab's dimensions happen to round to.
+
+### 2 — Prop clusters never checked against each other, or against chests
+
+Every cluster's spacing was tracked in a `placed` list created fresh inside the `while`
+loop in `SpawnProps` and discarded once that cluster finished. A barrel cluster and a table
+cluster placed one after another in the same room had no way to know about each other —
+each only avoided overlapping *its own* members. Chests, spawned earlier in the same room by
+`SpawnChests`, were invisible to props for the same reason: different call, different local
+list.
+
+Fixed with one list, `roomOccupied`, created once per room in `SpawnRoomContent` and threaded
+through `SpawnChests` then `SpawnProps` — every chest and every prop (anchor and cluster
+member alike) is added to it, and `TryTakeAnchor`/`TryTakeSpaced` now check it in addition to
+their existing chokepoint and same-cluster checks. `IsClearOfFixtures`, the pairwise
+footprint-spacing check written for the hub's own furniture in Stage 10, is exactly this
+check already — renamed `IsClearOfPlaced` and reused rather than duplicated.
+
+**Measured** (200 seeds, 3000 rooms, alternating barrel/table clusters mirroring
+`SpawnProps`'s own loop): **9210 overlapping pairs** without the shared list, **0** with it —
+at a cost of 310 fewer props placed out of ~36 000 (0.9%), the ones that would only have fit
+by overlapping something already there.
+
+### 3 — Door alignment regressed from the Stage 13 `CellCenter` fix
+
+Reported as "doors are too small, there's a gap" right after Stage 13 shipped — the
+timing is the diagnostic clue, not a coincidence.
+
+`SpawnDoors`'s rotated-door branch (used wherever a corridor runs north–south through the
+doorway) nudges the spawned door with a hardcoded `pos.x += 1f`, to re-centre it after a
+90-degree turn swings its off-centre pivot sideways. That constant was necessarily tuned by
+eye against whatever `DungeonPainter.CellCenter` returned *at the time* — and Stage 13
+changed what that is. Before Stage 13, `CellCenter` offset a cell's corner by half of the
+Tilemap `Grid` component's own **unscaled** cell size — always `1`, by this project's "one
+tile is one world unit" PPU convention (`DungeonSceneSetup.TilePixels`) — giving `0.5`
+world units, regardless of the `DungeonRoot` transform's scale. After Stage 13, it correctly
+offsets by half the **true world-space** cell size, `painter.CellSize * 0.5`, which is `1.0`
+on the shipped 2×-scaled `DungeonRoot`. Every spawn position moved by that `0.5`-unit delta
+in both axes — imperceptible for a barrel or an enemy, precise enough to open a visible gap
+at a doorway sized to the cell.
+
+First fix attempt subtracted that same, exactly-known delta from the rotated branch's
+compensation (`pos.x += 1f - (builder.CellSize * 0.5f - 0.5f)`) and left the unrotated
+(`else`) branch untouched, on the reasoning that it spawns straight at `CellCenter(cell)`
+with no hand-tuned hack to have regressed. That reasoning was wrong in a way only the editor
+could show: **confirmed by screenshot on an unrotated (east–west) door** — FOV leaked through
+a sliver at the top of the closed door, in the shipped 2×-scaled hub room. So the gap was
+never really about the Stage 13 delta specifically; it is about `Door_System`'s origin (what
+`SpawnDoors` positions at `CellCenter`) not being the centre of the closed door's own
+collider in the first place. The prefab's hinge pivot (`Door_Pivot`, at local `(0.25, -0.25)`
+under `Door_System`) has to sit off-centre for the swing-open rotation to look right, but that
+same offset means the *closed* door's collider centre sits about a quarter-cell away from
+`Door_System`'s origin — in **both** axes, regardless of rotation. The old `pos.x += 1f`
+hack partially masked this for the rotated branch by accident (it was tuned by eye against a
+door that already had this offset baked in); the unrotated branch was never covering it at
+all, hence the gap the user found.
+
+**Replaced the whole position hack** with `DungeonPopulator.CenterOnCollider`: after setting
+the door's rotation, work out where the door's collider actually is and shift the door by the
+difference between that and the intended cell centre. This self-corrects for the pivot offset
+at any rotation angle without needing to know the prefab's internal geometry or hand-tune a
+constant against it — the `legacyCenterOffsetDelta` arithmetic is gone from `SpawnDoors`
+entirely.
+
+#### The first attempt at that used `Collider2D.bounds`, and put every door off the map
+
+Worth recording, because the failure is a general Unity trap and the symptom was spectacular
+rather than subtle. `Collider2D.bounds` is **physics**-backed. `Physics2D.autoSyncTransforms`
+is off by default, so a collider's bounds do not reflect a transform written earlier in the
+same frame until the next physics step — and this code runs during **edit-mode baking**,
+where no physics step ever comes. The read returned an unsynced centre of roughly the world
+origin, making the correction `cellCenter - 0`, which lands each door at *twice* its map
+coordinate. Every door left the map.
+
+The replacement takes the collider centre from the transform hierarchy instead —
+`doorCollider.transform.TransformPoint(doorCollider.offset)` — which is pure matrix maths on
+transforms already written, correct the instant the rotation is set, with no physics and no
+sync call. Reasoning it through against `Door_System.prefab`'s hierarchy (`Door_Pivot` at
+local `(0.25, -0.25)`, `Door_Visual` at `(0, 0.5)` scaled `0.2` in x, box offset ≈ `0`) the
+correction is **(-0.249, -0.250)**, magnitude 0.35 — a quarter cell, and that `+0.25` in y is
+exactly the sliver the screenshot showed above the closed door. `CenterOnCollider` also now
+refuses any correction larger than one cell, logging instead: a misread centre leaves the
+door visibly at its doorway where the fault can be seen, rather than silently on the far side
+of the map.
+
+Compiles clean (Roslyn check against the full project, 0 errors). **Still needs the in-editor
+walk documented below** — the arithmetic above is derived, not observed, and the previous
+attempt is a standing reminder that derivation alone did not catch a physics-lifecycle bug.
+
+### Not done
+
+- **The gap Table.prefab actually posed, per the footprint-3 measurement above, was already
+  geometrically zero even before this fix** — its footprint happens to round such that a
+  flat radius of 1 was sufficient. The fix is still correct and still needed: it removes a
+  dependency on that coincidence for every other footprint, current or future.
+- **No headless check exists for the door offset**, and cannot — it is a rendering-alignment
+  question about where a sprite's pivot sits relative to its collider, which the layout
+  assembly's engine-free test harness has no way to observe. Confirming this one needs the
+  editor.
+- **Non-blocking props still get no cross-cluster spacing check against `roomOccupied`
+  through the wall-bias search path's fallback**, only through the two loops that do run —
+  in practice moot, since every prop registered today (`prop.barrel`, `prop.table`) is
+  blocking, but worth knowing if a genuinely non-blocking prop is ever added.
+
+### In-editor checklist for this stage
+
+1. Regenerate a dungeon and look through several rooms for barrels or tables standing
+   inside a wall, inside a pillar, or inside each other. None should.
+2. Compare pillar/rubble density against a memory of the previous default: rooms should
+   read as noticeably less cluttered, without going back to bare rectangles — `interiorDensity`
+   moved 0.5 → 0.25 in the same pass (Stage 6's own measured table: 0.736 → 0.769 mean room
+   visibility, i.e. rooms give away more of themselves at a glance, which is the intended
+   trade for fewer pillars).
+3. **Walk up to both a rotated door** (north–south corridor) **and an unrotated door**
+   (east–west corridor, the one the screenshot showed leaking) and check each fully seals
+   the opening — no FOV sliver past any edge when closed. `CenterOnCollider` treats both
+   branches the same way now, so both need checking; if either still shows a gap, note which
+   edge and how wide, since that tells me whether `Collider2D.bounds` disagreed with what
+   is actually visible (e.g. the collider not matching the sprite) rather than a centring
+   problem.
+
+---
+
+## Stage 16 — The real floor art, and paper on the ground
+
+Two assets were sitting in `Assets/Art` unused: `FURNITURE_pngy_podloga.png`, a cobbled floor,
+and `FURNITURE_pngy_papier.png`, loose sheets of paper. Both now feed the generator. Neither is
+in a form a tilemap can consume directly, and the two problems are opposite ones.
+
+### 1 — The floor is a slab, not a tile
+
+`podloga` is one 3045×1913 painting of a stretch of cobbles, with torn edges and a
+semi-transparent fringe. It is not seamless and it is not a tile. Cutting independent per-cell
+variants out of it — the shape the existing `floorTiles` array expects — puts a hard
+discontinuity at **every** cell border, because stones are sliced mid-stone on all four sides.
+More variants do not help: the mismatch is at every edge rather than occasionally, so the floor
+reads as a grid of patches no matter how many patches there are.
+
+Cut as a **mosaic** instead. One square region is cut into a 4×4 block of pieces, and
+`DungeonPainter.PickFloor` selects by position — `(x mod 4, y mod 4)` — rather than by seed.
+The pieces were adjacent in the source, so they line up with each other exactly: stone runs
+unbroken across every border inside a block, and only the block boundary repeats, every 4
+cells instead of every 1. `floorMosaicSize` on the painter switches between this and the old
+per-cell scatter, and the setup writes it, so a project without the art still gets the
+generated placeholders and the old behaviour.
+
+**Which square to cut matters more than expected**, and the first two attempts were both
+visibly wrong when rendered out and looked at:
+
+- *Nearest the middle of the image* (the obvious choice, to stay away from the torn edges)
+  landed on a region straddling the painting's lighting gradient. One side of the block was
+  brighter than the other, so every block boundary became a visible step — a grid of faint
+  rectangles.
+- Scoring against moss then failed to find any, because the test was the intuitive one: green
+  above **both** red and blue. This moss is olive. Measured, its green runs only ~10 above red
+  — under the threshold — but 59 to 65 above blue, against 8 for stone. Green-minus-blue
+  separates them cleanly; green-against-both matches none of it.
+
+The search now scores every fully opaque candidate on moss content (weighted heavily) plus the
+tone mismatch between opposite edges, since those are the edges that end up adjacent when the
+block repeats. On the shipped art that picks (1472, 576) at 1024², downsampled 2× to a 512px
+block: **0.319% moss and 1.86 edge tone**, against 0.000%-detected/uneven for the first attempt.
+
+**Verified by rendering it out and looking at it** — the slicing was reimplemented outside Unity
+and the block tiled 3×3 into a 12×12-cell image, which is the only way to see a seam or a repeat
+at all. Per-cell seams: gone. Tonal step at block boundaries: gone.
+
+### 2 — The paper is several sheets on one canvas
+
+`papier` holds four sheets, three of them overlapping into one clump. The first pass took each
+connected clump as a decal, giving a lone sheet and a pile of three. That is the cheap reading
+of the image and it is wrong twice over: every pile then lands at the one angle and arrangement
+the artist happened to draw, and the sheets inside it cannot be told apart or spread out.
+
+Splitting the clump into its three sheets is not the fix either — an overlapped sheet is drawn
+with a bite taken out of it by the one on top, so extracting it yields a notched shape rather
+than a sheet, and no amount of component-tracing recovers pixels that were never painted.
+
+So **exactly one sheet is taken** — the isolated one — and every decal is *composed* from it:
+each sheet placed at its own angle, its own size jitter and its own offset, with a group being
+simply a tile carrying several of them. `PaperSheetCounts` (`{1,1,1,2,2,3}`) sets both the
+number of variants and the mix, since the painter picks between decals uniformly: mostly lone
+dropped pages, with a couple of small scatters. Rotation is a full 0–360°, so no two decals
+share an angle.
+
+The one sheet is identified as the **smallest** group, since a clump contains two or more
+sheets and is therefore larger than any one of them. That holds for this art and for any redraw
+keeping at least one sheet clear; if a redraw ever overlapped every sheet, the code warns rather
+than silently cutting up a pile.
+
+Two things here are easy to get wrong and are worth not rediscovering:
+
+- **Sheets are drawn destination-to-source, not source-to-destination.** Walking the sheet and
+  scattering its pixels forward leaves unwritten gaps wherever rounding sends two source pixels
+  to the same destination, which on a rotated sprite is a dusting of pinholes across it.
+- **Sampling and blending are both premultiplied.** Interpolating straight RGB across the
+  sheet's edge drags in the colour of fully transparent pixels — black — and rings every page
+  in a dark fringe. Same reason the floor's resample is premultiplied, except the floor is
+  opaque throughout and never shows it, while paper is nearly all edge.
+
+Decals go into the existing decal tilemap — no collider, drawn over the floor and under the
+walls — which is what paper on a floor should be, and means `decalChance` and `decalWallBias`
+already place it, litter collecting at room edges.
+
+**Sheets cannot spill out of their cell**, which would show as paper sliced in half at a cell
+border. Worst case, at 45° and maximum jitter: a half-diagonal of
+`0.5 × (0.42 × 128 ÷ 255 × 1.12) × √(211² + 255²) = 39.1px`, plus a maximum centre offset of
+`0.17 × 128 = 21.8px`, is 60.9 against the tile's 64px half-width. That is a bound on the
+geometry, not a property of the particular random numbers that came out.
+
+### Also
+
+Tiles cut from art are 128px with their PPU set to match, so they still cover exactly one world
+unit and sit on the same tilemap as the 32px generated placeholders without either being scaled
+to the other. They also import bilinear rather than point: point filtering keeps the
+placeholders' deliberate pixel grain crisp, but on downsampled painted art it aliases stonework
+into shimmering speckle as the camera moves.
+
+### Not done
+
+- **The moss tuft still repeats every 4 cells.** 0.319% is the *minimum* across all 126
+  candidate squares — the art has moss scattered throughout, so no crop avoids it. It is the
+  one landmark in an otherwise uniform texture, and the eye finds it in a flat lit preview.
+  Whether it matters in game is a genuinely different question, because the dungeon is rendered
+  under a vision cone with everything else dark, and a 4-cell repeat is rarely all on screen
+  and lit at once. **This is the thing to judge in the editor.** If it does read as a pattern,
+  the next step is several mosaic blocks chosen per block-position from the seed, which
+  dissolves the grid at the cost of reintroducing a seam at block boundaries only.
+- **The old `FloorTile`/`FloorTileB`/`FloorTileC` assets are left in place**, unused while the
+  art is present. Deleting assets is not something a setup re-run should do, and they are the
+  fallback if the art ever goes missing.
+- **Papers are decoration, not readable items.** They are decals, so they cannot be picked up
+  or interacted with. Worth knowing if notes-as-lore is ever wanted — that would be a prop or
+  an interactable, not this.
+- **Only one of the four drawn sheets is used.** The other three are unrecoverable as
+  individual sheets, being drawn overlapped (see above), so every page in the dungeon is the
+  same sheet at a different angle and size. Not visible in practice — sheets of paper are the
+  same shape as each other — but if genuinely different pages are wanted, the cheapest route is
+  the artist drawing the four sheets *separated* on the canvas, at which point this code picks
+  all four up with no changes beyond taking every group instead of the smallest.
+- **Paper is now 6 of 10 decal variants**, up from 2 of 6, because the mix is expressed as the
+  number of variants. If that reads as too much litter, the fix is `PaperSheetCounts`, not
+  `decalChance` — the latter changes how much of everything there is.
+
+### 3 — Neither the floor nor the paper was actually wired into either scene
+
+Reported as "paper 0 looks right, I never see paper 1 anywhere" — asked about the tiles
+directly, which was the tell, because both tiles are fine: `DecalPaperA.png` and
+`DecalPaperB.png` both render correctly on their own (checked by eye). The bug was never in the
+art or the composite code. It was that **neither scene's `DungeonPainter` had ever been told the
+new tiles exist.**
+
+`Setup Scene Tilemaps` cuts the art and calls `WireGenerator`, which is the only place that
+writes `floorTiles`, `floorMosaicSize` and `decalTiles` onto the painter component. Checking
+`Dungeon.unity` and `DungeonBN.unity` directly (`grep decalTiles`) showed both painters still
+serialized with exactly the four original crack/stain/grit decals and the three original
+`FloorTile`/`B`/`C` placeholders — the mosaic and every paper tile were present as assets on
+disk and referenced by nothing in either scene. `RegenerateTiles` doesn't touch scene wiring
+either, by design (see its own doc comment) — it only recuts the PNGs, so a floor or decal set
+that was never wired in the first place stays never wired no matter how many times it runs.
+
+**A dungeon regenerated in either scene was never going to show *any* paper**, not "paper 1
+specifically" — the report undersold the bug relative to what was actually broken. It also means
+the whole of Stage 16's Section 1 (the floor mosaic) has never appeared in either scene until
+now, on top of the paper.
+
+Fixed by hand-editing both scenes' serialized `decalTiles` and `floorTiles` arrays to the full
+sets (10 and 16 entries respectively, by GUID) and adding `floorMosaicSize: 4`, rather than
+running the editor tool — there is no Unity instance available to run it. This is the same
+outcome `Setup Scene Tilemaps` would have produced for these two fields, done directly because
+the tool couldn't be. Everything else `WireGenerator` sets (wall tiles, doorway, pillar, rubble,
+the builder and populator references) was already correct and untouched.
+
+**Not verified in the editor** — same limitation as the rest of this stage. What can be
+verified without it: field counts match (`floorTiles` 16, `decalTiles` 10) and every GUID in
+both edits matches an existing `.asset.meta` in `Assets/Generation/Tiles`, checked by grep
+against both scenes after the edit.
+
+### In-editor checklist for this stage
+
+1. Open `Dungeon.unity` (or `DungeonBN.unity`) and select the `DungeonRoot`'s `DungeonPainter`.
+   Confirm `Floor Tiles` shows 16 entries and `Decal Tiles` shows 10, with `Floor Mosaic Size`
+   at 4 — these were hand-patched into the scene YAML rather than written by the tool (see §3),
+   so this is the first real check that the patch took. If either count is wrong, running
+   **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** rewires both from whatever is on disk in
+   `Assets/Generation/Tiles` and is safe to run again — it does not duplicate or overwrite
+   existing tile assets, only the component references.
+2. Regenerate a dungeon and look at a large room's floor. Stone should run continuously across
+   cell borders — no grid of patches, no rectangular tonal steps.
+3. Walk a room and watch the moss. Judge whether the 4-cell repeat reads as a pattern *in game
+   lighting*, not in the scene view with everything lit — that difference is the whole question.
+4. Check paper is showing up, at a believable size against the player and the barrels, and that
+   no two pages sit at the same angle. `decalChance` on the painter tunes how much litter there
+   is; paper is 6 of 10 decal variants now, so if the floor reads as too papery that is the
+   knob, or drop entries from `PaperSheetCounts`.
+
+---
+
+## Stage 17 — Doors on one jamb, the threshold tile, pillars in passages, doors in shadow, table pathfinding
+
+Five reports from playing the generated dungeon. Measured wherever the claim could be —
+the layout assembly is engine-free, so it was run headlessly over 200 seeds at the shipped
+settings and each claim checked as a number before anything was changed. That immediately
+settled which reports were what they looked like and which were not.
+
+### 1 — "Two doors side by side, not fixed to the wall on both sides"
+
+The obvious reading is that the layout put two doorway cells next to each other. **It never
+does**: across 200 seeds, adjacent `Door` cell pairs came to **0**, and the closest two doorways
+ever get is 2 cells apart. So the pair in the screenshot was not two halves of one wide opening.
+
+The real fault is one door per opening, hung on nothing. `SpawnDoors` tested only the east/west
+pair to decide rotation and took "no" to mean "north/south then", without ever checking:
+
+```csharp
+bool wallEast = !layout.IsWalkable(x + 1, y);
+bool wallWest = !layout.IsWalkable(x - 1, y);
+doorInstance.transform.rotation = wallEast && wallWest ? …90° : …identity;
+```
+
+A doorway cell with, say, solid to the north but open to the south falls into the `else` and gets
+an upright leaf with open floor down one side. Measured: **1131 of 9483 doorway cells (11.9%),
+5.7 per map, on 196 of 200 maps** have neither a solid east/west nor a solid north/south pair.
+Not an edge case, and two of them near each other is exactly the screenshot.
+
+Fixed by testing both pairs and spawning nothing when neither is solid. Those cells stay open
+arches — which is already what the layout does with an opening too wide to narrow, so it is the
+existing convention rather than a new one (see `DoorwayNormalizer`, which leaves an opening too
+wide to narrow unmarked for exactly this reason).
+
+**Measured after the fix**, same 200 seeds: 8348 doors spawn (41.7 per map, down from 47.4),
+**0** of them unjambed, 4146 rotated against 4202 upright — an even split, which is the sanity
+check that the newly-tested axis is real and not just always answering the same way. No map is
+left without doors.
+
+### 2 — The threshold tile broke the floor it now sits in
+
+Found while fixing §1, not separately reported. `doorwayTile` painted a dark slab with two lit
+jambs on every doorway cell, and `OrientDoorways` turned it to face along its passage. That
+earned its place when the floor was flat generated noise and an opening needed help reading as
+an opening. Against the real floor art (Stage 16) it does the opposite: a doorway is the one
+cell that is always looked at straight on, and a different tile there cuts the stone that now
+runs continuously through it, so the threshold reads as a patch rather than as the floor
+carrying on under the door.
+
+Doorway cells take the ordinary floor now. `doorwayTile` and `OrientDoorways` are gone (the
+rotation existed only to orient that tile, and rotating a *mosaic* tile would tear the very
+continuity the mosaic is for), along with the setup's `DoorwayTile` generation and its wiring.
+The `TileStyle.Doorway` drawing routine is kept, unused, as the record of what the threshold
+looked like. The stale `doorwayTile:` line left in both scenes' YAML is harmless — Unity drops
+serialized fields that no longer exist on the class.
+
+### 3 — "A pillar blocking the way"
+
+Real, and the most common of the four. `RoomInteriorDecorator.Apply` writes a batch of solid
+cells and rolls back if `RoomStaysWhole` fails. That check asks whether the room is still in one
+piece — and a pillar dropped into a one-cell gap leaves it perfectly connected whenever any other
+way round exists. So the rollback never fires, and the pillar stays: floor either side of it,
+wall above and below, sitting square in the channel.
+
+Worth being precise about what is and is not broken here. **Connectivity is never actually lost**
+— 0 of 200 maps had a single stranded walkable cell, before or after. The generator's own
+validation was doing its job. The complaint is about how it reads, and it reads as a blocked
+corridor whether or not a detour exists.
+
+Fixed with `ClearPassagePlugs`, which re-opens any cell of a batch that ends up with floor on both
+sides of one axis and solid on both sides of the other. Run to a fixed point, because opening one
+cell can leave a neighbour of the same batch newly flanked and so newly a plug; each pass only
+turns solid into floor, so it terminates.
+
+**Measured, 200 seeds:** plugging pillars away from any doorway **1948 → 202, down 90%**. Total
+pillars fell only 1.2% (26102 → 25786), so the interior patterns are intact rather than
+dismantled. Connectivity still 0 stranded cells.
+
+Doorway jambs are deliberately untouched: those come from `DoorwayNormalizer` walling an opening
+down to door width, are *supposed* to sit beside a gap, and never appear in a batch this sees.
+They are the 745 plugging cells that remain next to a door.
+
+### 4 — Doors rendered in shadow while walls stayed lit
+
+Nothing to do with materials, and nothing to do with the vision mask — the door leaf does not use
+the FOV-masked material at all. It is purely sorting order. `DarknessOverlayQuad` draws at order
+**6**; `WallSortingOrder` is **7**, which is *why* walls read as lit — they are simply drawn over
+the darkness. The door leaf was at **0**, i.e. underneath it.
+
+Raised the leaf to **8** and the three barricade stages to **9/10/11**, keeping their relative
+order. 8 rather than 7 also fixes a second thing, noted as known-and-unaddressed in
+`DungeonSceneSetup`'s own comment on `WallSortingOrder`: a leaf wider than its cell used to draw
+partly *behind* the jamb tiles it swings across. Above the walls, it no longer can.
+
+### 5 — The table was not blocking pathfinding
+
+Fallout from Stage 15's `useTriggers = false`, and a real gap rather than a regression of that
+change. The table is deliberately two colliders: a **trigger on the root**, on `ObstaclePathOnly`,
+which is the `CrouchHideout` footprint the player hides inside, and a **solid child**, `Solid`,
+on `CrouchPassable` — the layer `PlayerHiding` makes the player's body stop colliding with while
+crouched, so a crouching player fits under the table. Stage 15 made the pathfinding grid ignore
+triggers, correctly, but `PathfindingGrid.obstacleMask` covered layers 8, 9 and 11 and not 13, so
+with the trigger ignored nothing about the table was left for pathfinding to sample and enemies
+walked through it.
+
+The mask is now 11008 — layers 8, 9, 11 and **13** — in both scenes. Adding `CrouchPassable` is
+what makes the solid child do the blocking, which is what was wanted: the trigger is a gameplay
+volume, not a navigation hint. Checked every prefab for the same shape of problem: only `Table`
+has a non-trigger collider on a layer outside the pathfinding mask. `Barrel` is layer 11 with a
+**non-trigger** collider, so it was never affected by the trigger change and still blocks
+correctly.
+
+Layer 13 stays out of `FieldOfView`'s mask (4864: layers 8, 9, 12), so a table blocks movement
+without blocking sight, per the project's standing rule that only walls and trees occlude.
+
+### Not done
+
+- **`ObstaclePathOnly` (layer 11) is now close to dead** for pathfinding, since the one thing
+  using it does so with a trigger and triggers are ignored. It stays in the mask because a
+  non-trigger collider placed there would still be a legitimate path-only obstacle; worth
+  revisiting if nothing ever uses it that way.
+- **The 11.9% of openings that lose their door are not compensated for** (§1). They become
+  arches. Whether the dungeon wants a door there at all is a layout question — the opening
+  genuinely has no jamb to hang one on — and forcing one would mean the normaliser walling a
+  cell to build a frame, which is a change to generation rather than to spawning.
+- **~202 plugging pillars remain across 200 seeds** (about 1 per map, down from ~10, §3). They
+  are not from `RoomInteriorDecorator`'s batches, which are now clean by construction, so they
+  come from another pass — most likely `RoomShaper`'s perimeter detail, which pushes the odd
+  wall cell inwards after the interiors are placed. Catching those needs either the same
+  treatment there or one global sweep at the end of generation, skipping cells beside a doorway
+  so the jambs survive. Left alone for now: a global sweep late in the pipeline can undo shaping
+  the earlier passes did on purpose, and that is worth measuring properly rather than bolting on.
+- **None of this is verified in the editor.** Everything above is a headless measurement of the
+  layout plus two rendering changes (the threshold tile's removal, the sorting order) that
+  cannot be checked without rendering. The numbers say the layouts no longer contain these
+  shapes; they do not say the dungeon looks right.
+
+### In-editor checklist for this stage
+
+1. Regenerate a dungeon and look along a few corridors: every door should meet solid wall or
+   pillar at both ends of its leaf. Openings with no frame should simply be gaps, no door.
+2. Look at a doorway floor — the stone should run through it unbroken, with no darker slab or
+   rotated patch marking the threshold.
+3. Walk a few corridors: no pillar should be standing in a one-cell gap with floor either side
+   of it. About one per map may still be, per "Not done" above.
+4. Doors should now be lit like walls rather than sitting under the darkness, including when
+   swung open across a wall.
+5. Walk an enemy into a table (or watch one path around one) — it should treat the table as
+   solid — then crouch and confirm the player still fits under it, which is layer 13 doing two
+   jobs and this change only touching the pathfinding half. Confirm the table still does not
+   block vision either.
+
+---
+
+## Stage 18 — Mushroom and sleeping-bag decals
+
+Three sprites added to `Assets/Art`: `mushroom.png`, `mushroom02.png` (a cluster of caps), and
+`sleepingbag01.png`. Asked for as decals — everything else drawn from these sprites becomes a
+prop/prefab by hand instead, so this stage only covers the three that go through the generator.
+
+Structurally simpler than Stage 16's paper: each file is already exactly one thing to place,
+with nothing overlapping that needs separating out first. `EnsureNatureDecals` crops straight to
+the artwork's opaque region (via `FindOpaqueGroups`, so a stray anti-aliasing fleck outside the
+real drawing can't widen the crop the way a plain alpha bounding box would) and composites it
+once per tile with a random rotation and a small scale jitter — reusing `CompositeRotated` and
+`ExtractGroup`, the same building blocks a lone paper sheet uses. Fill is 0.8 of the tile's
+longest side rather than paper's 0.42: these read as ground cover you notice, not litter you
+glance past.
+
+**Rarity is not a second weighted-pick system.** `DungeonPainter.PaintDecals` already picks
+uniformly over the decal array; asking it to weight entries would mean threading a weight
+through the hash-based picker for every decal type, generated and hand-drawn alike, for the sake
+of three sprites. Cheaper and just as correct: write the *same* `Tile` reference into the
+returned array `weight` times. Three mushroom-source repeats each against one sleeping-bag
+repeat is a 6:1 mix — mushrooms common, a dropped sleeping bag a small find. Tune by editing
+`NatureDecals`' weight column in `DungeonSceneSetup.cs`, not by adding selection logic.
+
+Distinct decal tiles: 10 → 13 (4 generated + 6 paper + 3 nature). The painter's `Decal Tiles`
+array is longer than that, at 17, because each nature tile's reference is repeated by its
+weight — 3 mushroom, 3 mushroom-cluster, 1 sleeping bag — so the uniform picker's odds land on
+the intended 6:1 mix without knowing weights exist.
+
+**Not generated yet.** Unlike Stage 16, no PNGs were fabricated outside Unity this time: with
+`WriteArtTile` only writing a texture when the file is missing, a hand-approximated placeholder
+would permanently block the real Setup output the next time `Setup Scene Tilemaps` runs without
+`overwrite`, rather than being replaced by it. Since the floor and paper art was in fact produced
+by you running the tool in the editor rather than by anything fabricated outside it, the same
+path is correct here too. Compiles clean against the full project; nothing about the actual
+cropped images, their rotation, or their placement in a cell has been seen by anyone yet.
+
+### In-editor checklist for this stage
+
+1. Run **Tools ▸ Dungeon ▸ Setup Scene Tilemaps**. It should cut three new tiles into
+   `Assets/Generation/Tiles` — `DecalMushroomA`, `DecalMushroomB`, `DecalSleepingBag` — and wire
+   the painter's `Decal Tiles` to 17 entries (up from 10): 4 generated + 6 paper + the 7 nature
+   slots described above.
+2. Regenerate a dungeon and confirm mushrooms and the sleeping bag actually appear, at a
+   believable size and with varied rotation — no two should sit at the same angle by
+   construction, but confirm none reads as stamped or oversized against the barrels and table.
+3. Judge the mix by eye: mushrooms should read as noticeably more common than the sleeping bag.
+   If the balance feels off, or nature decals are crowding out paper and the generated marks,
+   `NatureDecals`' weights and `decalChance` are the two knobs, in that order.
+
+---
+
+## Stage 19 — Statues, a scene-wiring gap, a build-order bug, and a fragile footprint formula
+
+Four reports at once, arriving in the middle of each other, so they are numbered by report
+rather than by when each was found. §2 and §3 were found investigating §1's "collide with each
+other" half; §1's "not fixed to pathfinding" half turned out to be a real bug that also explains
+why the sleeping bag from Stage 18 was never seen despite being generated.
+
+### 1a — Tables did not show as blocked on the pathfinding gizmo, at all
+
+Not a gizmo problem, not the trigger/layer question Stage 17 already fixed — the collider
+genuinely was not there yet when the grid sampled it. `DungeonBuilder.Build` configured
+`PathfindingGrid` (a physics query) immediately after painting, then fired `Built`, whose only
+subscriber is `DungeonPopulator.Populate` — the thing that spawns every table, statue, barrel
+and chest. So the grid always sampled physics *before* a single prop existed. Painting's own
+colliders (the composite collider on the wall tilemap) were already final by then, which is
+exactly what the surrounding comment was checking for, so nothing about wall blocking ever
+looked wrong — only content that arrives through `Populate` was affected, silently, regardless
+of its layer or trigger flag, which is why Stage 17's mask fix did not fix this on its own.
+
+Fixed by reordering: paint, fire `Built` (spawns everything, synchronously — a C# multicast
+delegate invocation blocks until every subscriber returns), *then* configure the grid.
+`DungeonPopulator` was checked for the reverse dependency first — does it need the grid to be
+valid before it runs — and it does not: every placement decision in it reads
+`DungeonLayout.IsWalkable`, the pre-physics abstract layout, never the live `PathfindingGrid`
+component. The class doc on `DungeonBuilder` asserted the opposite ("the grid must be valid
+before anything spawns, because spawn placement checks walkability") — conflating the two
+different kinds of "walkable" — and has been corrected along with the reorder.
+
+This is also, very likely, why the Stage 18 sleeping bag was reported as never appearing even
+though its tile existed on disk and was described as generating: it was never the placement
+logic, it was that the scene had not been rewired since Stage 18 shipped (§2 below) — a
+separate, compounding gap, not this one, but worth naming since both were live at once and
+either alone would have hidden the sleeping bag.
+
+### 1b — "Tables still collide with other tables"
+
+Investigated at length and **not conclusively reproduced analytically**. `FootprintCells`'
+spacing check, `IsClearOfPlaced`, `TryTakeAnchor` and `TryTakeSpaced` were each worked through
+by hand against the table's actual measurements (a 9.84×5.2 local-unit collider at 0.18 prefab
+scale, spawned under a `DungeonRoot` scaled 2×, on a grid whose cells are also 2 world units) —
+every check comes out requiring *more* real-world clearance than two tables need, not less. The
+minimum-allowed spacing case leaves roughly half a world unit of gap by this arithmetic.
+
+Two things came out of the attempt anyway, both worth keeping regardless of whether they were
+the cause:
+
+- **§3 below**: the footprint formula was only numerically correct by a coincidence (cell size
+  happening to equal `DungeonRoot`'s scale) and has been made correct by construction instead.
+  It produces the *same* number today, so this by itself does not explain an already-observed
+  overlap — but it does mean the *next* person to retune either value would have silently
+  reintroduced real overlap with no code change of their own to blame.
+- **The likeliest actual explanation is staleness**, not a live bug: §1a means every dungeon
+  generated before this fix had its tables spawn with no working pathfinding block at all, and
+  the baked `Dungeon.unity` may be carrying tables placed by an even older build than that. A
+  regenerate after this stage's fixes is the next real data point, not another round of static
+  reasoning — see the checklist.
+
+Also actioned directly, independent of the investigation: **`prop.table`'s weight halved**
+(0.6 → 0.3) per request, so there are fewer tables regardless of the spacing question.
+
+### 2 — The scene was never rewired for Stage 18's nature decals
+
+`Setup Scene Tilemaps` is the only thing that writes `decalTiles` and `floorMosaicSize` onto the
+painter — the same gap Stage 17 hit for the floor mosaic and paper. Checking `Dungeon.unity`
+directly found `decalTiles` still at 10 entries (4 generated + 6 paper) despite
+`DecalMushroomA/B` and `DecalSleepingBag` existing on disk with real timestamps, meaning
+**Regenerate Placeholder Tiles was run — which only recuts art — and Setup Scene Tilemaps,
+which wires the scene, was not.** The tool's own naming makes that an easy mix-up.
+
+Hand-patched to 17 entries (mushroom ×3 each, sleeping bag ×1, matching `NatureDecals`' weights)
+the same way Stage 17's wiring gap was patched, since there is no Unity instance here to run the
+tool itself.
+
+### 3 — `FootprintCells` divided by nothing
+
+Flagged investigating §1b, not separately reported. The formula converted a prefab's world size
+straight to a cell count with no division step at all:
+
+```csharp
+int cells = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(size.x, size.y)));
+```
+
+That silently assumes one world unit is one cell. It is not — cells are 2 world units on the
+shipped grid — so this should have under-counted by half. It didn't, because `size` itself was
+measured from the *prefab asset*, which has no parent and therefore no idea it is about to be
+instantiated under a `DungeonRoot` scaled 2×; the missing "×2 for the real spawn scale" and the
+missing "÷2 for the cell size" cancelled exactly, because both factors happen to be 2 in this
+project today. Correct answer, wrong reason — and a reason that stops being true the moment
+either number changes on its own.
+
+Fixed to compute honestly: prefab asset size × `_contentRoot.lossyScale` (the scale it will
+actually spawn at) ÷ `builder.CellSize`. Also extended to measure a `CircleCollider2D` — needed
+for the statues below, which have no `BoxCollider2D` at all and previously fell back to sprite
+bounds alone.
+
+### 4 — Statues
+
+Two prefabs added (`Statue01`, `Statue02`), each a `CircleCollider2D`, non-trigger, on layer
+`Default`. Registered as `prop.statue01`/`prop.statue02` in `PrefabRegistry` and in
+`RoomContentSettings.props`, the same list `prop.barrel` and `prop.table` are in, weight 0.3
+each — rarer than a barrel, matching the table's own new weight. Layer changed to
+`ObstaclePathOnly` (11) on both, the same layer `Barrel` already uses: already in
+`PathfindingGrid.obstacleMask` (blocks pathfinding) and not in `FieldOfView`'s mask (does not
+block sight), which is the project's standing convention for this kind of prop.
+
+They fall into the same shared clustering system every other prop uses
+(`propsPerClusterMin`/`Max`), which has no concept of "this prop type does not cluster" — a room
+could get 2–4 of the same statue standing together. Not addressed here; see "Not done".
+
+### 5 — A guaranteed sleeping bag in the hub
+
+Asked for on top of Stage 18's random scatter, not instead of it: exactly one sleeping-bag decal
+in the hub every generation, in addition to its existing rare chance of turning up anywhere else.
+`DungeonPainter` gained a dedicated `hubGuaranteedDecalTile` slot — separate from the `decalTiles`
+pool, because the pool has no concept of "this one is special" once it is flattened into an
+array — and a pass that finds `RoomKind.Hub`, hashes every eligible cell (walkable, not a
+doorway) with a salted seed so the pick does not just replay the ordinary scatter's own numbers,
+and paints the tile on whichever hashes highest. Runs regardless of `decalChance`, deliberately:
+turning that down to inspect bare floor should not also remove the one decal that is meant to
+always be there.
+
+### Not done
+
+- **Statues cluster like barrels.** The shared `propsPerClusterMin`/`Max` system has no
+  per-prefab override, so a statue can be placed 2–4 at once same as a barrel would. A single
+  imposing statue reads very differently from a small crowd of identical ones; giving individual
+  `PrefabChoice` entries their own cluster range (or a `neverClusters` flag) is a
+  `RoomContentSettings` change this stage did not make.
+- **§1b's table-table overlap is not confirmed fixed**, only investigated without finding a
+  live bug in the placement arithmetic itself. The checklist below is the actual test.
+- **Nothing in this stage is verified in the editor.** The build-order fix, the footprint
+  formula, and the guaranteed hub decal are all either headless-unverifiable (they depend on
+  physics sampling and rendering) or hand-reasoned rather than measured.
+
+### In-editor checklist for this stage
+
+1. Regenerate a dungeon. Open the painter's inspector first and confirm `Decal Tiles` reads 17
+   and `Hub Guaranteed Decal Tile` is set to `DecalSleepingBag` — the scene patch from §2 taking
+   is a precondition for everything else here being visible at all.
+2. Turn the pathfinding gizmo on and look under a table and a statue: both should read red now.
+   This is the direct test of §1a — if either is still walkable, the build-order fix did not
+   take, or something else is spawning outside `DungeonPopulator.Populate`.
+3. Walk several rooms' worth of tables specifically, looking for physical overlap. This is the
+   real test §1b never got — note whether it still happens, and if so, roughly how close (touch?
+   overlap by half a table?) since that distinguishes "still needs a code fix" from "was just
+   stale content that regenerating already cleared."
+4. Confirm statues spawn, block movement, and do not block the player's line of sight.
+5. Find the hub and confirm exactly one sleeping bag is on its floor, every time the dungeon is
+   regenerated (try two or three different seeds).
+
+---
+
+## Stage 20 — Props standing inside walls, and a weight slider for the spawn tables
+
+### 1 — Props overlapped the map geometry
+
+Reported with screenshots: a statue's circle collider sunk well into the wall tiles beside it.
+This is the same class of mistake §1b of Stage 19 went looking for and did not find, but on the
+*wall* side rather than between two props — and here it reproduces exactly.
+
+A cell is the unit the generator places on, not the size the thing being placed actually is.
+`TryTakeFixtureCell`, which furnishes the hub, already accounted for that: it requires
+`HasClearance(footprint / 2)` and reads "against a wall" as solid ground exactly one ring
+*past* that clearance. The prop and chest path, `TryTakeAnchor`, did not check clearance at
+all, and its wall-bias pass actively preferred cells satisfying `layout.TouchesSolid(cell)` —
+i.e. cells directly adjacent to rock. `Statue01`'s collider is a 1.59-radius circle at 0.8
+prefab scale, spawned under a 2× `DungeonRoot` on 2-unit cells: about 2.6 world units, three
+cells across. Anchored on a wall-side cell, more than half a cell of it is inside the wall,
+which is both a physical overlap and (since Stage 8's sorting order) painted over by the wall
+tilemap.
+
+Fixed by giving `TryTakeAnchor` and `TryTakeSpaced` the same clearance rule the hub's fixtures
+already used, so "against a wall" means the object's own edge touches it rather than its centre
+cell doing so. The two near-identical fallback loops in `TryTakeAnchor` (blocking and
+non-blocking, differing only in the chokepoint test) were merged while the clearance check was
+being added to both. Props with a one-cell footprint — barrels, candles — are unaffected:
+clearance is 0 and the wall test reduces to the old `TouchesSolid`.
+
+### 2 — Spawn frequency was tunable but not legible
+
+The per-entry `weight` on `PrefabChoice` and `ItemChoice` has always controlled how often
+something appears, but as a bare float field it could not answer the question it was being used
+to ask. Whether `0.3` is rare or common depends entirely on the other entries in the same list,
+which the inspector never showed, so tuning a table meant summing the column by hand.
+
+`Editor/SpawnChoiceDrawer.cs` draws each entry as a slider plus the share it currently works
+out to (`0.3` of a four-entry table reads `15%`). The slider's top end is 3, raised to fit any
+entry already authored above it so opening the inspector can never clamp a weight it cannot
+reach. The share is computed over the whole list with no depth gating — gating is per-room and
+depth-dependent, so any single figure for it would be wrong nearly everywhere — and `Min Depth`
+sits directly beneath it to say when the entry is eligible at all.
+
+No serialized data changed: this is presentation over the existing `weight` field, so existing
+`RoomContentSettings` assets are untouched.
+
+### In-editor checks this stage needs
+
+1. Regenerate a few seeds and look specifically at statues and tables placed against walls:
+   their sprites and colliders must stop at the wall, not cross it.
+2. Confirm rooms are not visibly emptier than before — the clearance rule rejects candidate
+   cells, so a cramped room may now place fewer props than it did.
+3. Open `RoomContentSettings` and check the sliders read sensibly, and that dragging one moves
+   every share in that list.
 
 ---
 

@@ -12,9 +12,21 @@ public class EnemyDoorAttacker : MonoBehaviour
     [Tooltip("Time delay in seconds between consecutive door strikes.")]
     [SerializeField] private float attackInterval = 1.2f;
 
+    [Tooltip("Minimum delay in seconds before the same door may be pushed open again.")]
+    [SerializeField] private float toggleCooldown = 1f;
+
     private SimpleDoor currentDoor;
     private float nextAttackTime;
     private bool isAttackingDoor = false;
+
+    // Collision callbacks fire for every contact of every frame, so the door lookup is cached per
+    // GameObject: a walled-in enemy would otherwise resolve the same non-door collider hundreds of
+    // times a second, which in the editor costs far more than the lookup itself.
+    private GameObject lastCheckedObject;
+    private SimpleDoor lastCheckedDoor;
+
+    private SimpleDoor lastToggledDoor;
+    private float nextToggleTime;
 
     private EnemyBase enemyBase;
     private SkullGuyAnimationDriver animationDriver;
@@ -72,8 +84,6 @@ public class EnemyDoorAttacker : MonoBehaviour
     {
         if (currentDoor != null)
         {
-            Debug.Log($"[AI {gameObject.name}] Breaching door!");
-
             if (animationDriver != null)
             {
                 animationDriver.TriggerAttack();
@@ -109,7 +119,7 @@ public class EnemyDoorAttacker : MonoBehaviour
     /// </summary>
     private void CheckForDoor(GameObject obj)
     {
-        SimpleDoor door = obj.GetComponent<SimpleDoor>();
+        SimpleDoor door = ResolveDoor(obj);
 
         if (door != null)
         {
@@ -131,7 +141,7 @@ public class EnemyDoorAttacker : MonoBehaviour
                 }
                 else
                 {
-                    door.ToggleDoor(transform);
+                    TryToggle(door);
                 }
             }
             else if (!door.IsBarricaded)
@@ -139,9 +149,39 @@ public class EnemyDoorAttacker : MonoBehaviour
                 // A patrolling enemy leaves a barricaded door alone rather than shouldering
                 // it every frame — OnCollisionStay2D would otherwise retry the open call
                 // continuously and flood the log with refusals.
-                door.ToggleDoor(transform);
+                TryToggle(door);
             }
         }
+    }
+
+    /// <summary>
+    /// Returns the door on <paramref name="obj"/>, reusing the previous result while the enemy keeps
+    /// touching the same object. Contact callbacks repeat every physics step, so an uncached lookup
+    /// runs constantly for walls and props that will never carry a door.
+    /// </summary>
+    private SimpleDoor ResolveDoor(GameObject obj)
+    {
+        if (ReferenceEquals(obj, lastCheckedObject))
+            return lastCheckedDoor;
+
+        lastCheckedObject = obj;
+        lastCheckedDoor = obj.TryGetComponent(out SimpleDoor door) ? door : null;
+        return lastCheckedDoor;
+    }
+
+    /// <summary>
+    /// Opens or closes a door, but at most once per <see cref="toggleCooldown"/> for the same door.
+    /// Standing in a doorway keeps the contact alive, and without the cooldown the door would be
+    /// toggled on every physics step — flapping open and shut and flooding the log.
+    /// </summary>
+    private void TryToggle(SimpleDoor door)
+    {
+        if (door == lastToggledDoor && Time.time < nextToggleTime)
+            return;
+
+        lastToggledDoor = door;
+        nextToggleTime = Time.time + toggleCooldown;
+        door.ToggleDoor(transform);
     }
 
     private void ResetAttack()

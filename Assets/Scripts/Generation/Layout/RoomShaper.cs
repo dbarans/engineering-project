@@ -51,10 +51,11 @@ public static class RoomShaper
     /// Chooses a shape for a plot, weighted by what its size can actually support and by
     /// the room's role.
     ///
-    /// Camps stay rectangular: a safe room has to be legible at a glance, and the player
-    /// needs to be able to see that they are alone in it. Everything else leans away from
-    /// plain rectangles the larger it gets, because a big empty rectangle is the single
-    /// worst offender for reading a room in one look.
+    /// Every plot that reaches this one is fair game; the hub never does, because it is
+    /// built as a rectangle at placement time rather than sampled. A safe room has to be
+    /// legible at a glance, and the player needs to be able to see that they are alone in
+    /// it. Everything else leans away from plain rectangles the larger it gets, because a
+    /// big empty rectangle is the single worst offender for reading a room in one look.
     /// </summary>
     public static RoomShape PickShape(RectInt plot, DeterministicRandom random)
     {

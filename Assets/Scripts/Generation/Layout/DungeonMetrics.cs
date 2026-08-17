@@ -23,7 +23,7 @@ public readonly struct DungeonMetrics
     public readonly int WalkableCells;
     public readonly int TotalCells;
 
-    /// <summary>Hops from the start room to the farthest reachable room.</summary>
+    /// <summary>Hops from the hub to the farthest reachable room.</summary>
     public readonly int MaxDepth;
 
     /// <summary>Rooms the corridor graph never reaches; must be 0 in a valid layout.</summary>
@@ -113,8 +113,8 @@ public readonly struct DungeonMetrics
             if (room.Shape != RoomShape.Rectangle) shaped++;
 
             // Unreachable rooms carry int.MaxValue and would swamp the maximum.
-            if (room.DepthFromStart == int.MaxValue) unreachable++;
-            else maxDepth = Mathf.Max(maxDepth, room.DepthFromStart);
+            if (room.DepthFromHub == int.MaxValue) unreachable++;
+            else maxDepth = Mathf.Max(maxDepth, room.DepthFromHub);
 
             float visible = VisibilityAnalysis.VisibleFractionFromEntrances(layout, room, SightRadius);
             visibilityTotal += visible;
@@ -163,7 +163,7 @@ public readonly struct DungeonMetrics
             $"dead ends {DeadEnds}   doors {Doorways}");
         builder.AppendLine(
             $"open cells {WalkableCells}/{TotalCells} ({OpenRatio * 100f:F1}%)   " +
-            $"deepest room {MaxDepth} hops from start");
+            $"deepest room {MaxDepth} hops from the hub");
         builder.AppendLine(
             $"shaped rooms {ShapedRooms}/{Rooms} ({ShapedRatio * 100f:F0}%)   " +
             $"interior solids {InteriorSolids}   alcoves {Alcoves}   chokepoints {ChokepointCells}");

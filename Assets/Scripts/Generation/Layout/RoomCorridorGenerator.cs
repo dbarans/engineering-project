@@ -69,7 +69,7 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
 
     private static DungeonLayout BuildOnce(string seed, LayoutParams p, DeterministicRandom random)
     {
-        List<Room> rooms = PlaceRooms(p, random.Derive("rooms"));
+        List<Room> rooms = PlaceRooms(p, random.Derive("rooms"), out int hubIndex);
         List<RoomLink> links = ConnectRooms(rooms, p, random.Derive("links"));
 
         var layout = new DungeonLayout(seed, p.MapWidth, p.MapHeight, rooms, links);
@@ -80,9 +80,9 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
         DoorwayNormalizer.Apply(layout, rooms, p.DoorwayWidth);
 
         // Roles are assigned before the interior pass because that pass reads them: the
-        // start room and the camp are deliberately left legible, and it cannot know which
+        // start room and the hub are deliberately left legible, and it cannot know which
         // they are until the graph has been walked.
-        AssignRoomRoles(layout, rooms, links);
+        AssignRoomRoles(layout, rooms, links, hubIndex);
 
         RoomInteriorDecorator.Decorate(layout, p, random.Derive("interiors"));
         Chokepoints.Detect(layout);
@@ -94,12 +94,18 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
     /// Rejection sampling: propose a rectangle, keep it when it clears every existing
     /// room by <see cref="LayoutParams.RoomSpacing"/>. Simple, and unlike BSP it leaves
     /// solid rock between rooms, which is what makes corridors read as corridors.
+    ///
+    /// The hub is placed first, before any sampling, and <paramref name="hubIndex"/>
+    /// reports where it landed in the list.
     /// </summary>
-    private static List<Room> PlaceRooms(LayoutParams p, DeterministicRandom random)
+    private static List<Room> PlaceRooms(LayoutParams p, DeterministicRandom random, out int hubIndex)
     {
         var rooms = new List<Room>(p.TargetRoomCount);
+        hubIndex = PlaceHub(rooms, p);
 
-        for (int i = 0; i < p.TargetRoomCount; i++)
+        // The hub counts against the target, so raising the hub size does not silently
+        // add a room to every dungeon.
+        for (int i = rooms.Count; i < p.TargetRoomCount; i++)
         {
             for (int attempt = 0; attempt < p.PlacementAttemptsPerRoom; attempt++)
             {
@@ -125,6 +131,46 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
         }
 
         return rooms;
+    }
+
+    /// <summary>
+    /// Reserves the hub: a square room in the exact middle of the map, placed before any
+    /// other room is sampled. Returns its index, or -1 when the map is too small to hold
+    /// it — in which case the dungeon simply has no hub rather than a misplaced one.
+    ///
+    /// Reserving rather than picking. The alternative — sample every room, then tag
+    /// whichever landed nearest the middle — cannot promise there is a room near the
+    /// middle at all, and rejection sampling routinely leaves the centre of a map empty.
+    /// A hub the player is told to walk back to has to be somewhere they can predict, so
+    /// its position is a guarantee of the layout, not an outcome of it.
+    ///
+    /// Placing it first also costs nothing structurally: every later room is rejected
+    /// unless it clears this one by <see cref="LayoutParams.RoomSpacing"/>, exactly as
+    /// rooms clear each other, and the spanning tree then connects it like any other node.
+    /// Being central, it is normally one of the better-connected ones.
+    ///
+    /// Deliberately a plain rectangle, and deliberately not run through
+    /// <see cref="RoomShaper"/>: the one room the player is safe in has to be legible from
+    /// the doorway, the same reason <see cref="RoomInteriorDecorator"/> leaves it alone.
+    /// </summary>
+    private static int PlaceHub(List<Room> rooms, LayoutParams p)
+    {
+        int size = p.HubRoomSize;
+
+        // The one-cell inset is the same border every sampled room respects.
+        var bounds = new RectInt(
+            (p.MapWidth - size) / 2,
+            (p.MapHeight - size) / 2,
+            size, size);
+
+        if (bounds.xMin < 1 || bounds.yMin < 1 ||
+            bounds.xMax > p.MapWidth - 1 || bounds.yMax > p.MapHeight - 1)
+        {
+            return -1;
+        }
+
+        rooms.Add(new Room(rooms.Count, bounds));
+        return rooms.Count - 1;
     }
 
     /// <summary>
@@ -262,26 +308,60 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
     }
 
     /// <summary>
-    /// Tags rooms and computes their depth. Start is the room farthest from the map
-    /// centre (it reads as an entrance rather than as "the middle"), Treasure is the
-    /// room farthest from Start over the graph, and Camp is the deepest dead end that
-    /// is neither — a dead end because a safe room the player can be chased through
-    /// is not a safe room.
+    /// Tags rooms and computes their depth. The Hub was fixed at placement time and is
+    /// only carried through here, and it is also where the player spawns and where every
+    /// other room's depth is measured from — the run's difficulty curve is literally "how
+    /// far have you walked from the hub". Treasure is whichever Normal room ends up
+    /// farthest from it over the graph.
+    ///
+    /// A hub that failed to fit — <paramref name="hubIndex"/> is -1, which needs a map
+    /// barely larger than one room — falls back to the old rule of thumb: the room
+    /// farthest from the map centre becomes the origin instead, tagged as an ordinary
+    /// Normal room since there is no hub to make it a Hub. Not a design point, just
+    /// somewhere to stand and a direction to measure from when the reserved centre did
+    /// not happen.
     /// </summary>
-    private static void AssignRoomRoles(DungeonLayout layout, List<Room> rooms, List<RoomLink> links)
+    private static void AssignRoomRoles(DungeonLayout layout, List<Room> rooms, List<RoomLink> links,
+        int hubIndex)
     {
         if (rooms.Count == 0) return;
 
         var adjacency = BuildAdjacency(rooms.Count, links);
         for (int i = 0; i < rooms.Count; i++)
         {
-            rooms[i].Kind = RoomKind.Normal;
+            rooms[i].Kind = i == hubIndex ? RoomKind.Hub : RoomKind.Normal;
             rooms[i].Degree = adjacency[i].Count;
         }
 
+        Room origin = hubIndex >= 0 ? rooms[hubIndex] : FarthestFromCentre(layout, rooms);
+        layout.SpawnCell = origin.Center;
+
+        int[] depths = BreadthFirstDepths(adjacency, origin.Index);
+        for (int i = 0; i < rooms.Count; i++)
+            rooms[i].DepthFromHub = depths[i];
+
+        Room treasure = null;
+        int maxDepth = 0;
+        foreach (var room in rooms)
+        {
+            // Normal only: a reward stashed in the one place the player is safe is not
+            // a reward.
+            if (room.Kind != RoomKind.Normal) continue;
+            if (room.DepthFromHub > maxDepth)
+            {
+                maxDepth = room.DepthFromHub;
+                treasure = room;
+            }
+        }
+        if (treasure != null) treasure.Kind = RoomKind.Treasure;
+    }
+
+    private static Room FarthestFromCentre(DungeonLayout layout, List<Room> rooms)
+    {
         var center = new Vector2Int(layout.Width / 2, layout.Height / 2);
-        Room start = rooms[0];
+        Room best = rooms[0];
         int bestDistance = -1;
+
         foreach (var room in rooms)
         {
             Vector2Int delta = room.Center - center;
@@ -289,51 +369,11 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
             if (distance > bestDistance)
             {
                 bestDistance = distance;
-                start = room;
+                best = room;
             }
         }
 
-        start.Kind = RoomKind.Start;
-        layout.SpawnCell = start.Center;
-
-        int[] depths = BreadthFirstDepths(adjacency, start.Index);
-        for (int i = 0; i < rooms.Count; i++)
-            rooms[i].DepthFromStart = depths[i];
-
-        Room treasure = null;
-        int maxDepth = 0;
-        foreach (var room in rooms)
-        {
-            if (room.Kind == RoomKind.Start) continue;
-            if (room.DepthFromStart > maxDepth)
-            {
-                maxDepth = room.DepthFromStart;
-                treasure = room;
-            }
-        }
-        if (treasure != null) treasure.Kind = RoomKind.Treasure;
-
-        Room camp = null;
-        foreach (var room in rooms)
-        {
-            if (room.Kind != RoomKind.Normal) continue;
-            if (camp == null || IsBetterCamp(room, camp)) camp = room;
-        }
-        if (camp != null) camp.Kind = RoomKind.Camp;
-    }
-
-    /// <summary>
-    /// Dead ends beat through-rooms, and among equals the deeper room wins: a safe room
-    /// the player can be chased straight through is not safe, and one right next to the
-    /// entrance is not worth reaching.
-    /// </summary>
-    private static bool IsBetterCamp(Room candidate, Room current)
-    {
-        bool candidateIsDeadEnd = candidate.Degree <= 1;
-        bool currentIsDeadEnd = current.Degree <= 1;
-
-        if (candidateIsDeadEnd != currentIsDeadEnd) return candidateIsDeadEnd;
-        return candidate.DepthFromStart > current.DepthFromStart;
+        return best;
     }
 
     private static List<int>[] BuildAdjacency(int roomCount, List<RoomLink> links)
@@ -369,7 +409,7 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
             }
         }
 
-        // Unreachable rooms would otherwise stay at -1 and read as "closer than Start".
+        // Unreachable rooms would otherwise stay at -1 and read as "closer than the hub".
         for (int i = 0; i < depths.Length; i++)
             if (depths[i] < 0) depths[i] = int.MaxValue;
 

@@ -2,12 +2,18 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// Orchestrates dungeon generation in the scene: layout, geometry, pathfinding grid,
-/// player placement, then content.
+/// Orchestrates dungeon generation in the scene: layout, geometry, content, *then* the
+/// pathfinding grid, player placement last.
 ///
-/// The step order is the important part and is not negotiable. Colliders must be final
-/// before <see cref="PathfindingGrid"/> samples them, and the grid must be valid before
-/// anything spawns, because spawn placement checks walkability.
+/// The step order is the important part and is not negotiable, but content has to come
+/// before the grid, not after: <see cref="DungeonPopulator"/> (subscribed on
+/// <see cref="Built"/>, invoked synchronously below) spawns tables, statues and every
+/// other blocking prop, and each one adds its own collider to the scene. Configuring
+/// <see cref="PathfindingGrid"/> — which samples physics — before that ran meant every
+/// prop's collider simply did not exist yet, so nothing populated ever blocked a path,
+/// silently, no matter what layer or trigger flag it carried. <see cref="DungeonPopulator"/>
+/// itself never needs the grid: its own placement logic reads <c>DungeonLayout.IsWalkable</c>,
+/// the pre-physics abstract layout, not the physics-sampled grid.
 /// </summary>
 public class DungeonBuilder : MonoBehaviour, ISaveable
 {
@@ -15,6 +21,19 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
     [SerializeField] private DungeonGenerationSettings settings;
     [SerializeField] private DungeonPainter painter;
     [SerializeField] private PathfindingGrid pathfindingGrid;
+
+    [Tooltip("Optional. A scene Transform kept at the hub's world position on every build " +
+             "— normally GameManager's own \"Player Spawn Point\" marker.\n\n" +
+             "This exists because of how this scene is actually used: the Dungeon scene is " +
+             "authored by baking (generate once in the editor, then save the scene), so at " +
+             "runtime buildOnStart is off and Build() never runs — the only thing that " +
+             "places the player at game start is GameManager.TeleportPlayerToSpawn(), which " +
+             "reads this Transform's static position. Without this field, that marker keeps " +
+             "whatever position it had the last time someone moved it by hand, which drifts " +
+             "away from the hub the moment the dungeon is regenerated with a different seed " +
+             "or different generation settings — the player spawns wherever the marker was " +
+             "left, not in the hub.")]
+    [SerializeField] private Transform playerSpawnMarker;
 
     [Header("Startup")]
     [Tooltip("Generate on Start. Leave off when the save system drives generation instead.")]
@@ -38,6 +57,10 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
 
     /// <summary>Converts a layout cell to a world position; the single source of truth.</summary>
     public Vector2 CellCenter(Vector2Int cell) => painter.CellCenter(cell);
+
+    /// <summary>World-space cell size, for callers that need to reason about distances
+    /// rather than just cell-to-world positions (door orientation is the one today).</summary>
+    public float CellSize => painter.CellSize;
 
     private void OnEnable()
     {
@@ -125,13 +148,22 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
 
         if (!painter.Paint(layout)) return null;
 
-        // Only now are the colliders final, so this is the earliest the grid may sample
-        // them. Doing it before painting silently produces a grid that disagrees with
-        // the walls on screen.
-        pathfindingGrid.Configure(painter.Origin, layout.Width, layout.Height);
-
         CurrentLayout = layout;
+
+        // Fires DungeonPopulator.Populate synchronously — a C# event invocation blocks
+        // until every subscriber returns — so every table, statue, barrel and chest it
+        // spawns already has its collider in the scene by the time control returns here.
         Built?.Invoke(layout);
+
+        // Only now are ALL colliders final: the painted walls, *and* everything Built's
+        // subscribers just spawned. Configuring before painting would have disagreed with
+        // the walls on screen; configuring before this line silently produced a grid that
+        // let every populated prop go right on being unwalkable.
+        //
+        // painter.CellSize, not a hardcoded 1 or whatever the grid last had serialized: it
+        // is the tilemap's actual world-space cell size, and the two must match or every
+        // sample lands off-centre from the tile it is meant to test.
+        pathfindingGrid.Configure(painter.Origin, painter.CellSize, layout.Width, layout.Height);
 
         MovePlayerToSpawn(layout);
         return layout;
@@ -145,10 +177,17 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
 
     private void MovePlayerToSpawn(DungeonLayout layout)
     {
+        Vector2 spawnPosition = CellCenter(layout.SpawnCell);
+
+        // Keeps GameManager's own spawn teleport correct on a baked scene: see the field's
+        // tooltip for why this is not optional polish. Set even when no live player exists
+        // (edit mode baking), since this is what a later Play session will actually read.
+        if (playerSpawnMarker != null) playerSpawnMarker.position = spawnPosition;
+
         GameObject player = ResolvePlayer();
         if (player == null) return;
 
-        player.transform.position = CellCenter(layout.SpawnCell);
+        player.transform.position = spawnPosition;
 
         var body = player.GetComponent<Rigidbody2D>();
         if (body != null) body.linearVelocity = Vector2.zero;

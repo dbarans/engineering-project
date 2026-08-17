@@ -322,6 +322,187 @@ public class RoomCorridorGeneratorTests
         Assert.AreEqual(24, layout.Width);
     }
 
+    /// <summary>
+    /// The exit and the treasure are two different rewards at two different ends of the
+    /// run, and a generator that lets them collide quietly turns the dungeon into one
+    /// room the player has to reach. Also pins that the exit is never the hub: the run
+    /// would be over at the spawn point.
+    /// </summary>
+    [Test]
+    public void ExitRoomIsNeitherTheHubNorTheTreasure()
+    {
+        DungeonLayout layout = Generate("exit-roles", SmallParams());
+
+        Room exit = FindKind(layout, RoomKind.Exit);
+        Assert.IsNotNull(exit, "no exit room was placed");
+        Assert.LessOrEqual(CountKind(layout, RoomKind.Exit), 1, "more than one way out");
+
+        Assert.AreNotEqual(FindKind(layout, RoomKind.Hub).Index, exit.Index);
+        Assert.AreNotEqual(FindKind(layout, RoomKind.Treasure).Index, exit.Index);
+    }
+
+    /// <summary>
+    /// The way out has to actually lead out. A door cut into a pocket of rock with a
+    /// corridor behind it is not an exit, and the player cannot tell the difference until
+    /// it has cost them the run's only key.
+    /// </summary>
+    [Test]
+    public void TheExitDoorOpensOntoTheOutsideOfTheMap()
+    {
+        foreach (string seed in new[] { "way-out-a", "way-out-b", "way-out-c", "way-out-d" })
+        {
+            DungeonLayout layout = Generate(seed, SmallParams());
+            Room exit = FindKind(layout, RoomKind.Exit);
+            if (exit == null)
+            {
+                Assert.IsFalse(layout.HasExitDoor, $"seed '{seed}': an exit door with no exit room");
+                continue;
+            }
+
+            Assert.IsTrue(layout.HasExitDoor, $"seed '{seed}': the exit room has no way out in it");
+
+            Vector2Int door = layout.ExitDoorCell;
+            Vector2Int threshold = layout.ExitThresholdCell;
+
+            Assert.IsFalse(layout.IsWalkable(door),
+                $"seed '{seed}': the exit door cell was carved open, leaving a hole in the map");
+            Assert.IsTrue(layout.IsWalkable(threshold),
+                $"seed '{seed}': the threshold at {threshold} cannot be stood on");
+            Assert.IsTrue(exit.Contains(threshold),
+                $"seed '{seed}': the threshold is outside the exit room");
+
+            int step = Mathf.Abs(door.x - threshold.x) + Mathf.Abs(door.y - threshold.y);
+            Assert.AreEqual(1, step, $"seed '{seed}': the door does not adjoin its threshold");
+
+            // Everything from the door outwards, away from the room, has to be solid all
+            // the way off the map.
+            Vector2Int outward = door - threshold;
+            for (Vector2Int cell = door; layout.Contains(cell.x, cell.y); cell += outward)
+            {
+                Assert.IsFalse(layout.IsWalkable(cell),
+                    $"seed '{seed}': the exit door leads back into the dungeon at {cell}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The exit room is meant to be somewhere the dungeon stops, not one more room on the
+    /// way to somewhere else: a corridor out the far side makes it read as a through-route
+    /// whatever is in its wall.
+    ///
+    /// Pinned on seeds known to have a dead end available. The generator falls back to any
+    /// room with an outward wall when a map offers no dead end that also backs onto the
+    /// outside — measured at 1 seed in 200 — so this cannot be asserted for every seed
+    /// without pinning the fallback shut, and a run with no ending is the worse outcome.
+    /// </summary>
+    [Test]
+    public void TheExitRoomIsADeadEnd()
+    {
+        foreach (string seed in new[] { "way-out-a", "way-out-b", "way-out-c", "way-out-d" })
+        {
+            DungeonLayout layout = Generate(seed, SmallParams());
+            Room exit = FindKind(layout, RoomKind.Exit);
+            Assert.IsNotNull(exit, $"seed '{seed}': no exit room was placed");
+
+            Assert.AreEqual(1, CountEntrances(layout, exit),
+                $"seed '{seed}': the exit room can be walked through");
+        }
+    }
+
+    /// <summary>
+    /// Ways into a room: groups of adjoining walkable cells just outside it. Grouped, not
+    /// counted cell by cell — one opening three cells wide is still one way in.
+    /// </summary>
+    private static int CountEntrances(DungeonLayout layout, Room room)
+    {
+        var outside = new HashSet<Vector2Int>();
+        foreach (Vector2Int cell in room.Cells)
+        {
+            foreach (Vector2Int neighbour in Neighbours(cell))
+            {
+                if (room.Contains(neighbour) || !layout.IsWalkable(neighbour)) continue;
+                outside.Add(neighbour);
+            }
+        }
+
+        int openings = 0;
+        var pending = new Stack<Vector2Int>();
+
+        while (outside.Count > 0)
+        {
+            openings++;
+
+            Vector2Int start = default;
+            foreach (Vector2Int cell in outside) { start = cell; break; }
+            pending.Push(start);
+            outside.Remove(start);
+
+            while (pending.Count > 0)
+            {
+                foreach (Vector2Int neighbour in Neighbours(pending.Pop()))
+                {
+                    if (outside.Remove(neighbour)) pending.Push(neighbour);
+                }
+            }
+        }
+
+        return openings;
+    }
+
+    private static IEnumerable<Vector2Int> Neighbours(Vector2Int cell)
+    {
+        yield return new Vector2Int(cell.x + 1, cell.y);
+        yield return new Vector2Int(cell.x - 1, cell.y);
+        yield return new Vector2Int(cell.x, cell.y + 1);
+        yield return new Vector2Int(cell.x, cell.y - 1);
+    }
+
+    /// <summary>
+    /// The key has to be a journey, not a detour. Pinned against the hub's own distance
+    /// from the exit rather than an absolute number of hops, because how far apart two
+    /// rooms can be is a property of the map size, not of this rule.
+    /// </summary>
+    [Test]
+    public void ExitKeyIsNotStashedNextToTheExit()
+    {
+        DungeonLayout layout = Generate("exit-key", SmallParams());
+        Room exit = FindKind(layout, RoomKind.Exit);
+        Assert.IsNotNull(exit, "no exit room was placed");
+
+        Room keyRoom = null;
+        int flagged = 0;
+        foreach (var room in layout.Rooms)
+        {
+            if (!room.HoldsExitKey) continue;
+            flagged++;
+            keyRoom = room;
+        }
+
+        Assert.AreEqual(1, flagged, "the dungeon must hold exactly one exit key");
+        Assert.AreNotEqual(exit.Index, keyRoom.Index, "the key is locked inside the door it opens");
+        Assert.AreNotEqual(RoomKind.Hub, keyRoom.Kind, "the key is handed over at the spawn point");
+        Assert.AreNotEqual(RoomKind.Treasure, keyRoom.Kind, "the key and the reward are one trip");
+
+        // The three destinations have to be spread over the map, not clustered in one
+        // corner of it. The floor is deliberately slack: measured over 60 maps, the worst
+        // case is 40% of the diagonal at the shipped settings but only 21% on the cramped
+        // map these tests use, where eight rooms leave the scoring little to choose
+        // between. 15% still catches the collapse this guards against — before the fix,
+        // key and treasure landed within 5–8% of each other on real seeds.
+        float diagonal = Mathf.Sqrt(layout.Width * layout.Width + layout.Height * layout.Height);
+        float floorDistance = diagonal * 0.15f;
+
+        Assert.Greater(Vector2Int.Distance(keyRoom.Center, exit.Center), floorDistance,
+            "the key is stashed on the exit's doorstep");
+
+        Room treasure = FindKind(layout, RoomKind.Treasure);
+        if (treasure != null)
+        {
+            Assert.Greater(Vector2Int.Distance(keyRoom.Center, treasure.Center), floorDistance,
+                "the key and the treasure are the same trip");
+        }
+    }
+
     private static int CountKind(DungeonLayout layout, RoomKind kind)
     {
         int count = 0;

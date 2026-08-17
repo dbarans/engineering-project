@@ -51,7 +51,25 @@ public enum RoomKind
     Normal = 1,
 
     /// <summary>The room farthest from the hub over the room graph, holding the run's reward.</summary>
-    Treasure = 2
+    Treasure = 2,
+
+    /// <summary>
+    /// The room the way out is in. Sits against the edge of the map rather than at the end
+    /// of the room graph, because the exit reads as a way *out of* the dungeon and the
+    /// middle of the map is not somewhere you can leave from.
+    ///
+    /// The room itself is entered through ordinary doors — the lock is not on the way in.
+    /// What is locked is a door cut into its outer wall, opening onto nothing but the rock
+    /// between the room and the edge of the map: see <see cref="DungeonLayout.ExitDoorCell"/>.
+    /// That door takes the one key in the dungeon, stashed on the far side of the map —
+    /// see <see cref="Room.HoldsExitKey"/>. Finding the room early and being unable to
+    /// leave is the point of the arrangement; a room the player cannot even get into
+    /// tells them nothing.
+    ///
+    /// At most one per dungeon, and none at all on a map with no room whose wall backs
+    /// onto the outside.
+    /// </summary>
+    Exit = 3
 }
 
 /// <summary>
@@ -125,6 +143,15 @@ public sealed class Room
 
     /// <summary>Number of corridors attached to this room; 1 means a dead end.</summary>
     public int Degree { get; internal set; }
+
+    /// <summary>
+    /// True for the one room holding the chest with the exit key. Deliberately a flag
+    /// rather than a <see cref="RoomKind"/>: the room is an ordinary room in every other
+    /// respect — it still gets its own enemies, loot and props — and making it a kind of
+    /// its own would have excluded it from all of them. At most one room per dungeon has
+    /// this set, and none at all when there is no <see cref="RoomKind.Exit"/> to unlock.
+    /// </summary>
+    public bool HoldsExitKey { get; internal set; }
 
     /// <summary>
     /// A cell of the room near its middle — the medoid, not the centre of
@@ -256,6 +283,29 @@ public sealed class DungeonLayout
     /// <summary>Cell the player spawns on — the centre of the hub.</summary>
     public Vector2Int SpawnCell { get; internal set; }
 
+    /// <summary>
+    /// The solid cell the way out is cut into: a wall of the <see cref="RoomKind.Exit"/>
+    /// room with nothing but rock between it and the edge of the map. Not a doorway in the
+    /// layout's sense — no corridor runs through it and it stays solid, because it leads
+    /// out of the dungeon rather than to another part of it.
+    ///
+    /// <see cref="NoCell"/> when the dungeon has no exit.
+    /// </summary>
+    public Vector2Int ExitDoorCell { get; internal set; } = NoCell;
+
+    /// <summary>
+    /// The floor cell inside the exit room that the exit door is reached from — the
+    /// threshold the player stands on to leave. Always walkable and always a cell of the
+    /// exit room, and always orthogonally adjacent to <see cref="ExitDoorCell"/>.
+    /// </summary>
+    public Vector2Int ExitThresholdCell { get; internal set; } = NoCell;
+
+    /// <summary>True when this dungeon has a way out.</summary>
+    public bool HasExitDoor => ExitDoorCell != NoCell;
+
+    /// <summary>Stands in for "no cell", off the map in both axes.</summary>
+    public static readonly Vector2Int NoCell = new Vector2Int(-1, -1);
+
     public IReadOnlyList<Room> Rooms => _rooms;
     public IReadOnlyList<RoomLink> Links => _links;
 
@@ -341,6 +391,27 @@ public sealed class DungeonLayout
     }
 
     public bool IsWalkable(Vector2Int cell) => IsWalkable(cell.x, cell.y);
+
+    /// <summary>
+    /// True when the cell has a pair of solid neighbours for a door leaf to hang between:
+    /// solid east and west, or solid north and south. An opening with neither pair has
+    /// nothing to hang a door on, and one placed there stands in mid-air with daylight
+    /// down both sides.
+    ///
+    /// Shared rather than duplicated because two passes ask it for answers that have to
+    /// agree: the populator asks it to decide where a door is spawned, and the role
+    /// assignment asks it to decide whether a room can be sealed at all — a room picked
+    /// as sealable that the populator then leaves an arch in is an exit anyone can walk
+    /// into without the key.
+    /// </summary>
+    public bool HasDoorJambs(int x, int y)
+    {
+        bool eastWest = !IsWalkable(x + 1, y) && !IsWalkable(x - 1, y);
+        bool northSouth = !IsWalkable(x, y + 1) && !IsWalkable(x, y - 1);
+        return eastWest || northSouth;
+    }
+
+    public bool HasDoorJambs(Vector2Int cell) => HasDoorJambs(cell.x, cell.y);
 
     /// <summary>
     /// True when the cell stops a line of sight. Identical to "not walkable" today, and

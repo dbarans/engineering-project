@@ -40,6 +40,14 @@ public class DungeonPopulator : MonoBehaviour
     private WorldItemPickup _pickup;
     private Transform _player;
 
+    /// <summary>
+    /// The key that opens the exit room, resolved once per build. Null when the dungeon
+    /// has no exit key configured or the id does not resolve, in which case the exit room
+    /// is left unlocked and no key chest is spawned — the two have to agree, or the run is
+    /// either unfinishable or ends by accident.
+    /// </summary>
+    private ItemData _exitKey;
+
     private void OnEnable()
     {
         if (builder != null) builder.Built += Populate;
@@ -81,6 +89,8 @@ public class DungeonPopulator : MonoBehaviour
                 "Build UI & Wire Scene.", this);
         }
 
+        _exitKey = ResolveExitKey();
+
         ResetContentRoot();
 
         var random = new DeterministicRandom(layout.Seed).Derive("content");
@@ -96,11 +106,24 @@ public class DungeonPopulator : MonoBehaviour
     {
         if (string.IsNullOrEmpty(content.doorPrefabId)) return;
 
+        // Cells that already carry a door. The doorway normaliser can leave two Door cells
+        // next to each other in one passage — measured at 44 such pairs across 60 maps at
+        // the shipped settings, so roughly one map in one and a half — and hanging a leaf
+        // on each of them puts two doors back to back in a corridor one cell wide. One
+        // opening gets one door; the first cell in scan order takes it.
+        var doored = new HashSet<Vector2Int>();
+
         for (int y = 0; y < layout.Height; y++)
         {
             for (int x = 0; x < layout.Width; x++)
             {
                 if (layout[x, y] != CellType.Door) continue;
+
+                if (doored.Contains(new Vector2Int(x - 1, y)) ||
+                    doored.Contains(new Vector2Int(x + 1, y)) ||
+                    doored.Contains(new Vector2Int(x, y - 1)) ||
+                    doored.Contains(new Vector2Int(x, y + 1)))
+                    continue;
 
                 // A door needs a jamb on each side to hang between. Solid to the east and
                 // west means the passage runs north-south and the leaf has to turn; solid
@@ -122,6 +145,11 @@ public class DungeonPopulator : MonoBehaviour
                 Vector3 spawnPos = builder.CellCenter(cell);
 
                 GameObject doorInstance = _prefabs.Spawn(content.doorPrefabId, spawnPos, _contentRoot, CellGuid(layout.Seed, "door", cell));
+
+                // Recorded whether or not the prefab resolved, so a failed spawn does not
+                // let the neighbouring cell try again and produce the doubled door this
+                // set exists to prevent.
+                doored.Add(cell);
 
                 if (doorInstance != null)
                 {
@@ -223,6 +251,14 @@ public class DungeonPopulator : MonoBehaviour
                     SpawnHubFixtures(layout, room, free, ref slot);
                     break;
 
+                case RoomKind.Exit:
+                    // Bare, and no enemies either. The run ends the instant the player
+                    // steps in — see DungeonExit — so anything spawned here is content
+                    // nobody will ever get to interact with, and an enemy standing in it
+                    // would be a fight that resolves itself by the player winning the game.
+                    SpawnExit(layout, room);
+                    break;
+
                 case RoomKind.Treasure:
                     if (!authored)
                         SpawnItems(content.treasureLoot, content.treasureLootCount, free, roomRandom);
@@ -259,12 +295,200 @@ public class DungeonPopulator : MonoBehaviour
                     break;
             }
 
+            // Outside the switch and outside the `authored` guard, unlike every other
+            // chest: the run cannot be finished without this one, so a room that happened
+            // to draw a hand-authored interior, or to be the Treasure room, must still get
+            // it. It is placed after the room's own contents so it competes for a cell
+            // like anything else rather than taking the best one first.
+            if (room.HoldsExitKey)
+                SpawnKeyChest(layout, room, free, roomOccupied, roomRandom.Derive("keychest"), ref slot);
+
             // The hub is left bare on purpose. It is the one room the player has to be
             // able to walk into and use, and prop clusters are placed against the walls —
-            // exactly where its fixtures stand.
-            if (!authored && room.Kind != RoomKind.Hub)
+            // exactly where its fixtures stand. The exit room is bare for its own reason:
+            // it is the end of the run, not a room to loot.
+            if (!authored && room.Kind != RoomKind.Hub && room.Kind != RoomKind.Exit)
                 SpawnProps(layout, room, free, roomOccupied, roomRandom, ref slot);
         }
+    }
+
+    // ---------------------------------------------------------------- exit and key
+
+    /// <summary>
+    /// Resolves the exit key item once per build. Returns null when no key is configured,
+    /// and warns when one is configured but does not resolve — the difference matters:
+    /// the first is a dungeon deliberately generated without an ending, the second is a
+    /// misconfigured one that would otherwise quietly produce an unlocked exit room.
+    /// </summary>
+    private ItemData ResolveExitKey()
+    {
+        if (string.IsNullOrEmpty(content.exitKeyItemId)) return null;
+
+        ItemData key = ItemDatabase.Instance != null
+            ? ItemDatabase.Instance.Resolve(content.exitKeyItemId)
+            : null;
+
+        if (key == null)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] Exit key id '{content.exitKeyItemId}' is not in the " +
+                "ItemDatabase — the exit room will be left unlocked and no key chest is " +
+                "spawned. Run Tools ▸ Save System ▸ Rebuild Item Database.", this);
+        }
+
+        return key;
+    }
+
+    /// <summary>
+    /// Spawns the one chest holding the exit key, in the one room flagged for it.
+    ///
+    /// Stocked directly rather than through <see cref="StockChest"/> and a loot table: the
+    /// key is not loot, it is the single object the run cannot be finished without, and
+    /// putting it in a weighted table would mean a roll can decide there isn't one.
+    ///
+    /// Failing to place it is loud, because the failure is silent otherwise — the player
+    /// crosses the map to a room with no chest in it and has no way to tell that the
+    /// dungeon, rather than their searching, is at fault.
+    /// </summary>
+    private void SpawnKeyChest(DungeonLayout layout, Room room, List<Vector2Int> free,
+        List<(Vector2Int cell, int footprint)> occupied, DeterministicRandom random, ref int slot)
+    {
+        if (_exitKey == null) return;
+
+        if (string.IsNullOrEmpty(content.chestPrefabId))
+        {
+            Debug.LogWarning(
+                "[DungeonPopulator] No chest prefab id, so the exit key has nowhere to go " +
+                "and the exit room cannot be opened.", this);
+            return;
+        }
+
+        GameObject prefab = _prefabs.Resolve(content.chestPrefabId);
+        int spacing = FootprintCells(content.chestPrefabId, prefab);
+        bool blocking = BlocksPathfinding(prefab);
+
+        if (!TryTakeAnchor(layout, free, blocking, spacing, occupied, random, out Vector2Int cell))
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] No room left in room {room.Index} for the exit key chest " +
+                "— the exit room cannot be opened.", this);
+            return;
+        }
+
+        GameObject chest = _prefabs.Spawn(content.chestPrefabId, builder.CellCenter(cell),
+            _contentRoot, SlotGuid(layout.Seed, room.Index, slot++));
+        occupied.Add((cell, spacing));
+        if (chest == null) return;
+
+        var inventory = chest.GetComponent<ChestInventory>();
+        if (inventory == null)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] Prefab id '{content.chestPrefabId}' has no ChestInventory " +
+                "— the exit key was not placed.", chest);
+            return;
+        }
+
+        inventory.SetStartingItems(new[] { (_exitKey, 1) });
+    }
+
+    /// <summary>
+    /// Builds the way out: a key-locked door cut into the exit room's outer wall, and the
+    /// threshold in front of it that ends the run once that door is open.
+    ///
+    /// The door is an ordinary door prefab standing on a solid cell. Nothing was carved for
+    /// it — see <c>RoomCorridorGenerator.CutExitDoorway</c> — so there is no hole in the
+    /// map behind it and no walkable cell leading off the edge; what is on the other side
+    /// is rock, and the fiction is that beyond the rock is outside.
+    ///
+    /// The room's own entrances stay ordinary doors. Locking the way *in* would hide the
+    /// exit from a player who has not found the key yet, and a locked door in a corridor
+    /// says nothing about what is behind it. A locked door in the far wall of a room the
+    /// player is standing in says exactly one thing, which is the point.
+    /// </summary>
+    private void SpawnExit(DungeonLayout layout, Room room)
+    {
+        if (!layout.HasExitDoor)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] Room {room.Index} is tagged as the exit but the layout " +
+                "recorded no exit doorway, so this dungeon has no way out.", this);
+            return;
+        }
+
+        Vector2Int doorCell = layout.ExitDoorCell;
+        Vector2Int thresholdCell = layout.ExitThresholdCell;
+        Vector3 doorPos = builder.CellCenter(doorCell);
+
+        GameObject doorInstance = _prefabs.Spawn(content.doorPrefabId, doorPos, _contentRoot,
+            CellGuid(layout.Seed, "exitdoor", doorCell));
+        if (doorInstance == null)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] The exit door prefab '{content.doorPrefabId}' did not " +
+                "spawn, so the run cannot be finished.", this);
+            return;
+        }
+
+        // Orientation follows the same rule as every other door, read off the direction the
+        // player walks through it rather than off the jambs: leaving through a north or
+        // south wall means the passage runs north-south, and the leaf has to turn.
+        bool throughNorthSouth = doorCell.x == thresholdCell.x;
+        doorInstance.transform.rotation = throughNorthSouth
+            ? Quaternion.Euler(0f, 0f, 90f)
+            : Quaternion.identity;
+
+        CenterOnCollider(doorInstance, doorPos, builder.CellSize);
+
+        // In children, and including inactive ones. The door prefab's root is a rig —
+        // Door_System, carrying the barricade and the collision forwarder — while
+        // SimpleDoor itself lives on the Door_Visual child that actually swings. A plain
+        // GetComponent here returned null on every seed, which silently skipped both the
+        // lock and the reinforcement and left the threshold bound to no door at all: the
+        // exit opened without the key and could be rammed, and the only sign was a warning
+        // nobody was looking for.
+        var door = doorInstance.GetComponentInChildren<SimpleDoor>(true);
+        if (door == null)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] Prefab id '{content.doorPrefabId}' has no SimpleDoor on " +
+                "it or any of its children, so the way out cannot be locked and the run ends " +
+                "by walking into the room.", doorInstance);
+        }
+        else if (_exitKey != null)
+        {
+            // Reinforced as well as locked, and the second half is not redundant. The key
+            // lock alone grants immunity to melee and ramming only while the door is still
+            // locked — spending the key clears the lock, and with it the protection. The
+            // way out has to be impassable by force before the key and unbreakable after
+            // it, so the reinforcement is what actually holds.
+            door.RequireKey(_exitKey, reinforced: true);
+        }
+        else
+        {
+            // Still reinforced. Without a key the door is meant to be openable, but never
+            // by shoulder-charging it or hacking it apart — that would leave a hole in the
+            // outer wall of the map.
+            door.Reinforce();
+
+            Debug.LogWarning(
+                "[DungeonPopulator] No exit key, so the way out is unlocked and the run can " +
+                "be finished as soon as the exit room is found.", this);
+        }
+
+        var exit = new GameObject("DungeonExit");
+        exit.transform.SetParent(_contentRoot, false);
+        exit.transform.position = builder.CellCenter(thresholdCell);
+
+        var box = exit.AddComponent<BoxCollider2D>();
+        box.isTrigger = true;
+
+        // Deliberately smaller than the cell. The threshold is the one square in front of
+        // the door, and a trigger overflowing into the neighbouring squares would end the
+        // run for a player who walked past the door rather than through it.
+        box.size = Vector2.one * (builder.CellSize * 0.8f);
+
+        exit.AddComponent<DungeonExit>().BindDoor(door);
     }
 
     private void SpawnEnemies(DungeonLayout layout, Room room, List<Vector2Int> free,
@@ -1196,7 +1420,11 @@ public class DungeonPopulator : MonoBehaviour
             return;
         }
 
-        _pickup.SpawnAt(item, count, builder.CellCenter(cell));
+        // Parented to the content root, unlike a player's drop: generated loot belongs to
+        // this build and has to go when the build is replaced. Without the parent every
+        // regeneration of the scene left its loot behind at the scene root and the next
+        // one added more on top.
+        _pickup.SpawnAt(item, count, builder.CellCenter(cell), parent: _contentRoot);
     }
 
     // ---------------------------------------------------------------- placement
@@ -1279,6 +1507,38 @@ public class DungeonPopulator : MonoBehaviour
         var root = new GameObject(ContentRootName);
         root.transform.SetParent(transform, false);
         _contentRoot = root.transform;
+
+        SweepStrayDrops();
+    }
+
+    /// <summary>
+    /// Removes ground items left loose in the scene, outside any content root.
+    ///
+    /// Generated loot is parented to the content root and goes with it, but drops made
+    /// before that was true are still lying at the scene root, and nothing else will ever
+    /// collect them: <see cref="WorldItemsSaveable"/> only clears drops when restoring a
+    /// save. Left alone they accumulate a fresh layer on every regeneration of the scene.
+    ///
+    /// Edit mode only, and that limit is the point. In play mode a loose drop at the scene
+    /// root is the player's own — dropped from the cursor, or shaken out of a corpse — and
+    /// rebuilding the dungeon underneath them must not confiscate their belongings.
+    /// </summary>
+    private void SweepStrayDrops()
+    {
+        if (Application.isPlaying) return;
+
+        int swept = 0;
+        foreach (WorldItem drop in FindObjectsByType<WorldItem>(FindObjectsSortMode.None))
+        {
+            if (drop == null) continue;
+            if (drop.transform.IsChildOf(transform)) continue; // this build's own, already fresh
+
+            DestroyImmediate(drop.gameObject);
+            swept++;
+        }
+
+        if (swept > 0)
+            Debug.Log($"[DungeonPopulator] Swept {swept} stray ground item(s) left by earlier builds.", this);
     }
 
     /// <summary>True when the content table would place any item at all.</summary>

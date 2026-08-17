@@ -76,6 +76,13 @@ public static class RoomInteriorDecorator
         foreach (Room room in layout.Rooms)
         {
             if (room.Kind == RoomKind.Hub) continue;
+
+            // The exit room is left alone for a structural reason as well as a visual one.
+            // Its threshold cell — the one square the player has to stand on to leave —
+            // was chosen before this pass runs, and a pillar or a pile of rubble dropped
+            // on it would make the way out unreachable without anything reporting a fault.
+            if (room.Kind == RoomKind.Exit) continue;
+
             if (room.Area < MinArea) continue;
 
             DecorateRoom(layout, room, p, random.Derive($"interior{room.Index}"));

@@ -151,6 +151,12 @@ public class RoomContentSettings : ScriptableObject
              "not loot — what ends up in them is whatever they decide not to carry.")]
     [Min(0)] public int hubChests = 3;
 
+    [Header("Exit")]
+    [Tooltip("Item id of the key that unlocks the exit room's doors. Exactly one is " +
+             "generated per dungeon, in a chest on the far side of the map. Leave empty " +
+             "to leave the exit unlocked — which also means no key chest is spawned.")]
+    public string exitKeyItemId;
+
     [Header("Room templates")]
     [Tooltip("Hand-authored room interiors. A room that takes one skips random loot and " +
              "props, so the designed layout is not buried under scatter.")]

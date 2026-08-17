@@ -16,5 +16,5 @@ MonoBehaviour:
   id: 5050d2d519e64e13be6c3dacaac66b8a
   itemName: Bullet
   value: 3
-  maxStack: 10
+  maxStack: 8
   weaponType: 0

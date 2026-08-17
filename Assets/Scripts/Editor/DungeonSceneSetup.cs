@@ -758,12 +758,15 @@ public static class DungeonSceneSetup
 
         AddLoot(settings.loot, "Assets/Items/Item 7 - Bullet.asset", 1.2f, 2, 6);
         AddLoot(settings.loot, "Assets/Items/Item 3 - Wood.asset", 1f, 1, 3);
-        AddLoot(settings.loot, "Assets/Items/Item 2 - Mana Potion.asset", 0.5f, 1, 1);
-        AddLoot(settings.loot, "Assets/Items/Item 12 - Shell.asset", 0.9f, 2, 5);
+        AddLoot(settings.loot, "Assets/Items/Item 13 - Rags.asset", 1f, 1, 4);
+        AddLoot(settings.loot, "Assets/Items/Item 15 - Gunpowder.asset", 0.9f, 1, 3);
+        AddLoot(settings.loot, "Assets/Items/Item 14 - Alcohol.asset", 0.7f, 1, 2);
+        AddLoot(settings.loot, "Assets/Items/Item 8 - Scrap.asset", 1f, 1, 4);
+        AddLoot(settings.loot, "Assets/Items/Item 12 - Shell.asset", 0.9f, 1, 3);
 
         AddLoot(settings.treasureLoot, "Assets/Items/Item 5 - Pistol.asset", 1f, 1, 1);
-        AddLoot(settings.treasureLoot, "Assets/Items/Item 1 - Sword.asset", 1f, 1, 1);
-        AddLoot(settings.treasureLoot, "Assets/Items/Coins.asset", 1.5f, 5, 15);
+        AddLoot(settings.treasureLoot, "Assets/Items/Item 16 - Bandage.asset", 1f, 1, 2);
+        AddLoot(settings.treasureLoot, "Assets/Items/Item 14 - Alcohol.asset", 1.5f, 1, 3);
         AddLoot(settings.treasureLoot, "Assets/Items/Item 11 - Shotgun.asset", 0.8f, 1, 1);
 
         // Ink is what saving costs, so a run with none in it cannot be saved at all.

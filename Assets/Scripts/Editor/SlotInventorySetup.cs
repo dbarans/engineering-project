@@ -21,8 +21,6 @@ public static class SlotInventorySetup
     private const string SlotBgSpritePath = "Assets/Art/GDS/Sprites/ui/backgrounds/bg-slot.png";
     private const string WindowBgSpritePath = "Assets/Art/GDS/Sprites/ui/backgrounds/bg-window.png";
 
-    private const string Item1Path = "Assets/Items/Item 1 - Sword.asset";
-    private const string Item2Path = "Assets/Items/Item 2 - Mana Potion.asset";
     private const string Item3Path = "Assets/Items/Item 3 - Wood.asset";
     private const string Item4Path = "Assets/Items/Item 4 - Axe.asset";
     private const string Item5Path = "Assets/Items/Item 5 - Pistol.asset";
@@ -30,6 +28,10 @@ public static class SlotInventorySetup
     private const string Item8Path = "Assets/Items/Item 8 - Scrap.asset";
     private const string Item11Path = "Assets/Items/Item 11 - Shotgun.asset";
     private const string Item12Path = "Assets/Items/Item 12 - Shell.asset";
+    private const string Item13Path = "Assets/Items/Item 13 - Rags.asset";
+    private const string Item14Path = "Assets/Items/Item 14 - Alcohol.asset";
+    private const string Item15Path = "Assets/Items/Item 15 - Gunpowder.asset";
+    private const string Item16Path = "Assets/Items/Item 16 - Bandage.asset";
 
     [MenuItem("Tools/Slot Inventory/Build UI & Wire Scene")]
     public static void BuildAndWire()
@@ -323,8 +325,6 @@ public static class SlotInventorySetup
     private static void SeedDebugItems(GameObject owner, SlotInventory slotInventory)
     {
         if (owner == null) return;
-        var sword = AssetDatabase.LoadAssetAtPath<ItemData>(Item1Path);
-        var mana = AssetDatabase.LoadAssetAtPath<ItemData>(Item2Path);
         var wood = AssetDatabase.LoadAssetAtPath<ItemData>(Item3Path);
         var axe = AssetDatabase.LoadAssetAtPath<ItemData>(Item4Path);
         var pistol = AssetDatabase.LoadAssetAtPath<ItemData>(Item5Path);
@@ -332,25 +332,34 @@ public static class SlotInventorySetup
         var shotgun = AssetDatabase.LoadAssetAtPath<ItemData>(Item11Path);
         var bullets = AssetDatabase.LoadAssetAtPath<ItemData>(Item7Path);
         var shells = AssetDatabase.LoadAssetAtPath<ItemData>(Item12Path);
-        if (sword == null && mana == null && wood == null && axe == null && pistol == null && scrap == null
-            && shotgun == null && bullets == null && shells == null) return;
+        var rags = AssetDatabase.LoadAssetAtPath<ItemData>(Item13Path);
+        var alcohol = AssetDatabase.LoadAssetAtPath<ItemData>(Item14Path);
+        var gunpowder = AssetDatabase.LoadAssetAtPath<ItemData>(Item15Path);
+        var bandage = AssetDatabase.LoadAssetAtPath<ItemData>(Item16Path);
+        if (wood == null && axe == null && pistol == null && scrap == null
+            && shotgun == null && bullets == null && shells == null
+            && rags == null && alcohol == null && gunpowder == null && bandage == null) return;
 
         var fill = EditorSetupUtility.EnsureComponent<SlotInventoryDebugFill>(owner);
         var so = new SerializedObject(fill);
         so.FindProperty("slotInventory").objectReferenceValue = slotInventory;
         var entries = so.FindProperty("entries");
         entries.ClearArray();
-        AddEntry(entries, sword, 1, false);
-        AddEntry(entries, mana, 12, false);
+        AddEntry(entries, bandage, 2, false);
         AddEntry(entries, axe, 1, false);
         AddEntry(entries, pistol, 1, false);
         AddEntry(entries, shotgun, 1, false);
-        // Ammo goes to the backpack: the hotbar's five slots are all weapons and consumables,
-        // and RangedAttack counts rounds across both containers anyway.
-        AddEntry(entries, wood, 64, true);
+        // Ammo and crafting materials go to the backpack: the hotbar's five slots are all
+        // weapons and consumables, and RangedAttack counts rounds across both containers
+        // anyway. Counts are kept near one stack each — max stacks are small now, so a big
+        // seed count would eat the backpack's 20 slots several times over.
+        AddEntry(entries, wood, 16, true);
         AddEntry(entries, scrap, 6, true);
-        AddEntry(entries, bullets, 10, true);
-        AddEntry(entries, shells, 10, true);
+        AddEntry(entries, rags, 4, true);
+        AddEntry(entries, alcohol, 3, true);
+        AddEntry(entries, gunpowder, 5, true);
+        AddEntry(entries, bullets, 8, true);
+        AddEntry(entries, shells, 3, true);
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 

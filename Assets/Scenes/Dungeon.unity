@@ -101762,7 +101762,7 @@ PrefabInstance:
     - target: {fileID: 5776398486657666113, guid: 22000a0dc06dcd2458400152a62aa428, type: 3}
       propertyPath: startingItems.Array.data[0].item
       value: 
-      objectReference: {fileID: 11400000, guid: 6e99b352a93d14e4e9bc628196155ce9, type: 2}
+      objectReference: {fileID: 11400000, guid: 3e8a04f9b7c2415d96e1a8d7f04c25b3, type: 2}
     - target: {fileID: 5776398486657666113, guid: 22000a0dc06dcd2458400152a62aa428, type: 3}
       propertyPath: startingItems.Array.data[0].count
       value: 1
@@ -153324,6 +153324,10 @@ PrefabInstance:
       propertyPath: requiresKeyToOpen
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 4877937611362007113, guid: dee86fb83c75ca94484d61edaab4f876, type: 3}
+      propertyPath: requiredKeyItem
+      value: 
+      objectReference: {fileID: 11400000, guid: 3e8a04f9b7c2415d96e1a8d7f04c25b3, type: 2}
     - target: {fileID: 5290797314067682422, guid: dee86fb83c75ca94484d61edaab4f876, type: 3}
       propertyPath: m_LocalPosition.x
       value: 33.74997

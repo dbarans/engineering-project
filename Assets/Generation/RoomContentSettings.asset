@@ -152,6 +152,6 @@ MonoBehaviour:
   lightPrefabId: world.lamp
   hubLamps: 1
   hubChests: 2
-  exitKeyItemId: 0b5baa00fb954bf783a7a1d08d0187ee
+  exitKeyItemId: 9f3d5c81a04e47b2b8e607fa2d59c134
   templates: []
   templateChance: 0.4

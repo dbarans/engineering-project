@@ -977,6 +977,14 @@ public static class DungeonSceneSetup
         if (ink != null) settings.guaranteedItemId = ink.Id;
         settings.guaranteedItemDrops = 0;
 
+        // The one key the run cannot be finished without. It is deliberately NOT the
+        // craftable Door Key: that one opens ordinary locked doors and costs three scrap,
+        // so pointing the exit at it would let the player craft their way out and skip the
+        // key chest entirely. The golden key has no recipe and exactly one instance per
+        // dungeon.
+        var goldenKey = AssetDatabase.LoadAssetAtPath<ItemData>("Assets/Items/Item 17 - Golden Key.asset");
+        if (goldenKey != null) settings.exitKeyItemId = goldenKey.Id;
+
         AssetDatabase.CreateAsset(settings, ContentSettingsPath);
         return settings;
     }

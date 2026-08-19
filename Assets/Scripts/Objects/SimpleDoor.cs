@@ -21,6 +21,12 @@ public class SimpleDoor : MonoBehaviour
     [SerializeField] private bool requiresKeyToOpen = false;
     [SerializeField] private ItemData requiredKeyItem;
 
+    [Tooltip("The door cannot be rammed open, damaged or destroyed — ever, and unlike the " +
+             "key lock this does not lapse once the door has been opened. For doors whose " +
+             "whole purpose is that there is exactly one way through them: the dungeon's " +
+             "exit door is the one today.")]
+    [SerializeField] private bool isReinforced = false;
+
     [Header("Sprint Ramming")]
     [SerializeField] private float staminaCostForRamming = 25f;
     [Tooltip("Damage one sprint ram deals — to the door, or to the barricade when one is up.")]
@@ -58,6 +64,77 @@ public class SimpleDoor : MonoBehaviour
     /// Gets a value indicating whether the door is currently open.
     /// </summary>
     public bool IsOpen => isOpen;
+
+    /// <summary>
+    /// Locks the door behind a key, as the generator does for the exit room's doorways.
+    ///
+    /// Exists because the two fields it writes are serialized and private — the sane
+    /// default, since a door's lock is a level-design decision — while a procedural
+    /// dungeon has no inspector to set them in. Writing them through a method rather than
+    /// widening the fields keeps the rest of the door's state machine the only thing that
+    /// can clear the lock afterwards, which is exactly once, when the key is spent.
+    ///
+    /// A null <paramref name="key"/> is refused rather than silently accepted: a door that
+    /// requires a key nobody can hold is not locked, it is broken, and
+    /// <see cref="ToggleDoor"/> would only be able to log about it once per attempt.
+    /// </summary>
+    /// <param name="key">The item consumed to open this door. Must not be null.</param>
+    /// <param name="reinforced">
+    /// Also make the door permanently immune to ramming and damage. The key lock alone
+    /// grants that immunity only while the door is still locked, which is not enough for a
+    /// door that must never be passable by force: spending the key clears the lock, and
+    /// with it the protection.
+    /// </param>
+    public void RequireKey(ItemData key, bool reinforced = false)
+    {
+        if (key == null)
+        {
+            Debug.LogWarning("[Door] RequireKey was given no key item; the door stays unlocked.", this);
+            return;
+        }
+
+        requiresKeyToOpen = true;
+        requiredKeyItem = key;
+        if (reinforced) isReinforced = true;
+
+        PersistInEditor();
+    }
+
+    /// <summary>
+    /// Makes the door permanently immune to ramming and to damage, with no key involved.
+    /// </summary>
+    public void Reinforce()
+    {
+        isReinforced = true;
+        PersistInEditor();
+    }
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Writes edit-mode changes into the scene file.
+    ///
+    /// The Dungeon scene is authored by baking — generate once in the editor, then save —
+    /// and the generator configures doors through the methods above. Without this the lock
+    /// exists in memory only: the door looks locked until the next domain reload, then
+    /// comes back openable by anyone, which is exactly how the exit door ended up opening
+    /// without the key.
+    ///
+    /// Both calls are needed and they do different jobs. <c>SetDirty</c> marks the
+    /// component as changed; <c>RecordPrefabInstancePropertyModifications</c> is what turns
+    /// the changed fields into prefab-instance overrides. Generated doors are prefab
+    /// instances on purpose (see <c>PrefabRegistry.InstantiateFor</c>), and an override that
+    /// was never recorded is discarded when the instance next reconciles with its prefab.
+    /// </summary>
+    private void PersistInEditor()
+    {
+        if (Application.isPlaying) return;
+
+        UnityEditor.EditorUtility.SetDirty(this);
+        UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+    }
+#else
+    private void PersistInEditor() { }
+#endif
 
     private void Awake()
     {
@@ -271,6 +348,15 @@ public class SimpleDoor : MonoBehaviour
             if (damageAmount <= 0f) return;
         }
 
+        // Reinforcement outlasts the lock. A key-locked door stops taking damage only while
+        // it is still locked, and spending the key clears that — which would leave the exit
+        // door breakable the moment it had been opened once.
+        if (isReinforced)
+        {
+            Debug.Log("[Door] This door is reinforced. It cannot be damaged.");
+            return;
+        }
+
         if (requiresKeyToOpen)
         {
             Debug.Log("[Door] This door is too sturdy! Melee attacks deal no damage.");
@@ -325,6 +411,12 @@ public class SimpleDoor : MonoBehaviour
         if (IsBarricaded)
         {
             RamBarricade(collision.gameObject);
+            return;
+        }
+
+        if (isReinforced)
+        {
+            Debug.Log("[Door] This door is reinforced. Ramming it does nothing.");
             return;
         }
 

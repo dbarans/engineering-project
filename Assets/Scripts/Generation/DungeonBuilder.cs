@@ -42,6 +42,13 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
     [Tooltip("Seed used by the context-menu buttons and by Build On Start when empty.")]
     [SerializeField] private string seed = "demo";
 
+    [Header("Editor gizmos")]
+    [Tooltip("Outline and label the rooms with a role in the scene view: the hub, the " +
+             "treasure, the exit, and the room holding the exit key. Editor only — the " +
+             "drawing is compiled out of a build entirely. Ordinary rooms are left " +
+             "unmarked, or the map is a wall of boxes and none of them mean anything.")]
+    [SerializeField] private bool drawRoomRoles = true;
+
     /// <summary>The layout currently in the scene, or null before the first build.</summary>
     public DungeonLayout CurrentLayout { get; private set; }
 
@@ -242,4 +249,113 @@ public class DungeonBuilder : MonoBehaviour, ISaveable
         Build(seed);
         Debug.Log($"[DungeonBuilder] Generated seed '{seed}'.", this);
     }
+
+#if UNITY_EDITOR
+    // ---------------------------------------------------------------- editor gizmos
+
+    /// <summary>
+    /// Layout drawn by the gizmos when <see cref="CurrentLayout"/> is null, and the seed it
+    /// was generated from. The Dungeon scene is authored by baking, so opening it after a
+    /// domain reload leaves the builder holding no layout at all while the scene is full of
+    /// baked content — which is exactly when someone wants to ask "which room was the key
+    /// in". Regenerating from the seed answers that: generation is a pure function of the
+    /// seed and the settings, so the preview is the same layout the content was baked from.
+    ///
+    /// Cached because <see cref="OnDrawGizmos"/> runs on every repaint of every scene view.
+    /// </summary>
+    [NonSerialized] private DungeonLayout _gizmoLayout;
+    [NonSerialized] private string _gizmoSeed;
+    [NonSerialized] private GUIStyle _gizmoLabelStyle;
+
+    private void OnDrawGizmos()
+    {
+        if (!drawRoomRoles) return;
+
+        DungeonLayout layout = CurrentLayout ?? PreviewLayout();
+        if (layout == null || painter == null) return;
+
+        foreach (Room room in layout.Rooms)
+        {
+            bool keyRoom = room.HoldsExitKey;
+            if (room.Kind == RoomKind.Normal && !keyRoom) continue;
+
+            Color color = ColorFor(room.Kind, keyRoom);
+            Gizmos.color = color;
+
+            Vector2 min = painter.CellCenter(new Vector2Int(room.Bounds.xMin, room.Bounds.yMin));
+            Vector2 max = painter.CellCenter(new Vector2Int(room.Bounds.xMax - 1, room.Bounds.yMax - 1));
+            var center = new Vector3((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f, 0f);
+            var size = new Vector3(max.x - min.x + painter.CellSize, max.y - min.y + painter.CellSize, 0f);
+
+            Gizmos.DrawWireCube(center, size);
+
+            // Inset second outline: one wire box against the wall tiles is easy to lose,
+            // and the doubled edge reads as deliberate marking rather than as geometry.
+            Gizmos.DrawWireCube(center, size - new Vector3(painter.CellSize, painter.CellSize, 0f));
+
+            // One style reused across rooms and repaints: a new GUIStyle per label is an
+            // allocation on every repaint of every scene view, which is the standard way
+            // editor gizmos end up generating garbage faster than the game does.
+            _gizmoLabelStyle ??= new GUIStyle(UnityEditor.EditorStyles.boldLabel);
+            _gizmoLabelStyle.normal.textColor = color;
+            UnityEditor.Handles.Label(center, LabelFor(room, keyRoom), _gizmoLabelStyle);
+        }
+
+        // The door in the wall, marked separately from its room: the room is where the way
+        // out is, and this is the cell it is actually cut into. Standing in the scene view
+        // looking at the exit room, that is the thing worth being able to point at.
+        if (layout.HasExitDoor)
+        {
+            Gizmos.color = ColorFor(RoomKind.Exit, false);
+            Vector2 doorCell = painter.CellCenter(layout.ExitDoorCell);
+            Gizmos.DrawWireSphere(doorCell, painter.CellSize * 0.45f);
+
+            Gizmos.color = new Color(1f, 0.85f, 0.1f);
+            Vector2 threshold = painter.CellCenter(layout.ExitThresholdCell);
+            Gizmos.DrawLine(threshold, doorCell);
+        }
+    }
+
+    /// <summary>
+    /// Colour per role. The key room wins over its own kind — it is the one thing these
+    /// gizmos exist to point at, and it can land on a Treasure room, whose colour would
+    /// otherwise hide it.
+    /// </summary>
+    private static Color ColorFor(RoomKind kind, bool keyRoom)
+    {
+        if (keyRoom) return new Color(1f, 0.85f, 0.1f);        // key: amber
+
+        switch (kind)
+        {
+            case RoomKind.Exit: return new Color(0.3f, 1f, 0.4f);      // exit: green
+            case RoomKind.Hub: return new Color(0.4f, 0.7f, 1f);       // hub: blue
+            case RoomKind.Treasure: return new Color(1f, 0.4f, 0.9f);  // treasure: magenta
+            default: return Color.white;
+        }
+    }
+
+    private static string LabelFor(Room room, bool keyRoom)
+    {
+        if (!keyRoom) return room.Kind.ToString().ToUpperInvariant();
+
+        // Both facts, because they are two separate answers: which room holds the key, and
+        // what that room is otherwise for.
+        return room.Kind == RoomKind.Normal ? "KEY" : $"KEY ({room.Kind})";
+    }
+
+    /// <summary>
+    /// Regenerates the layout from the inspector seed for drawing purposes only. Never
+    /// touches the scene: no painting, no content, no pathfinding grid — this is a
+    /// read-only answer to "where would the roles be for this seed".
+    /// </summary>
+    private DungeonLayout PreviewLayout()
+    {
+        if (settings == null || string.IsNullOrEmpty(seed)) return null;
+        if (_gizmoLayout != null && _gizmoSeed == seed) return _gizmoLayout;
+
+        _gizmoLayout = new RoomCorridorGenerator().Generate(seed, settings.ToParams());
+        _gizmoSeed = seed;
+        return _gizmoLayout;
+    }
+#endif
 }

@@ -93,12 +93,23 @@ public class WorldItemPickup : MonoBehaviour
     /// items from a save. Returns null when it could not spawn (no prefab, no item or
     /// nothing to drop).
     /// </summary>
-    public WorldItem SpawnAt(ItemData item, int count, Vector2 position, int durability = -1)
+    /// <param name="parent">
+    /// Optional transform to park the drop under. Null — the right answer for a player
+    /// drop and for a restored save — leaves it at the scene root, where it belongs to
+    /// nothing and outlives everything.
+    ///
+    /// The dungeon generator passes its own content root instead, and has to: generated
+    /// loot is part of a build and is expected to disappear when that build is replaced.
+    /// Left at the scene root it survived every regeneration, so each pass over the same
+    /// scene piled another few dozen drops on top of the last one's.
+    /// </param>
+    public WorldItem SpawnAt(ItemData item, int count, Vector2 position, int durability = -1,
+        Transform parent = null)
     {
         if (item == null || count <= 0 || worldItemPrefab == null) return null;
 
         var drop = Instantiate(
-            worldItemPrefab, new Vector3(position.x, position.y, 0f), Quaternion.identity);
+            worldItemPrefab, new Vector3(position.x, position.y, 0f), Quaternion.identity, parent);
         drop.SetStack(item, count, durability);
         return drop;
     }

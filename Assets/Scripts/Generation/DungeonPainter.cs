@@ -58,6 +58,13 @@ public class DungeonPainter : MonoBehaviour
              "despite reading as debris.")]
     [SerializeField] private TileBase rubbleTile;
 
+    [Tooltip("Optional. Floor of the exit room, which is where the run ends. A different " +
+             "stone under the player's feet is what tells them the room they just unlocked " +
+             "is not another room. Picked per cell from the seed like the ordinary scatter " +
+             "floor; the mosaic layout above does not apply. Leave empty to floor the exit " +
+             "room like everywhere else.")]
+    [SerializeField] private TileBase[] exitFloorTiles;
+
     [Tooltip("Optional. Marks scattered over the floor. Needs the decal tilemap to be assigned.")]
     [SerializeField] private TileBase[] decalTiles;
 
@@ -154,6 +161,7 @@ public class DungeonPainter : MonoBehaviour
         uint seedHash = DeterministicRandom.Hash(layout.Seed);
 
         bool[] shell = BuildWallShell(layout);
+        bool[] exitFloor = BuildExitFloorMask(layout);
 
         // All sixteen or none: a half-filled array would silently paint some walls with a
         // null tile, leaving holes in the structure that look like doorways.
@@ -170,6 +178,22 @@ public class DungeonPainter : MonoBehaviour
             {
                 CellType cell = layout[x, y];
                 int index = row + x;
+
+                // The one cell of solid rock that gets no wall tile: the way out.
+                //
+                // The wall tilemap sorts above world sprites (Stage 8), so a door standing
+                // on a painted wall cell is not merely close to the wall, it is painted
+                // over by it — the exit would be an invisible door in a blank stretch of
+                // rock. Leaving the tile out cuts the doorway-shaped gap the door then
+                // stands in, and costs nothing structurally: the cell stays solid in the
+                // layout, so vision and pathfinding still treat it as a wall, and the
+                // door's own collider is what physically blocks the opening.
+                if (layout.HasExitDoor && x == layout.ExitDoorCell.x && y == layout.ExitDoorCell.y)
+                {
+                    walls[index] = null;
+                    floors[index] = PickFloor(seedHash, x, y);
+                    continue;
+                }
 
                 // Pillars and rubble go into the wall tilemap, not the floor one. That is
                 // what puts them in the composite collider, and the collider is what both
@@ -218,7 +242,12 @@ public class DungeonPainter : MonoBehaviour
                 // straight on, and a different tile there breaks the stone that now runs
                 // continuously through it, so the threshold reads as a patch rather than as
                 // the floor carrying on under the door.
-                if (cell != CellType.Wall || walls[index] != null) floors[index] = PickFloor(seedHash, x, y);
+                if (cell != CellType.Wall || walls[index] != null)
+                {
+                    floors[index] = exitFloor != null && exitFloor[index]
+                        ? PickExitFloor(seedHash, x, y)
+                        : PickFloor(seedHash, x, y);
+                }
                 else floors[index] = null;
             }
         }
@@ -463,6 +492,49 @@ public class DungeonPainter : MonoBehaviour
     /// same — the map is rebuilt from its seed on every load, and a floor that reshuffled each
     /// time would be visibly wrong.
     /// </summary>
+    /// <summary>
+    /// Marks the cells of the <see cref="RoomKind.Exit"/> room, or returns null when there
+    /// is no exit room or no floor art for one. Built once per paint rather than asking
+    /// <see cref="DungeonLayout.RoomAt"/> per cell: the paint loop visits every cell of the
+    /// map, and the exit room is a few dozen of them.
+    /// </summary>
+    private bool[] BuildExitFloorMask(DungeonLayout layout)
+    {
+        if (exitFloorTiles == null || exitFloorTiles.Length == 0) return null;
+
+        bool[] mask = null;
+        foreach (Room room in layout.Rooms)
+        {
+            if (room.Kind != RoomKind.Exit) continue;
+
+            mask ??= new bool[layout.Width * layout.Height];
+            foreach (Vector2Int cell in room.Cells)
+                mask[cell.y * layout.Width + cell.x] = true;
+        }
+
+        return mask;
+    }
+
+    /// <summary>
+    /// Floor variant for a cell of the exit room. Always the scatter rule, never the
+    /// mosaic one: the exit floor is a handful of interchangeable slabs marking a single
+    /// room, not a large image that has to line up across the whole map.
+    /// </summary>
+    private TileBase PickExitFloor(uint seedHash, int x, int y)
+    {
+        if (exitFloorTiles.Length == 1) return exitFloorTiles[0];
+
+        uint hash = DeterministicRandom.Hash(seedHash ^ ExitFloorSalt, x, y);
+        return exitFloorTiles[hash % (uint)exitFloorTiles.Length];
+    }
+
+    /// <summary>
+    /// Salts the exit floor's variant pick away from the ordinary floor's, so the two do
+    /// not draw the same variant index at the same cell — which would make an exit tile
+    /// set that mirrors the ordinary one reproduce its pattern exactly.
+    /// </summary>
+    private const uint ExitFloorSalt = 0x45584954; // "EXIT" in ASCII
+
     private TileBase PickFloor(uint seedHash, int x, int y)
     {
         if (floorTiles.Length == 1) return floorTiles[0];

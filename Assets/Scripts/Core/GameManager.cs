@@ -102,7 +102,11 @@ public class GameManager : MonoBehaviour, IGameStateManager
     /// </summary>
     public void TogglePause()
     {
-        if (!allowPause || CurrentState == GameState.Menu || CurrentState == GameState.GameOver)
+        // Victory sits alongside GameOver here for the same reason: the run is over, and
+        // pausing something that has already ended only puts the pause menu over the end
+        // screen.
+        if (!allowPause || CurrentState == GameState.Menu ||
+            CurrentState == GameState.GameOver || CurrentState == GameState.Victory)
             return;
 
         if (CurrentState == GameState.Paused)
@@ -123,6 +127,22 @@ public class GameManager : MonoBehaviour, IGameStateManager
         if (CurrentState == GameState.GameOver) return;
 
         CurrentState = GameState.GameOver;
+        Time.timeScale = 1f;
+    }
+
+    /// <summary>
+    /// Ends the run as a win. Called when the player reaches the dungeon exit — see
+    /// <see cref="DungeonExit"/>.
+    ///
+    /// Time is left running rather than frozen, matching <see cref="GameOver"/>: whichever
+    /// screen the UI puts up decides for itself whether the world behind it should keep
+    /// moving, and a manager that has already stopped time takes that choice away.
+    /// </summary>
+    public void WinGame()
+    {
+        if (CurrentState == GameState.Victory) return;
+
+        CurrentState = GameState.Victory;
         Time.timeScale = 1f;
     }
 
@@ -181,6 +201,14 @@ public class GameManager : MonoBehaviour, IGameStateManager
     public bool IsGameOver()
     {
         return CurrentState == GameState.GameOver;
+    }
+
+    /// <summary>
+    /// Determines if the run was completed successfully.
+    /// </summary>
+    public bool IsVictory()
+    {
+        return CurrentState == GameState.Victory;
     }
 
     /// <summary>

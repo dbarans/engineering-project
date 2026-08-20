@@ -49,6 +49,14 @@ public class DungeonPainter : MonoBehaviour
              "empty to fall back to the plain wall/face pair.")]
     [SerializeField] private TileBase[] wallAutotiles;
 
+    [Tooltip("Set above 1 when each exposure mask has several tiles that are the cells of " +
+             "one larger block of stonework rather than interchangeable variants. The block " +
+             "is laid out row-major and repeated, so the masonry runs continuously across " +
+             "cell borders and only repeats every N cells. Needs exactly 16*N*N wall " +
+             "autotiles, ordered mask-major: all of mask 0's block, then mask 1's, and so " +
+             "on. 1 is the plain one-tile-per-mask set.")]
+    [Min(1)] [SerializeField] private int wallMosaicSize = 1;
+
     [Tooltip("Optional. Free-standing pillars and partition walls inside rooms; falls back " +
              "to the wall tile. Painted into the wall tilemap, so it blocks vision and " +
              "movement exactly like bedrock — which is the entire point of it.")]
@@ -163,9 +171,10 @@ public class DungeonPainter : MonoBehaviour
         bool[] shell = BuildWallShell(layout);
         bool[] exitFloor = BuildExitFloorMask(layout);
 
-        // All sixteen or none: a half-filled array would silently paint some walls with a
+        // The whole set or none: a half-filled array would silently paint some walls with a
         // null tile, leaving holes in the structure that look like doorways.
-        bool autotiled = wallAutotiles != null && wallAutotiles.Length == 16;
+        int wallBlock = Mathf.Max(1, wallMosaicSize);
+        bool autotiled = wallAutotiles != null && wallAutotiles.Length == 16 * wallBlock * wallBlock;
         if (autotiled)
         {
             foreach (TileBase tile in wallAutotiles) autotiled &= tile != null;
@@ -219,7 +228,7 @@ public class DungeonPainter : MonoBehaviour
                             // Every exposed side gets its own edge, so a corner reads as a
                             // corner and a one-cell buttress reads as something sticking out
                             // rather than as more of the same slab.
-                            ? wallAutotiles[ExposureMask(layout, shell, x, y)]
+                            ? PickWall(ExposureMask(layout, shell, x, y), wallBlock, x, y)
                             // Fallback: a wall with open ground to its south shows its face
                             // to the camera; one buried in rock only shows its top.
                             : layout[x, y - 1] != CellType.Wall ? wallFace : wallTile;
@@ -534,6 +543,25 @@ public class DungeonPainter : MonoBehaviour
     /// set that mirrors the ordinary one reproduce its pattern exactly.
     /// </summary>
     private const uint ExitFloorSalt = 0x45584954; // "EXIT" in ASCII
+
+    /// <summary>
+    /// The wall tile for a cell: its exposure mask picks the block, its position within the
+    /// block picks the cell of it.
+    ///
+    /// Positional rather than a pick from the seed, because these are not interchangeable
+    /// variants — they are the pieces of one run of stonework, and only the piece that
+    /// belongs at this position continues its neighbours' courses.
+    /// </summary>
+    private TileBase PickWall(int mask, int size, int x, int y)
+    {
+        if (size == 1) return wallAutotiles[mask];
+
+        // Floor-modulo, as in PickFloor: a layout origin below zero would otherwise index
+        // backwards off the block and throw.
+        int column = ((x % size) + size) % size;
+        int row = ((y % size) + size) % size;
+        return wallAutotiles[mask * size * size + row * size + column];
+    }
 
     private TileBase PickFloor(uint seedHash, int x, int y)
     {

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>What occupies one cell of a generated dungeon.</summary>
@@ -50,7 +50,22 @@ public enum RoomKind
     /// <summary>Ordinary room: enemies and loot scale with distance from the hub.</summary>
     Normal = 1,
 
-    /// <summary>The room farthest from the hub over the room graph, holding the run's reward.</summary>
+    /// <summary>
+    /// A small dead-end room, locked behind a craftable key, holding the run's rewards.
+    /// Several per dungeon, and one of them holds the chest with the exit key — see
+    /// <see cref="Room.HoldsExitKey"/>.
+    ///
+    /// This used to be the one room farthest from the hub over the room graph, tagged
+    /// after the fact and standing open. The trouble with that arrangement is that the
+    /// reward was wherever the layout happened to put it and cost the player nothing but
+    /// walking. Rooms sampled for the job can be small, sealed and several, which turns
+    /// the map's loot into a series of decisions: a locked door, a key that has to be
+    /// crafted, and only the room's position to judge by.
+    ///
+    /// Always a dead end, so a player who does not open it has skipped a room rather than
+    /// lost a route. Always empty of enemies: nothing walked into a sealed closet, and one
+    /// locked in is one the player can hear and never reach.
+    /// </summary>
     Treasure = 2,
 
     /// <summary>
@@ -61,10 +76,10 @@ public enum RoomKind
     /// The room itself is entered through ordinary doors — the lock is not on the way in.
     /// What is locked is a door cut into its outer wall, opening onto nothing but the rock
     /// between the room and the edge of the map: see <see cref="DungeonLayout.ExitDoorCell"/>.
-    /// That door takes the one key in the dungeon, stashed on the far side of the map —
-    /// see <see cref="Room.HoldsExitKey"/>. Finding the room early and being unable to
-    /// leave is the point of the arrangement; a room the player cannot even get into
-    /// tells them nothing.
+    /// That door takes the one key in the dungeon, stashed in one of the locked
+    /// <see cref="Treasure"/> rooms — see <see cref="Room.HoldsExitKey"/>. Finding the room
+    /// early and being unable to leave is the point of the arrangement; a room the player
+    /// cannot even get into tells them nothing.
     ///
     /// At most one per dungeon, and none at all on a map with no room whose wall backs
     /// onto the outside.
@@ -138,6 +153,17 @@ public sealed class Room
     /// <summary>Role in the run; assigned after the graph is built.</summary>
     public RoomKind Kind { get; internal set; }
 
+    /// <summary>
+    /// True for a room sampled as a treasure closet, whether or not it kept the role.
+    /// Placement samples a couple of plots more than are wanted, because a corridor can
+    /// spoil one on its way past; the ones not needed are demoted to ordinary rooms.
+    ///
+    /// The flag survives the demotion because two things have to be able to tell a demoted
+    /// closet from a sampled room: the room budget, which closets are deliberately not
+    /// counted against, and anything measuring how well rejection sampling did.
+    /// </summary>
+    public bool IsTreasurePlot { get; internal set; }
+
     /// <summary>Hop count from the hub over the room graph; 0 for the hub itself.</summary>
     public int DepthFromHub { get; internal set; }
 
@@ -145,11 +171,18 @@ public sealed class Room
     public int Degree { get; internal set; }
 
     /// <summary>
-    /// True for the one room holding the chest with the exit key. Deliberately a flag
-    /// rather than a <see cref="RoomKind"/>: the room is an ordinary room in every other
-    /// respect — it still gets its own enemies, loot and props — and making it a kind of
-    /// its own would have excluded it from all of them. At most one room per dungeon has
-    /// this set, and none at all when there is no <see cref="RoomKind.Exit"/> to unlock.
+    /// True for the one room holding the chest with the exit key: one of the locked
+    /// <see cref="RoomKind.Treasure"/> rooms, the one farthest from the exit over the room
+    /// graph. Deliberately a flag rather than a <see cref="RoomKind"/> of its own — the
+    /// room is a treasure room in every other respect, and a separate kind would have
+    /// excluded it from its own contents.
+    ///
+    /// There is no room dedicated to the key any more. Holding it in a treasure room means
+    /// the player is looking for the key by opening the rooms they wanted to open anyway,
+    /// rather than crossing the map to one room that exists to contain it.
+    ///
+    /// At most one room per dungeon has this set, and none at all when there is no
+    /// <see cref="RoomKind.Exit"/> to unlock.
     /// </summary>
     public bool HoldsExitKey { get; internal set; }
 

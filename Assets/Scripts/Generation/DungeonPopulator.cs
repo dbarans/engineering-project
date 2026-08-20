@@ -70,6 +70,21 @@ public class DungeonPopulator : MonoBehaviour
     /// </summary>
     private ItemData _exitKey;
 
+    /// <summary>
+    /// The craftable key every treasure room's door takes, resolved once per build. Null
+    /// when none is configured or the id does not resolve, in which case the treasure rooms
+    /// are left open — their loot is optional content, so an unlocked one costs the run
+    /// nothing but its tension.
+    /// </summary>
+    private ItemData _treasureKey;
+
+    /// <summary>
+    /// Doorway cells that get a key-locked door: every opening into a
+    /// <see cref="RoomKind.Treasure"/> room. Collected before the doors are spawned because
+    /// the door pass walks the cell grid and has no idea which room a cell belongs to.
+    /// </summary>
+    private readonly HashSet<Vector2Int> _treasureDoorCells = new HashSet<Vector2Int>();
+
     private void OnEnable()
     {
         if (builder != null) builder.Built += Populate;
@@ -112,6 +127,8 @@ public class DungeonPopulator : MonoBehaviour
         }
 
         _exitKey = ResolveExitKey();
+        _treasureKey = ResolveTreasureKey();
+        CollectTreasureDoors(layout);
 
         ResetContentRoot();
 
@@ -132,57 +149,89 @@ public class DungeonPopulator : MonoBehaviour
         // next to each other in one passage — measured at 44 such pairs across 60 maps at
         // the shipped settings, so roughly one map in one and a half — and hanging a leaf
         // on each of them puts two doors back to back in a corridor one cell wide. One
-        // opening gets one door; the first cell in scan order takes it.
+        // opening gets one door; one cell takes it and its neighbours stand down.
         var doored = new HashSet<Vector2Int>();
+
+        // Treasure doorways go first, before the scan that would otherwise decide by
+        // position on the grid. When a locked room's opening is one of those adjacent
+        // pairs, the cell that wins has to be the room's own: the other one is a door
+        // beside the lock rather than on it, and the room it was supposed to seal stands
+        // open.
+        foreach (Vector2Int cell in _treasureDoorCells)
+            TrySpawnDoor(layout, cell, doored);
 
         for (int y = 0; y < layout.Height; y++)
         {
             for (int x = 0; x < layout.Width; x++)
-            {
-                if (layout[x, y] != CellType.Door) continue;
-
-                if (doored.Contains(new Vector2Int(x - 1, y)) ||
-                    doored.Contains(new Vector2Int(x + 1, y)) ||
-                    doored.Contains(new Vector2Int(x, y - 1)) ||
-                    doored.Contains(new Vector2Int(x, y + 1)))
-                    continue;
-
-                // A door needs a jamb on each side to hang between. Solid to the east and
-                // west means the passage runs north-south and the leaf has to turn; solid
-                // north and south means it runs east-west and the leaf stays as drawn.
-                bool jambsEastWest = !layout.IsWalkable(x + 1, y) && !layout.IsWalkable(x - 1, y);
-                bool jambsNorthSouth = !layout.IsWalkable(x, y + 1) && !layout.IsWalkable(x, y - 1);
-
-                // Neither pair solid means this opening has nothing to hang a door on, and
-                // one spawned here stands in mid-air with daylight down both sides. It used
-                // to spawn anyway: only the east-west pair was ever tested, and the answer
-                // "no" was taken to mean "north-south then" without checking. Measured
-                // across 200 seeds at the shipped settings, 1131 of 9479 doorway cells
-                // (11.9%) are this shape, so it was not a rare edge case. They stay open
-                // arches, which is what the layout already does with an opening too wide to
-                // narrow — see DoorwayNormalizer.
-                if (!jambsEastWest && !jambsNorthSouth) continue;
-
-                var cell = new Vector2Int(x, y);
-                Vector3 spawnPos = builder.CellCenter(cell);
-
-                GameObject doorInstance = _prefabs.Spawn(content.doorPrefabId, spawnPos, _contentRoot, CellGuid(layout.Seed, "door", cell));
-
-                // Recorded whether or not the prefab resolved, so a failed spawn does not
-                // let the neighbouring cell try again and produce the doubled door this
-                // set exists to prevent.
-                doored.Add(cell);
-
-                if (doorInstance != null)
-                {
-                    doorInstance.transform.rotation = jambsEastWest
-                        ? Quaternion.Euler(0f, 0f, 90f)
-                        : Quaternion.identity;
-
-                    CenterOnCollider(doorInstance, spawnPos, builder.CellSize);
-                }
-            }
+                TrySpawnDoor(layout, new Vector2Int(x, y), doored);
         }
+    }
+
+    /// <summary>
+    /// Hangs one door on <paramref name="cell"/> when it is a doorway that can take one and
+    /// nothing next to it already has. <paramref name="doored"/> accumulates the cells that
+    /// were served, whether or not the prefab actually resolved.
+    /// </summary>
+    private void TrySpawnDoor(DungeonLayout layout, Vector2Int cell, HashSet<Vector2Int> doored)
+    {
+        int x = cell.x;
+        int y = cell.y;
+
+        if (layout[x, y] != CellType.Door) return;
+        if (doored.Contains(cell)) return;
+
+        if (doored.Contains(new Vector2Int(x - 1, y)) ||
+            doored.Contains(new Vector2Int(x + 1, y)) ||
+            doored.Contains(new Vector2Int(x, y - 1)) ||
+            doored.Contains(new Vector2Int(x, y + 1)))
+            return;
+
+        // A door needs a jamb on each side to hang between. Solid to the east and
+        // west means the passage runs north-south and the leaf has to turn; solid
+        // north and south means it runs east-west and the leaf stays as drawn.
+        bool jambsEastWest = !layout.IsWalkable(x + 1, y) && !layout.IsWalkable(x - 1, y);
+        bool jambsNorthSouth = !layout.IsWalkable(x, y + 1) && !layout.IsWalkable(x, y - 1);
+
+        // Neither pair solid means this opening has nothing to hang a door on, and
+        // one spawned here stands in mid-air with daylight down both sides. It used
+        // to spawn anyway: only the east-west pair was ever tested, and the answer
+        // "no" was taken to mean "north-south then" without checking. Measured
+        // across 200 seeds at the shipped settings, 1131 of 9479 doorway cells
+        // (11.9%) are this shape, so it was not a rare edge case. They stay open
+        // arches, which is what the layout already does with an opening too wide to
+        // narrow — see DoorwayNormalizer.
+        if (!jambsEastWest && !jambsNorthSouth) return;
+
+        Vector3 spawnPos = builder.CellCenter(cell);
+
+        GameObject doorInstance = _prefabs.Spawn(content.doorPrefabId, spawnPos, _contentRoot, CellGuid(layout.Seed, "door", cell));
+
+        // Recorded whether or not the prefab resolved, so a failed spawn does not
+        // let the neighbouring cell try again and produce the doubled door this
+        // set exists to prevent.
+        doored.Add(cell);
+
+        if (doorInstance == null) return;
+
+        // Not reinforced: the lock lapses once the key is spent, which is the whole
+        // point of a consumable key. While it holds, the key lock already makes the
+        // door unrammable, so a treasure room cannot be shouldered open by a player
+        // who would rather not craft the key.
+        if (_treasureKey != null && _treasureDoorCells.Contains(cell))
+        {
+            var door = doorInstance.GetComponent<SimpleDoor>();
+            if (door != null) door.RequireKey(_treasureKey);
+            else
+                Debug.LogWarning(
+                    $"[DungeonPopulator] Door prefab '{content.doorPrefabId}' has no SimpleDoor, " +
+                    "so the treasure doorway it was spawned on is not locked.", doorInstance);
+        }
+
+        doorInstance.transform.rotation = jambsEastWest
+            ? Quaternion.Euler(0f, 0f, 90f)
+            : Quaternion.identity;
+
+        CenterOnCollider(doorInstance, spawnPos, builder.CellSize);
     }
 
     /// <summary>
@@ -282,11 +331,14 @@ public class DungeonPopulator : MonoBehaviour
                     break;
 
                 case RoomKind.Treasure:
-                    if (!authored)
-                        SpawnItems(content.treasureLoot, content.treasureLootCount, free, roomRandom);
-                    SpawnEnemies(layout, room, free, roomRandom, ref slot);
+                    // No enemies, and it is the lock rather than a design choice that
+                    // decides it: nothing walked into a sealed closet to be waiting for the
+                    // player, and one locked in is one the player can hear and never reach.
+                    // What the room owes them is the reason they spent a key on the door.
                     if (!authored)
                     {
+                        SpawnItems(content.treasureLoot, content.treasureLootCount, free, roomRandom);
+
                         var treasureTable = content.treasureChestLoot.Count > 0
                             ? content.treasureChestLoot
                             : content.chestLoot;
@@ -359,6 +411,49 @@ public class DungeonPopulator : MonoBehaviour
         }
 
         return key;
+    }
+
+    /// <summary>
+    /// Resolves the key every treasure room's door takes. Warns on a configured id that
+    /// does not resolve, and stays quiet when none is configured: the first is a broken
+    /// setup, the second is a dungeon deliberately generated with its loot rooms standing
+    /// open.
+    /// </summary>
+    private ItemData ResolveTreasureKey()
+    {
+        if (string.IsNullOrEmpty(content.treasureKeyItemId)) return null;
+
+        ItemData key = ItemDatabase.Instance != null
+            ? ItemDatabase.Instance.Resolve(content.treasureKeyItemId)
+            : null;
+
+        if (key == null)
+        {
+            Debug.LogWarning(
+                $"[DungeonPopulator] Treasure key id '{content.treasureKeyItemId}' is not in " +
+                "the ItemDatabase — the treasure rooms are left unlocked. Run Tools ▸ Save " +
+                "System ▸ Rebuild Item Database.", this);
+        }
+
+        return key;
+    }
+
+    /// <summary>
+    /// Records which doorway cells lead into a treasure room, so <see cref="SpawnDoors"/>
+    /// can lock the doors it hangs there. The layout guarantees each of these cells can
+    /// hold a leaf and that no two of them are adjacent — see
+    /// <c>RoomCorridorGenerator.ValidateTreasureRooms</c> — so every opening recorded here
+    /// really does end up closed.
+    /// </summary>
+    private void CollectTreasureDoors(DungeonLayout layout)
+    {
+        _treasureDoorCells.Clear();
+
+        foreach (var room in layout.Rooms)
+        {
+            if (room.Kind != RoomKind.Treasure) continue;
+            _treasureDoorCells.UnionWith(RoomCorridorGenerator.DoorwayCells(layout, room));
+        }
     }
 
     /// <summary>
@@ -1409,7 +1504,10 @@ public class DungeonPopulator : MonoBehaviour
             // The hub floor is spoken for by fixtures, and dropping loot there would be
             // the same "something spawned where it shouldn't" defect this pass exists to
             // avoid for enemies.
-            if (room.Kind != RoomKind.Hub) candidates.Add(room);
+            // Treasure rooms are excluded for a different reason than the hub: the
+            // guaranteed item is normally lamp fuel, and a run whose fuel is behind a
+            // locked door is a run that can be lost to not having crafted a key.
+            if (room.Kind != RoomKind.Hub && room.Kind != RoomKind.Treasure) candidates.Add(room);
         }
         if (candidates.Count == 0) return;
 

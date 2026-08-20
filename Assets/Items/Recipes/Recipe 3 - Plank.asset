@@ -10,13 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8894ef9ec93c4a48b17c3a0f9913ce3, type: 3}
-  m_Name: Recipe 4 - Ink
+  m_Name: Recipe 3 - Plank
   m_EditorClassIdentifier: Assembly-CSharp::RecipeData
   ingredients:
-  - item: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
-    count: 3
-  - item: {fileID: 11400000, guid: 8b62e4d17a394f5cae03d1b8f6c27a45, type: 2}
-    count: 1
   - item: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
-    count: 2
-  outputItem: {fileID: 11400000, guid: c007459642cf4ea1bf44c6ffe9d32db3, type: 2}
+    count: 5
+  outputItem: {fileID: 11400000, guid: 69f70701ead828848bfa6c39d52d6bdf, type: 2}

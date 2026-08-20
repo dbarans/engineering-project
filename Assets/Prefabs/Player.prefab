@@ -1467,11 +1467,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SlotInventoryDebugFill
   slotInventory: {fileID: 157545601758896288}
   entries:
-  - item: {fileID: 11400000, guid: a1b2c3d4e5f60718293a4b5c6d7e8f90, type: 2}
-    count: 1
-    toBackpack: 0
-  - item: {fileID: 11400000, guid: b2c3d4e5f60718293a4b5c6d7e8f90a1, type: 2}
-    count: 12
+  - item: {fileID: 11400000, guid: 6d4e81b0c5a742f39e1b7c60d8a35f27, type: 2}
+    count: 2
     toBackpack: 0
   - item: {fileID: 11400000, guid: 4f8a1c2d3e5b6a798b0c1d2e3f4a5b6c, type: 2}
     count: 1
@@ -1479,11 +1476,29 @@ MonoBehaviour:
   - item: {fileID: 11400000, guid: 5a9b2d3e4f6c7b8a9c1d2e3f4a5b6c7d, type: 2}
     count: 1
     toBackpack: 0
+  - item: {fileID: 11400000, guid: 7c1e5a94b2d34f8ea0517c6d9e3b41f2, type: 2}
+    count: 1
+    toBackpack: 0
   - item: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
-    count: 64
+    count: 16
     toBackpack: 1
   - item: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
     count: 6
+    toBackpack: 1
+  - item: {fileID: 11400000, guid: a3d1f7c25e8b4c94b1f0d6e2a7c58931, type: 2}
+    count: 4
+    toBackpack: 1
+  - item: {fileID: 11400000, guid: 8b62e4d17a394f5cae03d1b8f6c27a45, type: 2}
+    count: 3
+    toBackpack: 1
+  - item: {fileID: 11400000, guid: 2f7c9a53d1e64b08bc47a92e35f18d6c, type: 2}
+    count: 5
+    toBackpack: 1
+  - item: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
+    count: 8
+    toBackpack: 1
+  - item: {fileID: 11400000, guid: 3b8f26d0c14a4e7cb95d08af6271e5d3, type: 2}
+    count: 3
     toBackpack: 1
 --- !u!114 &6900123456789012345
 MonoBehaviour:

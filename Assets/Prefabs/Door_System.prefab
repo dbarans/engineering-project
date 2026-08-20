@@ -393,9 +393,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 56dd5d42339fde44db2ab9fc29826b13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DoorBarricade
-  plankItem: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
-  planksPerStage: 2
-  planksReturnedPerStage: 1
+  plankItem: {fileID: 11400000, guid: 69f70701ead828848bfa6c39d52d6bdf, type: 2}
+  planksPerStage: 1
+  planksReturnedPerStage: 0
   maxStages: 3
   healthPerStage: 60
   buildKey: 20

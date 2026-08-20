@@ -924,8 +924,11 @@ public static class DungeonSceneSetup
 
         AddLoot(settings.loot, "Assets/Items/Item 7 - Bullet.asset", 1.2f, 2, 6);
         AddLoot(settings.loot, "Assets/Items/Item 3 - Wood.asset", 1f, 1, 3);
-        AddLoot(settings.loot, "Assets/Items/Item 2 - Mana Potion.asset", 0.5f, 1, 1);
-        AddLoot(settings.loot, "Assets/Items/Item 12 - Shell.asset", 0.9f, 2, 5);
+        AddLoot(settings.loot, "Assets/Items/Item 13 - Rags.asset", 1f, 1, 4);
+        AddLoot(settings.loot, "Assets/Items/Item 15 - Gunpowder.asset", 0.9f, 1, 3);
+        AddLoot(settings.loot, "Assets/Items/Item 14 - Alcohol.asset", 0.7f, 1, 2);
+        AddLoot(settings.loot, "Assets/Items/Item 8 - Scrap.asset", 1f, 1, 4);
+        AddLoot(settings.loot, "Assets/Items/Item 12 - Shell.asset", 0.9f, 1, 3);
 
         // Survival resources, not valuables. The treasure room is optional — it is off the
         // key-to-exit path — so the only thing that can justify the detour is loot that
@@ -944,13 +947,16 @@ public static class DungeonSceneSetup
         AddLoot(settings.chestLoot, "Assets/Items/Item 7 - Bullet.asset", 1f, 3, 8);
         AddLoot(settings.chestLoot, "Assets/Items/Item 3 - Wood.asset", 1f, 2, 5);
         AddLoot(settings.chestLoot, "Assets/Items/Item 8 - Scrap.asset", 0.8f, 1, 3);
-        AddLoot(settings.chestLoot, "Assets/Items/Item 2 - Mana Potion.asset", 0.6f, 1, 2);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 13 - Rags.asset", 0.6f, 2, 4);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 14 - Alcohol.asset", 0.5f, 1, 2);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 15 - Gunpowder.asset", 0.7f, 1, 4);
         AddLoot(settings.chestLoot, "Assets/Items/Item 6 - Ink.asset", 1.4f, 1, 2);
         AddLoot(settings.chestLoot, "Assets/Items/Item 12 - Shell.asset", 0.8f, 2, 5);
 
         AddLoot(settings.treasureChestLoot, "Assets/Items/Item 6 - Ink.asset", 1.6f, 1, 1);
         AddLoot(settings.treasureChestLoot, "Assets/Items/Item 7 - Bullet.asset", 1f, 8, 16);
         AddLoot(settings.treasureChestLoot, "Assets/Items/Item 12 - Shell.asset", 0.9f, 6, 10);
+        AddLoot(settings.treasureChestLoot, "Assets/Items/Item 16 - Bandage.asset", 0.8f, 1, 2);
 
         // Nothing is scattered on the floor. Everything the player finds is in a chest, so
         // looting is opening something rather than walking over things — and thirty rooms
@@ -970,6 +976,14 @@ public static class DungeonSceneSetup
         var ink = AssetDatabase.LoadAssetAtPath<ItemData>("Assets/Items/Item 6 - Ink.asset");
         if (ink != null) settings.guaranteedItemId = ink.Id;
         settings.guaranteedItemDrops = 0;
+
+        // The one key the run cannot be finished without. It is deliberately NOT the
+        // craftable Door Key: that one opens ordinary locked doors and costs three scrap,
+        // so pointing the exit at it would let the player craft their way out and skip the
+        // key chest entirely. The golden key has no recipe and exactly one instance per
+        // dungeon.
+        var goldenKey = AssetDatabase.LoadAssetAtPath<ItemData>("Assets/Items/Item 17 - Golden Key.asset");
+        if (goldenKey != null) settings.exitKeyItemId = goldenKey.Id;
 
         AssetDatabase.CreateAsset(settings, ContentSettingsPath);
         return settings;

@@ -29,7 +29,8 @@ using UnityEngine.InputSystem;
 public class DoorBarricade : MonoBehaviour
 {
     [Header("Material")]
-    [Tooltip("Item spent to build one stage. Wood or Scrap; leaving this empty disables barricading entirely.")]
+    [Tooltip("Item spent to build one stage. Plank by default — any material item works; " +
+             "leaving this empty disables barricading entirely.")]
     [SerializeField] private ItemData plankItem;
 
     [Tooltip("Units of Plank Item consumed per stage built.")]

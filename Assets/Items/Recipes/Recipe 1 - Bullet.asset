@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8894ef9ec93c4a48b17c3a0f9913ce3, type: 3}
-  m_Name: Recipe 1 - Sword
+  m_Name: Recipe 1 - Bullet
   m_EditorClassIdentifier: Assembly-CSharp::RecipeData
   ingredients:
-  - item: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
-    count: 2
-  - item: {fileID: 11400000, guid: b2c3d4e5f60718293a4b5c6d7e8f90a1, type: 2}
+  - item: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
     count: 1
-  outputItem: {fileID: 11400000, guid: a1b2c3d4e5f60718293a4b5c6d7e8f90, type: 2}
+  - item: {fileID: 11400000, guid: 2f7c9a53d1e64b08bc47a92e35f18d6c, type: 2}
+    count: 1
+  outputItem: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}

@@ -10,10 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
-  m_Name: Item 2 - Mana Potion
+  m_Name: Item 14 - Alcohol
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: 6592b916f86b19e428db6f6847c7b6dd, type: 3}
-  id: a622953b36db42d2bb548dea09eeeca8
-  itemName: Mana Potion
-  value: 40
-  maxStack: 16
+  icon: {fileID: 21300000, guid: 9c27fa60d8b34e15ae6c30bf19d47e82, type: 3}
+  id: e05b3d7a91c44e28b6f7302da85c1934
+  itemName: Alcohol
+  value: 8
+  maxStack: 3
+  weaponType: 0
+  maxDurability: 0

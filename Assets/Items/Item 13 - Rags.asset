@@ -10,10 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
-  m_Name: Item 1 - Sword
+  m_Name: Item 13 - Rags
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: a332f9cc2040f6042a04c65fa9e4a000, type: 3}
-  id: 876fac5fa0714f1dbcbbeb1b1983b591
-  itemName: Sword
-  value: 100
-  maxStack: 1
+  icon: {fileID: 21300000, guid: 5e93b1a7c48d4f26b70a1d3c8e5f2049, type: 3}
+  id: 7a41c9e3b2d84f16a05c8e37d1b6942f
+  itemName: Rags
+  value: 2
+  maxStack: 4
+  weaponType: 0
+  maxDurability: 0

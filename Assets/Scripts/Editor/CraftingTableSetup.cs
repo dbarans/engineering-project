@@ -38,8 +38,10 @@ public static class CraftingTableSetup
     // component in the Inspector to change it per table.
     private static readonly string[] TableRecipePaths =
     {
-        "Assets/Items/Recipes/Recipe 1 - Sword.asset",
-        "Assets/Items/Recipes/Recipe 2 - Mana Potion.asset",
+        "Assets/Items/Recipes/Recipe 1 - Bullet.asset",
+        "Assets/Items/Recipes/Recipe 2 - Shell.asset",
+        "Assets/Items/Recipes/Recipe 4 - Ink.asset",   // Ink is what saving costs
+        "Assets/Items/Recipes/Recipe 3 - Plank.asset",
     };
 
     [MenuItem("Tools/Slot Inventory/Build Crafting Table")]

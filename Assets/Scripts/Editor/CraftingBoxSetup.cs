@@ -35,12 +35,12 @@ public static class CraftingBoxSetup
     private const float RepairButtonHeight = 34f;
 
     // Recipes always available in the box, even away from a crafting table. The
-    // table-gated recipes (Sword, Mana Potion) live on the CraftingTable instead — see
-    // CraftingTableSetup — so they only show up when the player stands at a table.
+    // table-gated ones (Bullet, Shell, Ink, Plank) live on the CraftingTable instead —
+    // see CraftingTableSetup — so they only show up when the player stands at a table.
     private static readonly string[] RecipePaths =
     {
-        "Assets/Items/Recipes/Recipe 3 - Wood.asset",
-        "Assets/Items/Recipes/Recipe 4 - Ink.asset",   // craft Ink (save cost) from Wood
+        "Assets/Items/Recipes/Recipe 5 - Bandage.asset",
+        "Assets/Items/Recipes/Recipe 6 - Door Key.asset",
     };
 
     [MenuItem("Tools/Slot Inventory/Build Crafting Box")]

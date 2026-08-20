@@ -200,4 +200,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CraftingTable
   recipes:
   - {fileID: 11400000, guid: c1a1000000000000000000000000aa01, type: 2}
+  - {fileID: 11400000, guid: c1a2000000000000000000000000aa02, type: 2}
+  - {fileID: 11400000, guid: 22908ec36b6c4798814b0a3044bf8ffb, type: 2}
+  - {fileID: 11400000, guid: c1a3000000000000000000000000aa03, type: 2}
   craftingBox: {fileID: 0}

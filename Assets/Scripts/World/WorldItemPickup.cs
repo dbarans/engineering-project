@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -107,6 +107,11 @@ public class WorldItemPickup : MonoBehaviour
         Transform parent = null)
     {
         if (item == null || count <= 0 || worldItemPrefab == null) return null;
+
+        // A drop left at the scene root ignores the dungeon root's scale and comes out
+        // half-size next to everything the generator placed, so fall back to the current
+        // content root. Still null in hand-built scenes.
+        if (parent == null) parent = DungeonPopulator.ActiveContentRoot;
 
         var drop = Instantiate(
             worldItemPrefab, new Vector3(position.x, position.y, 0f), Quaternion.identity, parent);

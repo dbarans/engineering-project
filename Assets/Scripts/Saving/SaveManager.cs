@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -304,9 +304,15 @@ public class SaveManager : MonoBehaviour
             ? new Vector2(state.position[0], state.position[1])
             : Vector2.zero;
 
+        // Under the generator's content root, not the scene root: that root is scaled
+        // (2 in the Dungeon scene), so a respawn parented to nothing comes back at half
+        // the size of the world around it. Null in hand-built scenes, which is the old
+        // behaviour and correct there.
+        Transform parent = DungeonPopulator.ActiveContentRoot;
+
         // Restore() applies position and payload afterwards; spawning at the saved spot
         // just avoids a one-frame flicker at the origin.
-        GameObject instance = registry.Spawn(state.prefabId, position, null, guid);
+        GameObject instance = registry.Spawn(state.prefabId, position, parent, guid);
         return instance != null ? instance.GetComponent<SaveableEntity>() : null;
     }
 

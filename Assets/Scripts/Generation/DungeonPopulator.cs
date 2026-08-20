@@ -36,6 +36,28 @@ public class DungeonPopulator : MonoBehaviour
     [SerializeField] private PrefabRegistry registry;
 
     private Transform _contentRoot;
+
+    /// <summary>
+    /// Parent every runtime-spawned world object belongs under: the current build's
+    /// content root, or null before the first build.
+    ///
+    /// Not cosmetic bookkeeping — the dungeon root is usually scaled (2 in the Dungeon
+    /// scene), so an object spawned at the scene root ends up half the size of everything
+    /// the generator made. Anything recreated after generation (a save being restored, a
+    /// dropped item) has to go through here.
+    /// </summary>
+    public Transform ContentRoot => _contentRoot;
+
+    /// <summary>The content root of the populator in the active scene, or null when
+    /// there is none (hand-built scenes) or it has not built yet.</summary>
+    public static Transform ActiveContentRoot
+    {
+        get
+        {
+            var populator = FindFirstObjectByType<DungeonPopulator>(FindObjectsInactive.Include);
+            return populator != null ? populator._contentRoot : null;
+        }
+    }
     private PrefabRegistry _prefabs;
     private WorldItemPickup _pickup;
     private Transform _player;

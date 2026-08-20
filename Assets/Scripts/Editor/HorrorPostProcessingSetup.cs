@@ -121,15 +121,28 @@ public static class HorrorPostProcessingSetup
         var profile = ScriptableObject.CreateInstance<VolumeProfile>();
         AssetDatabase.CreateAsset(profile, ProfilePath);
 
+        // VolumeProfile.Add<T>() only creates the override in memory and lists it in
+        // profile.components — it does NOT persist it as a sub-asset. Without an explicit
+        // AssetDatabase.AddObjectToAsset() per override, AssetDatabase.SaveAssets() writes the
+        // profile with an empty components list, and every value set below is silently thrown
+        // away the moment the asset is saved (an active Editor session still shows the live,
+        // in-memory values in the meantime — which is why the look could be seen and then vanish).
+        VolumeComponent AddPersisted<T>() where T : VolumeComponent
+        {
+            var component = profile.Add<T>(true);
+            AssetDatabase.AddObjectToAsset(component, profile);
+            return component;
+        }
+
         // Neutral, not ACES. ACES lifts and rolls contrast in a way that fights the DarknessOverlay
         // (0.97 alpha over everything unlit, see ENEMY_NOTES.md GU-0036) and crushes the little
         // detail left in the shadows, which is exactly where this game asks the player to look.
-        var tonemapping = profile.Add<Tonemapping>(true);
+        var tonemapping = (Tonemapping)AddPersisted<Tonemapping>();
         tonemapping.mode.Override(TonemappingMode.Neutral);
 
         // Cool, drained and slightly contrastier. The saturation here is the baseline the
         // HorrorPostProcessing dread reaction pulls further down from.
-        var colorAdjustments = profile.Add<ColorAdjustments>(true);
+        var colorAdjustments = (ColorAdjustments)AddPersisted<ColorAdjustments>();
         colorAdjustments.postExposure.Override(0f);
         colorAdjustments.contrast.Override(12f);
         colorAdjustments.colorFilter.Override(new Color(0.86f, 0.91f, 1f));
@@ -137,31 +150,31 @@ public static class HorrorPostProcessingSetup
 
         // Teal shadows against faintly warm highlights — the split that reads as "horror" rather
         // than merely "desaturated", because it keeps lamp light looking like fire.
-        var splitToning = profile.Add<SplitToning>(true);
+        var splitToning = (SplitToning)AddPersisted<SplitToning>();
         splitToning.shadows.Override(new Color(0.15f, 0.26f, 0.31f));
         splitToning.highlights.Override(new Color(0.32f, 0.27f, 0.19f));
         splitToning.balance.Override(-15f);
 
-        var vignette = profile.Add<Vignette>(true);
+        var vignette = (Vignette)AddPersisted<Vignette>();
         vignette.color.Override(Color.black);
         vignette.center.Override(new Vector2(0.5f, 0.5f));
         vignette.intensity.Override(0.4f);
         vignette.smoothness.Override(0.55f);
         vignette.rounded.Override(false);
 
-        var filmGrain = profile.Add<FilmGrain>(true);
+        var filmGrain = (FilmGrain)AddPersisted<FilmGrain>();
         filmGrain.type.Override(FilmGrainLookup.Medium1);
         filmGrain.intensity.Override(0.32f);
         // High response keeps the grain off the bright areas, so lamps stay clean and only the
         // dark two-thirds of the frame get noisy — which is where the tension is anyway.
         filmGrain.response.Override(0.8f);
 
-        var chromaticAberration = profile.Add<ChromaticAberration>(true);
+        var chromaticAberration = (ChromaticAberration)AddPersisted<ChromaticAberration>();
         chromaticAberration.intensity.Override(0.08f);
 
         // Threshold deliberately just under 1: anything lower and the bloom starts eating the pixel
         // art itself instead of only the light sources, which turns crisp sprites to mush.
-        var bloom = profile.Add<Bloom>(true);
+        var bloom = (Bloom)AddPersisted<Bloom>();
         bloom.threshold.Override(0.95f);
         bloom.intensity.Override(0.65f);
         bloom.scatter.Override(0.72f);

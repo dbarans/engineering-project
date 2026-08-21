@@ -2253,6 +2253,256 @@ No serialized data changed: this is presentation over the existing `weight` fiel
 
 ---
 
+## Stage 21 — The way out: a door in the wall and the one key that opens it
+
+Until now a run had no ending. The dungeon had a deepest room with a reward in it, and then
+the player kept playing. This stage gives the run a goal that can be reached and a lock that
+makes reaching it a journey rather than a walk.
+
+### The shape of it
+
+Three pieces, deliberately placed at opposite ends of the map from each other:
+
+- **`RoomKind.Exit`** — the room the way out is in. Picked for being **against the edge of
+  the map**, not for being deep in the room graph. An exit is a way *out* of a dungeon, and
+  the middle of the map is not somewhere you can leave from.
+- **The exit door** — a key-locked door cut into that room's **outer wall**, opening onto
+  nothing but the rock between the room and the edge of the map. Recorded on the layout as
+  `ExitDoorCell`, with the floor cell in front of it as `ExitThresholdCell`.
+- **`Room.HoldsExitKey`** — the room holding the chest with the key, chosen as the room
+  **farthest from the exit over the room graph**. Hops, not metres: the player walks
+  corridors, and two rooms either side of one wall can be a dozen rooms apart to walk
+  between.
+
+### The lock is on the way out, not on the way in
+
+The first version of this stage locked the exit room's *entrances*, which made the room
+unenterable and therefore invisible: a player without the key met a locked door in a corridor,
+which says nothing about what is behind it. Moving the lock to a door in the far wall inverts
+that. The room is entered through ordinary doors, the player stands inside it looking at a
+door that plainly leads outside, and the only thing missing is the key. A locked door in the
+far wall of a room you are standing in says exactly one thing.
+
+It also removed a whole class of failure. Sealing a room meant *every* opening into it had to
+be able to take a door leaf — and the populator refuses to hang a door on an opening with no
+jambs, measured at 11.9% of doorway cells back in Stage 17 — so one bad opening made the lock
+decorative. A single door in a wall the generator chose has no such dependency.
+
+### The exit room is a dead end
+
+A room with a corridor out the far side reads as one more room to pass through, whatever is
+in its wall; a room with a single way in reads as somewhere the dungeon stops. So the exit is
+picked from rooms with exactly **one entrance**.
+
+Entrances are counted off the geometry — groups of adjoining walkable cells just outside the
+room — rather than off `Room.Degree`, which counts corridors in the room graph. The two
+disagree: a corridor carved past a room can open into it without a link being recorded, and
+what the player walks through is the opening, not the graph edge. They are grouped rather
+than counted cell by cell, because one opening three cells wide is still one way in.
+
+Preferred, not required. On a small map the dead ends and the rooms with an outward wall do
+not always overlap — measured at **1 seed in 200** — and the generator falls back to any room
+with an outward wall rather than producing a dungeon with no ending. Measured after the
+change: 199 of 200 exit rooms are dead ends, and all 200 still have a way out.
+
+### The door leads outside, and nothing is carved
+
+`FindExitDoorway` only accepts a wall cell with **solid rock in a straight line from it to
+the edge of the map**. A door opening onto two metres of stone and then somebody's storeroom
+is not an exit, and the player cannot tell the difference until it has cost them the run's
+only key.
+
+The cell **stays solid**. Nothing is carved out for the door: a walkable cell there would be
+a hole in the map that the pathfinding grid, the vision system and the wall painter would
+each have to be taught to treat as a special case. The door's own collider is what physically
+blocks the opening.
+
+The one concession the painter makes is to skip the **wall tile** on that cell. The wall
+tilemap sorts above world sprites (Stage 8), so a door standing on a painted wall cell is not
+merely close to the wall — it is painted over by it, and the exit would be an invisible door
+in a blank stretch of rock. Leaving the tile out cuts the doorway-shaped gap the door stands
+in, while the layout still calls the cell solid.
+
+### Putting the door somewhere that looks deliberate
+
+The door goes in the **middle of the longest unbroken run of usable wall**. A door in the
+corner of a room reads as a mistake; one centred on a wall reads as built.
+
+The first version scored candidates by distance from `Room.Center` instead — which is the
+room's *medoid*, and for an L-shaped or ring-shaped room the medoid is nowhere near the
+middle of any particular wall. Measured over 200 seeds that put the door mid-wall on 189 of
+them and hard into a corner on 4, which is exactly what turned up on the first look at a
+generated map. Scoring the wall run itself has no such failure mode: a corner is a short run
+by construction, so it loses to any real stretch of wall. Re-measured after the change: **no
+seed puts the door in a corner**, 177 of 200 sit dead centre, and the remainder are centred
+on the usable stretch of a wall whose other half has a corridor running behind it — which is
+the correct answer rather than a miss.
+
+### Three defects found on the first playtests
+
+**The lock was never applied at all.** `SpawnExit` looked the door component up with
+`doorInstance.GetComponent<SimpleDoor>()`, and the door prefab's root is a rig —
+`Door_System`, carrying the barricade and the collision forwarder — while `SimpleDoor` lives
+on the `Door_Visual` child that actually swings. The lookup returned null on every seed, so
+both the key lock and the reinforcement were skipped and the threshold was bound to no door,
+which made it fire on contact. Three symptoms, one cause: the exit opened without the key, it
+could be rammed, and walking in ended the run.
+
+The only sign was a warning nobody was looking for. Worth remembering as a class of bug:
+`GetComponent` against a prefab whose root is a rig fails silently, and a generator that only
+*warns* when the component is missing will keep producing dungeons that look right.
+
+
+**The exit door opened without the key.** `SimpleDoor.RequireKey` wrote `requiresKeyToOpen`
+and never told the editor about it, so the lock existed in memory only: the door was locked
+until the next domain reload and openable by anyone afterwards. The Dungeon scene is authored
+by baking, so "until the next domain reload" is the entire lifetime of the configuration.
+`ChestInventory.SetStartingItems` already carried a `SetDirty` for exactly this reason — the
+door path simply never got one. It now calls both `EditorUtility.SetDirty` and
+`PrefabUtility.RecordPrefabInstancePropertyModifications`; generated doors are prefab
+instances on purpose, and an override that was never recorded is discarded when the instance
+next reconciles with its prefab.
+
+**The lock lapsed once it had been used.** Immunity to melee and to sprint ramming was keyed
+off `requiresKeyToOpen`, and spending the key clears that flag — so the exit door became
+breakable the moment it had been opened once, and a destroyed door would have left a hole
+through the outer wall of the map. Immunity now hangs off a separate `isReinforced` flag that
+nothing clears. The exit door is reinforced whether or not there is a key for it: without a
+key it is meant to be openable, but never by shoulder-charging it or hacking it apart.
+
+### Two doors back to back in one corridor
+
+Spotted on a generated map and not caused by any of the exit work — it predates all of it.
+`DoorwayNormalizer` can mark two adjoining cells of the same passage as `CellType.Door`, and
+`SpawnDoors` hung a leaf on every Door cell that had jambs, so both got one: two doors in
+series in a corridor one cell wide.
+
+Measured at the shipped settings (200×200, 30 rooms): **44 adjacent door-cell pairs across 60
+maps**, so roughly one map in one and a half had at least one. `SpawnDoors` now remembers the
+cells it has already doored and skips any cell adjoining one; the first in scan order takes
+the door.
+
+Cells adjoining *across* a passage rather than along it are not affected, because neither of
+them passes the jamb test in the first place — an opening two cells wide has nothing to hang
+a leaf on and stays an arch, which is the Stage 17 behaviour.
+
+### Why the exit is picked before the treasure
+
+`AssignRoomRoles` tags the exit first, then the treasure from what is left. If the treasure
+went first the two could land on the same room on maps where the deepest room also happens to
+sit at the edge, collapsing two separate destinations into one. Picking the exit by a
+different measure than the treasure — edge distance versus graph depth — is what keeps them
+at opposite ends of the run rather than merely usually apart.
+
+### The interior decorator now skips the exit room
+
+Structural, not cosmetic: the threshold cell is chosen before the decorator runs, and a pillar
+or a pile of rubble dropped on it would make the way out unreachable with nothing reporting a
+fault.
+
+### What the treasure room is for, now that there is a critical path
+
+Adding the key gave the map a critical path — key, then exit — and that immediately raised
+the question of why anyone would walk anywhere else. The treasure room is the answer, but it
+was not paying for the detour: it held a pistol, a sword, a shotgun and 5–15 coins, and
+**the game has no vendor of any kind**, so the coins buy nothing and the weapons are ones the
+player probably already has. An optional room that pays in dead weight is not an optional
+room, it is filler.
+
+With no story to motivate exploring, the only thing that can justify a detour in a survival
+game is resources that change the odds. This project has exactly such an economy and the
+treasure room was ignoring it: **Ink** is what a save costs (`SaveCost`), and ammunition is
+what a fight costs. Both tables are now Ink plus Bullet and Shell, which turns the room into
+an arithmetic decision — spend the walk and the risk, buy back saves and ammunition — with
+no fiction required.
+
+Lamp fuel would belong here too and is deliberately absent: `ILightFuel` exists as an
+interface for a planned consumable, but there is no fuel item to put in a table yet.
+
+**The key room can no longer be the treasure room.** They are the map's only two reasons to
+walk anywhere that is not the exit, and one room holding both collapses them into a single
+trip — the player fetches the key and picks the reward up on the way past, and the optional
+detour stops being a decision.
+
+### The key and the treasure kept landing next to each other
+
+Spotted on a generated map: the key room, the treasure room and the exit all clustered in one
+corner. Measured at the shipped settings, the key sat within **a tenth of the map diagonal**
+of the treasure on 7 of 60 seeds and within a fifth on 17.
+
+The cause is that "deepest from the hub" and "farthest from the exit" are two different
+questions whose answers are **correlated** — both pull towards the same far end of the room
+graph — so scoring the key on distance from the exit alone was never going to keep it away
+from the treasure. Adding hops-from-the-treasure as a tie-break barely helped: 17 down to 14.
+
+What worked was changing the measure. The key room is now scored on the **smaller of its two
+distances**, to the exit and to the treasure, maximised — "far from everything that matters"
+rather than "far from one thing", and it cannot be gamed by being enormously far from one of
+the pair. Distance is now straight-line rather than hops, which reverses the original
+reasoning: the player does walk corridors, but hop counts on a 200×200 map with 30 rooms are
+small integers that tie constantly and correlate poorly with what the map looks like, and the
+sense of "opposite ends of the dungeon" is spatial. Hops still break ties.
+
+Re-measured over 60 seeds: the closest key-to-treasure pair is now **40–50% of the diagonal**,
+and key-to-exit likewise — no seed under 40% for either. Before the change both had a tail
+reaching down to 5%.
+
+### The key is not loot
+
+`SpawnKeyChest` writes the key into the chest directly instead of going through `StockChest`
+and a weighted table. A weighted table can roll a zero, and the one object the run cannot be
+finished without must not be subject to a dice roll. For the same reason the call sits outside
+the `authored` guard that suppresses random content in template rooms: a key room that
+happened to draw a hand-authored interior still gets its chest.
+
+### Measured across 200 seeds
+
+At the shipped settings (64×48, 8 rooms): **200 of 200 seeds produced an exit room, a way out
+and a key**, with no invariant violations — no exit that was also the hub or the treasure, no
+key inside the room it opens, no door cell accidentally carved walkable, no exit door whose
+outward ray runs back into the dungeon. The exit room landed within six cells of the map edge
+every time, and the key sat 50–70% of the map diagonal away from it on 68% of seeds, never
+closer than 20%.
+
+### What ends the game
+
+`DungeonExit` is a trigger on the threshold cell, bound to the exit door and firing only once
+that door is open. It uses `OnTriggerStay2D` rather than `OnTriggerEnter2D`, and that is not
+an accident: the player has to be standing in front of the door to open it, so by the time the
+door swings they are already inside the trigger and Enter has long since fired. With Enter
+alone the run only ended if the player stepped off the threshold and back onto it after
+unlocking.
+
+It calls `GameManager.WinGame()`, which is a new `GameState.Victory` kept separate from
+`GameOver`. Both end the run, but everything that listens wants to tell them apart — the
+screen it shows, the music it plays, and whether the save is a corpse or a finished run.
+
+**Still to wire:** nothing in the UI listens for `GameState.Victory` yet, so today the run
+ends with a state change and a log line rather than a screen.
+
+### Finding it in the editor
+
+`DungeonBuilder` draws scene-view gizmos for every room with a role — hub blue, treasure
+magenta, exit green, key room amber — plus a circle on the exit door cell and a line from it
+to its threshold. It works on a baked scene with no layout in memory by regenerating the
+layout from the inspector seed, which is sound because generation is a pure function of the
+seed and the settings. All of it is inside `#if UNITY_EDITOR`.
+
+### In-editor checklist
+
+1. Regenerate the dungeon and find the exit room — against the map edge, floored in the
+   `exitFloorTiles` variants, empty of enemies, loot and props, with a visible door in its
+   outer wall.
+2. Try that door without the key: it must refuse to open, refuse to be rammed, and take no
+   melee damage.
+3. Check there is no hole in the map behind it — the cell is solid, and the rock beyond it is
+   painted as normal.
+4. Find the key chest on the far side of the map; it holds exactly one key and nothing else.
+5. Open the exit door with the key — the key is consumed — and stand on the threshold. The
+   console logs the run as complete.
+
+---
+
 ## Risk register
 
 | Risk | Severity | Mitigation |

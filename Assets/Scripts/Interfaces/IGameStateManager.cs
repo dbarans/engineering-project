@@ -42,6 +42,11 @@ public interface IGameStateManager
     void GameOver();
 
     /// <summary>
+    /// Transitions the game to the victory state: the run was completed rather than lost.
+    /// </summary>
+    void WinGame();
+
+    /// <summary>
     /// Restarts the game by resetting state and starting fresh.
     /// </summary>
     void RestartGame();
@@ -74,6 +79,12 @@ public interface IGameStateManager
     /// </summary>
     /// <returns>True if game over, false otherwise.</returns>
     bool IsGameOver();
+
+    /// <summary>
+    /// Determines if the run was completed successfully.
+    /// </summary>
+    /// <returns>True if the game is in the victory state, false otherwise.</returns>
+    bool IsVictory();
 }
 
 /// <summary>
@@ -84,6 +95,14 @@ public enum GameState
     Menu,
     Playing,
     Paused,
-    GameOver
+    GameOver,
+
+    /// <summary>
+    /// The run was finished: the player reached the dungeon exit. Kept apart from
+    /// <see cref="GameOver"/> even though both end the run, because everything that
+    /// listens for the end wants to tell the two apart — the screen it shows, the music it
+    /// plays, and whether the save is a corpse or a completed run.
+    /// </summary>
+    Victory
 }
 

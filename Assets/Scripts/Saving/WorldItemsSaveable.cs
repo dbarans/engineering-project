@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -69,7 +69,7 @@ public class WorldItemsSaveable : MonoBehaviour, ISaveable
             }
 
             pickup.SpawnAt(item, saved.count, new Vector2(saved.position[0], saved.position[1]),
-                saved.durability);
+                saved.durability, DungeonPopulator.ActiveContentRoot);
         }
     }
 }

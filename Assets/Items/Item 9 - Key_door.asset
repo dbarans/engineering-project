@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   id: 0b5baa00fb954bf783a7a1d08d0187ee
   icon: {fileID: -726930148, guid: d3cdd613165005348819758bf77e0f4d, type: 3}
-  itemName: Key
+  itemName: Door Key
   value: 0
   maxStack: 1
   weaponType: 0

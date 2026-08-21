@@ -1200,7 +1200,7 @@ PrefabInstance:
     - target: {fileID: 7892708207933928237, guid: 9fcb20d09d999c34c9420d6778e33bdc, type: 3}
       propertyPath: possibleDrops.Array.data[0].itemData
       value: 
-      objectReference: {fileID: 11400000, guid: ece63bae93017df4aabc0637a9b9949d, type: 2}
+      objectReference: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
     - target: {fileID: 7892708207933928237, guid: 9fcb20d09d999c34c9420d6778e33bdc, type: 3}
       propertyPath: possibleDrops.Array.data[0].quantity
       value: 1

@@ -16,5 +16,5 @@ MonoBehaviour:
   id: 1e94b7c25a084d3fae6bd0921c73f8ea
   itemName: Shell
   value: 6
-  maxStack: 10
+  maxStack: 3
   weaponType: 0

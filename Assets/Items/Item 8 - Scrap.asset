@@ -16,6 +16,6 @@ MonoBehaviour:
   id: 5c8a7f2e1b9d4c3a8e6f0d1c2b3a4e5f
   itemName: Scrap
   value: 2
-  maxStack: 99
+  maxStack: 6
   weaponType: 0
   maxDurability: 0

@@ -4423,9 +4423,8 @@ MonoBehaviour:
   slotInventory: {fileID: 0}
   backpack: {fileID: 2983984561158072222}
   recipes:
-  - {fileID: 11400000, guid: c1a3000000000000000000000000aa03, type: 2}
-  - {fileID: 11400000, guid: 22908ec36b6c4798814b0a3044bf8ffb, type: 2}
-  - {fileID: 11400000, guid: c1a2000000000000000000000000aa02, type: 2}
+  - {fileID: 11400000, guid: c1a5000000000000000000000000aa05, type: 2}
+  - {fileID: 11400000, guid: c1a6000000000000000000000000aa06, type: 2}
   repairButtonRoot: {fileID: 179260182850431338}
 --- !u!1 &4312247493345614814
 GameObject:

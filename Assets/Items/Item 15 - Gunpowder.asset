@@ -10,9 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
-  m_Name: Coins
+  m_Name: Item 15 - Gunpowder
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: 215af4b4c17fb9f4199284fb7ebb386d, type: 3}
-  id: 345ef2e12acc44c18604b92dee8384b0
-  itemName: Coins
-  value: 1
+  icon: {fileID: 21300000, guid: 1d84c39ef25b47a0b8e51c76d0a3f95b, type: 3}
+  id: 4c9f1a86d3e74b52a81c60f95d2b7e38
+  itemName: Gunpowder
+  value: 6
+  maxStack: 5
+  weaponType: 0
+  maxDurability: 0

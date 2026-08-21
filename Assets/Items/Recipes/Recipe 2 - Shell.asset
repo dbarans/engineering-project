@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8894ef9ec93c4a48b17c3a0f9913ce3, type: 3}
-  m_Name: testRecipe
+  m_Name: Recipe 2 - Shell
   m_EditorClassIdentifier: Assembly-CSharp::RecipeData
   ingredients:
-  - item: {fileID: 11400000, guid: 342370816acd5fb4aade388eea68ae19, type: 2}
+  - item: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
     count: 2
-  - item: {fileID: 11400000, guid: 7f35028135d90c14db09efad3d98a896, type: 2}
-    count: 3
-  outputItem: {fileID: 11400000, guid: e952bbe517f8a344faa3dba5eb76f7c0, type: 2}
+  - item: {fileID: 11400000, guid: 2f7c9a53d1e64b08bc47a92e35f18d6c, type: 2}
+    count: 2
+  outputItem: {fileID: 11400000, guid: 3b8f26d0c14a4e7cb95d08af6271e5d3, type: 2}

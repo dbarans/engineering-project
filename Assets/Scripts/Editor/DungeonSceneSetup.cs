@@ -924,17 +924,66 @@ public static class DungeonSceneSetup
 
         AddLoot(settings.loot, "Assets/Items/Item 7 - Bullet.asset", 1.2f, 2, 6);
         AddLoot(settings.loot, "Assets/Items/Item 3 - Wood.asset", 1f, 1, 3);
-        AddLoot(settings.loot, "Assets/Items/Item 2 - Mana Potion.asset", 0.5f, 1, 1);
-        AddLoot(settings.loot, "Assets/Items/Item 12 - Shell.asset", 0.9f, 2, 5);
+        AddLoot(settings.loot, "Assets/Items/Item 13 - Rags.asset", 1f, 1, 4);
+        AddLoot(settings.loot, "Assets/Items/Item 15 - Gunpowder.asset", 0.9f, 1, 3);
+        AddLoot(settings.loot, "Assets/Items/Item 14 - Alcohol.asset", 0.7f, 1, 2);
+        AddLoot(settings.loot, "Assets/Items/Item 8 - Scrap.asset", 1f, 1, 4);
+        AddLoot(settings.loot, "Assets/Items/Item 12 - Shell.asset", 0.9f, 1, 3);
 
-        AddLoot(settings.treasureLoot, "Assets/Items/Item 5 - Pistol.asset", 1f, 1, 1);
-        AddLoot(settings.treasureLoot, "Assets/Items/Item 1 - Sword.asset", 1f, 1, 1);
-        AddLoot(settings.treasureLoot, "Assets/Items/Coins.asset", 1.5f, 5, 15);
-        AddLoot(settings.treasureLoot, "Assets/Items/Item 11 - Shotgun.asset", 0.8f, 1, 1);
+        // Survival resources, not valuables. The treasure room is optional — it is off the
+        // key-to-exit path — so the only thing that can justify the detour is loot that
+        // changes the player's odds: saves, and something to shoot with. It used to hold a
+        // pistol, a sword and a pile of coins, and coins buy nothing because the game has
+        // no vendor of any kind; the room was a detour that paid in dead weight.
+        AddLoot(settings.treasureLoot, "Assets/Items/Item 6 - Ink.asset", 1.5f, 1, 1);
+        AddLoot(settings.treasureLoot, "Assets/Items/Item 7 - Bullet.asset", 1f, 6, 12);
+        AddLoot(settings.treasureLoot, "Assets/Items/Item 12 - Shell.asset", 0.8f, 4, 8);
 
-        // Ink is what saving costs, so a run with none in it cannot be saved at all.
+        // Chests are the only source of loot now that nothing is scattered on the floor,
+        // and this table was never filled in by this tool at all — a scene built from
+        // scratch got chests that were empty by construction. Ink is weighted high on
+        // purpose: it used to be guaranteed as floor drops, and with those gone the chests
+        // are the only thing standing between a run and being unsaveable.
+        AddLoot(settings.chestLoot, "Assets/Items/Item 7 - Bullet.asset", 1f, 3, 8);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 3 - Wood.asset", 1f, 2, 5);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 8 - Scrap.asset", 0.8f, 1, 3);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 13 - Rags.asset", 0.6f, 2, 4);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 14 - Alcohol.asset", 0.5f, 1, 2);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 15 - Gunpowder.asset", 0.7f, 1, 4);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 6 - Ink.asset", 1.4f, 1, 2);
+        AddLoot(settings.chestLoot, "Assets/Items/Item 12 - Shell.asset", 0.8f, 2, 5);
+
+        AddLoot(settings.treasureChestLoot, "Assets/Items/Item 6 - Ink.asset", 1.6f, 1, 1);
+        AddLoot(settings.treasureChestLoot, "Assets/Items/Item 7 - Bullet.asset", 1f, 8, 16);
+        AddLoot(settings.treasureChestLoot, "Assets/Items/Item 12 - Shell.asset", 0.9f, 6, 10);
+        AddLoot(settings.treasureChestLoot, "Assets/Items/Item 16 - Bandage.asset", 0.8f, 1, 2);
+
+        // Nothing is scattered on the floor. Everything the player finds is in a chest, so
+        // looting is opening something rather than walking over things — and thirty rooms
+        // of loose pickups read as litter, not as reward.
+        //
+        // The tables above are left populated on purpose: they are the content, and the
+        // counts are the switch. Turning floor loot back on is raising these, not
+        // re-authoring what would drop.
+        settings.minLootPerRoom = 0;
+        settings.maxLootPerRoom = 0;
+        settings.treasureLootCount = 0;
+
+        // Ink is what saving costs, so a run with none in it cannot be saved at all. The
+        // guaranteed drops were the floor under that, and they were floor loot, so they
+        // are gone with the rest; chests carry the ink now — see its weight in chestLoot,
+        // raised to compensate. Set this back above zero if runs turn out short of saves.
         var ink = AssetDatabase.LoadAssetAtPath<ItemData>("Assets/Items/Item 6 - Ink.asset");
         if (ink != null) settings.guaranteedItemId = ink.Id;
+        settings.guaranteedItemDrops = 0;
+
+        // The one key the run cannot be finished without. It is deliberately NOT the
+        // craftable Door Key: that one opens ordinary locked doors and costs three scrap,
+        // so pointing the exit at it would let the player craft their way out and skip the
+        // key chest entirely. The golden key has no recipe and exactly one instance per
+        // dungeon.
+        var goldenKey = AssetDatabase.LoadAssetAtPath<ItemData>("Assets/Items/Item 17 - Golden Key.asset");
+        if (goldenKey != null) settings.exitKeyItemId = goldenKey.Id;
 
         AssetDatabase.CreateAsset(settings, ContentSettingsPath);
         return settings;

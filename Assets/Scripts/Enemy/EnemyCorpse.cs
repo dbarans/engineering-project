@@ -10,6 +10,7 @@ using UnityEngine.InputSystem;
 public class EnemyCorpse : MonoBehaviour, ISaveableComponent
 {
     [Header("Corpse Inventory Settings")]
+    [SerializeField] private string containerTitle = "Corpse";
     [SerializeField, Min(1)] private int columns = 2;
     [SerializeField, Min(1)] private int rows = 2;
 
@@ -88,7 +89,7 @@ public class EnemyCorpse : MonoBehaviour, ISaveableComponent
         if (CorpseUI.Instance != null)
         {
             _openCorpse = this;
-            CorpseUI.Instance.Show(Container, "Zwłoki");
+            CorpseUI.Instance.Show(Container, containerTitle);
         }
         else if (ChestUI.Instance != null)
         {

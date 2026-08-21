@@ -1926,7 +1926,7 @@ MonoBehaviour:
   chargeTimeRequired: 1.5
   enemyLayer:
     serializedVersion: 2
-    m_Bits: 4224
+    m_Bits: 6272
   attackPoint: {fileID: 7231161171343297202}
   minAttackRadius: 0.3
   maxAttackRadius: 0.9

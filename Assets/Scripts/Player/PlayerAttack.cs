@@ -105,6 +105,14 @@ public abstract class PlayerAttack : MonoBehaviour
         if (door != null)
         {
             door.TakeDamage(damage);
+            return;
+        }
+
+        Barrel barrel = hitCollider.GetComponent<Barrel>();
+        if (barrel != null)
+        {
+            barrel.TakeDamage((int)damage);
+            return;
         }
     }
 

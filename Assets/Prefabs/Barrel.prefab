@@ -12,6 +12,10 @@ GameObject:
   - component: {fileID: 102505280938881608}
   - component: {fileID: 4039403981012611171}
   - component: {fileID: 7108180406061880600}
+  - component: {fileID: 2411601627765367688}
+  - component: {fileID: 7120259235325115881}
+  - component: {fileID: 596409709297033452}
+  - component: {fileID: -2115893556182914614}
   m_Layer: 11
   m_Name: Barrel
   m_TagString: Untagged
@@ -142,3 +146,88 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FovMaskedSpriteRuntime
   clippedMaterial: {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}
+--- !u!50 &2411601627765367688
+Rigidbody2D:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7108180406061880555}
+  m_BodyType: 0
+  m_Simulated: 1
+  m_UseFullKinematicContacts: 0
+  m_UseAutoMass: 0
+  m_Mass: 3
+  m_LinearDamping: 1
+  m_AngularDamping: 5
+  m_GravityScale: 0
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_Interpolate: 1
+  m_SleepingMode: 1
+  m_CollisionDetection: 0
+  m_Constraints: 4
+--- !u!114 &7120259235325115881
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7108180406061880555}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7cf9f3e1c7fe70e49a4d1375a394045a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Barrel
+  maxHealth: 50
+  destructionEffectPrefab: {fileID: 0}
+  hitSound: {fileID: 0}
+  destroySound: {fileID: 0}
+  brokenBarrelPrefab: {fileID: 7824652612784877508, guid: 278a6e04ce3f4aa48b0e804b51fb57ca, type: 3}
+  dropsOnDestroy:
+  - itemData: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
+    dropChance: 20
+    minQuantity: 1
+    maxQuantity: 3
+  - itemData: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
+    dropChance: 25
+    minQuantity: 1
+    maxQuantity: 3
+--- !u!114 &596409709297033452
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7108180406061880555}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a424deccceafd0a46827734266709ebe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SaveableEntity
+  guid: 
+  prefabId: barrel
+--- !u!114 &-2115893556182914614
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7108180406061880555}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 07a56f2c26590134ba1794f89631e9a8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DraggableBarrel
+  grabDistance: 2
+  dragKey: 20
+  dragSpeed: 3
+  obstacleLayerMask:
+    serializedVersion: 2
+    m_Bits: 7936

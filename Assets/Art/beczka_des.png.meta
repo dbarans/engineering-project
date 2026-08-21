@@ -1,0 +1,191 @@
+fileFormatVersion: 2
+guid: fcc6a92b05bdb5144ba87d0bb92a2ed6
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -5675319087615947422
+    second: beczka_des_0
+  - first:
+      213: 8180408036796624251
+    second: beczka_des_1
+  - first:
+      213: 6757330666221454865
+    second: beczka_des_2
+  - first:
+      213: -6866871003732518517
+    second: beczka_des_3
+  - first:
+      213: 9175388619310617322
+    second: beczka_des_4
+  - first:
+      213: 7916328142391895670
+    second: beczka_des_5
+  - first:
+      213: 3623479617596624958
+    second: beczka_des_6
+  - first:
+      213: -2742587593987827231
+    second: beczka_des_7
+  - first:
+      213: 594798325313076460
+    second: beczka_des_8
+  - first:
+      213: 1922617429281546496
+    second: beczka_des_9
+  - first:
+      213: 2077436563776224567
+    second: beczka_des_10
+  - first:
+      213: -3038531074719194803
+    second: beczka_des_11
+  - first:
+      213: -6079492321573217957
+    second: beczka_des_12
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: beczka_des_1
+      rect:
+        serializedVersion: 2
+        x: 14
+        y: 31
+        width: 1259
+        height: 1180
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b7d630f84c5a68170800000000000000
+      internalID: 8180408036796624251
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: ac4c67e7242b5db408359afd5694a448
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      beczka_des_0: -5675319087615947422
+      beczka_des_1: 8180408036796624251
+      beczka_des_10: 2077436563776224567
+      beczka_des_11: -3038531074719194803
+      beczka_des_12: -6079492321573217957
+      beczka_des_2: 6757330666221454865
+      beczka_des_3: -6866871003732518517
+      beczka_des_4: 9175388619310617322
+      beczka_des_5: 7916328142391895670
+      beczka_des_6: 3623479617596624958
+      beczka_des_7: -2742587593987827231
+      beczka_des_8: 594798325313076460
+      beczka_des_9: 1922617429281546496
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

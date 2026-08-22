@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -69,7 +69,14 @@ public class RoomContentSettings : ScriptableObject
     public string guaranteedItemId;
     [Min(0)] public int guaranteedItemDrops = 3;
 
-    [Header("Treasure room")]
+    [Header("Treasure rooms")]
+    [Tooltip("Item id of the key a treasure room's door takes — the craftable one, not " +
+             "the golden exit key. Every treasure room takes the same kind of key and " +
+             "consumes one when opened. Leave empty to leave them unlocked, which makes " +
+             "them ordinary small rooms with good loot in them.")]
+    public string treasureKeyItemId;
+
+    [Tooltip("Loose loot on a treasure room's floor, on top of its chests.")]
     public List<ItemChoice> treasureLoot = new List<ItemChoice>();
     [Min(0)] public int treasureLootCount = 3;
 
@@ -92,10 +99,11 @@ public class RoomContentSettings : ScriptableObject
     [Min(0)] public int minChestStacks = 1;
     [Min(1)] public int maxChestStacks = 3;
 
-    [Tooltip("Chests guaranteed in the Treasure room, on top of the loose treasure loot.")]
+    [Tooltip("Chests guaranteed in every treasure room, on top of the loose treasure loot. " +
+             "This is what a key is spent on, so a treasure room is never empty of them.")]
     [Min(0)] public int treasureChests = 1;
 
-    [Tooltip("The Treasure room's chest table. Falls back to chestLoot when left empty.")]
+    [Tooltip("The treasure rooms' chest table. Falls back to chestLoot when left empty.")]
     public List<ItemChoice> treasureChestLoot = new List<ItemChoice>();
     [Min(0)] public int minTreasureChestStacks = 2;
     [Min(1)] public int maxTreasureChestStacks = 4;

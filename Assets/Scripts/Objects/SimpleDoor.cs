@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// Controls interactive door mechanics: entities push doors away from themselves, with support for key locks, manual locking, and two-way sprint breaching.
@@ -107,6 +107,13 @@ public class SimpleDoor : MonoBehaviour
     {
         isReinforced = true;
         PersistInEditor();
+    }
+
+    /// <summary>Logs the message and puts it on the player's HUD, as the barricade does.</summary>
+    private void Notify(string message)
+    {
+        Debug.Log($"[Door] {message}", this);
+        FindFirstObjectByType<ToastUI>()?.Show(message);
     }
 
 #if UNITY_EDITOR
@@ -244,11 +251,15 @@ public class SimpleDoor : MonoBehaviour
                     if (keyUsed)
                     {
                         requiresKeyToOpen = false;
-                        Debug.Log($"[Door] Unlocked and opened using key: {requiredKeyItem.itemName}!");
+                        Notify($"Unlocked with the {requiredKeyItem.itemName}.");
                     }
                     else
                     {
-                        Debug.Log("[Door] Cannot open, missing required key item!");
+                        // On the HUD rather than only in the console: a generated dungeon
+                        // locks doors the player is meant to *decide* about, and a decision
+                        // needs the door to say which key it wants and that it is locked at
+                        // all, rather than reading as a door that just does not open.
+                        Notify($"Locked. Needs the {requiredKeyItem.itemName}.");
                         return;
                     }
                 }
@@ -422,7 +433,9 @@ public class SimpleDoor : MonoBehaviour
 
         if (requiresKeyToOpen)
         {
-            Debug.Log("[Door] This door is key-locked and reinforced. Ramming is impossible — you need a key!");
+            Notify(requiredKeyItem != null
+                ? $"The lock holds. Only the {requiredKeyItem.itemName} opens this."
+                : "The lock holds — this door does not give to force.");
             return;
         }
 

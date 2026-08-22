@@ -21,13 +21,19 @@ MonoBehaviour:
   roomSpacing: 2
   placementAttemptsPerRoom: 410
   hubRoomSize: 8
+  maxHubCorridors: 4
   shapedRoomChance: 0.136
   interiorDensity: 0.25
   perimeterDetail: 0.382
   corridorWidth: 1
   maxCorridorWidth: 2
   doorwayWidth: 1
-  extraLoopChance: 0.094
+  extraLoopChance: 0.35
+  loopCandidateFraction: 0.35
   doubleBendChance: 0.33
   alcoveChance: 0.018
+  treasureRoomCount: 3
+  minTreasureRoomSize: 4
+  maxTreasureRoomSize: 6
+  treasureMaxArea: 80
   maxGenerationAttempts: 160

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -119,29 +119,47 @@ public class RoomCorridorGeneratorTests
         var parameters = SmallParams();
         DungeonLayout layout = Generate("count", parameters);
 
-        Assert.GreaterOrEqual(layout.Rooms.Count, parameters.MinRoomCount);
-        Assert.LessOrEqual(layout.Rooms.Count, parameters.TargetRoomCount);
+        // Treasure closets are sampled on top of the room budget rather than out of it — a
+        // locked cupboard is not one of the rooms the run is made of. Counted by the plot
+        // flag rather than by role, so a closet demoted to an ordinary room is still not
+        // charged to the budget.
+        int ordinary = 0;
+        foreach (var room in layout.Rooms)
+            if (!room.IsTreasurePlot) ordinary++;
+
+        Assert.GreaterOrEqual(ordinary, parameters.MinRoomCount);
+        Assert.LessOrEqual(ordinary, parameters.TargetRoomCount);
+        Assert.LessOrEqual(CountKind(layout, RoomKind.Treasure), parameters.TreasureRoomCount);
     }
 
     [Test]
-    public void ExactlyOneHubAndTreasureRoom()
+    public void OneHubAndTheAskedForNumberOfTreasureRooms()
     {
-        DungeonLayout layout = Generate("roles", SmallParams());
+        var parameters = SmallParams();
+        DungeonLayout layout = Generate("roles", parameters);
 
         Assert.AreEqual(1, CountKind(layout, RoomKind.Hub));
-        Assert.AreEqual(1, CountKind(layout, RoomKind.Treasure));
+
+        // Bounded rather than exact: how many plots fit is a property of the seed, and the
+        // 90%-of-seeds floor lives in TreasureRoomsAreOptionalSmallDeadEnds.
+        int treasure = CountKind(layout, RoomKind.Treasure);
+        Assert.Greater(treasure, 0, "the dungeon has no reward rooms at all");
+        Assert.LessOrEqual(treasure, parameters.TreasureRoomCount);
     }
 
     [Test]
-    public void TreasureRoomIsDeeperThanTheHub()
+    public void TreasureRoomsAreDeeperThanTheHub()
     {
         DungeonLayout layout = Generate("depth", SmallParams());
-
-        Room treasure = FindKind(layout, RoomKind.Treasure);
         Room hub = FindKind(layout, RoomKind.Hub);
 
         Assert.AreEqual(0, hub.DepthFromHub);
-        Assert.Greater(treasure.DepthFromHub, 0, "the reward room sits at the entrance");
+
+        foreach (var room in layout.Rooms)
+        {
+            if (room.Kind != RoomKind.Treasure) continue;
+            Assert.Greater(room.DepthFromHub, 0, "a reward room sits at the entrance");
+        }
     }
 
     /// <summary>
@@ -165,12 +183,18 @@ public class RoomCorridorGeneratorTests
     }
 
     [Test]
-    public void HubRoomIsNeverTheTreasure()
+    public void HubRoomIsNeverATreasureRoom()
     {
         DungeonLayout layout = Generate("hub-roles", SmallParams());
 
         Room hub = FindKind(layout, RoomKind.Hub);
-        Assert.AreNotEqual(hub.Index, FindKind(layout, RoomKind.Treasure).Index);
+        Assert.IsNotNull(hub, "no hub room was placed");
+
+        foreach (var room in layout.Rooms)
+        {
+            if (room.Kind != RoomKind.Treasure) continue;
+            Assert.AreNotEqual(hub.Index, room.Index, "the hub was locked as a treasure room");
+        }
     }
 
     [Test]
@@ -338,7 +362,7 @@ public class RoomCorridorGeneratorTests
         Assert.LessOrEqual(CountKind(layout, RoomKind.Exit), 1, "more than one way out");
 
         Assert.AreNotEqual(FindKind(layout, RoomKind.Hub).Index, exit.Index);
-        Assert.AreNotEqual(FindKind(layout, RoomKind.Treasure).Index, exit.Index);
+        Assert.AreNotEqual(RoomKind.Treasure, exit.Kind, "the way out was locked behind a key");
     }
 
     /// <summary>
@@ -481,26 +505,284 @@ public class RoomCorridorGeneratorTests
         Assert.AreEqual(1, flagged, "the dungeon must hold exactly one exit key");
         Assert.AreNotEqual(exit.Index, keyRoom.Index, "the key is locked inside the door it opens");
         Assert.AreNotEqual(RoomKind.Hub, keyRoom.Kind, "the key is handed over at the spawn point");
-        Assert.AreNotEqual(RoomKind.Treasure, keyRoom.Kind, "the key and the reward are one trip");
 
-        // The three destinations have to be spread over the map, not clustered in one
-        // corner of it. The floor is deliberately slack: measured over 60 maps, the worst
-        // case is 40% of the diagonal at the shipped settings but only 21% on the cramped
-        // map these tests use, where eight rooms leave the scoring little to choose
-        // between. 15% still catches the collapse this guards against — before the fix,
-        // key and treasure landed within 5–8% of each other on real seeds.
+        // Spread over the map rather than clustered in one corner of it. The floor is
+        // deliberately slack: measured over 60 maps, the worst case is 40% of the diagonal
+        // at the shipped settings but only 21% on the cramped map these tests use, where
+        // eight rooms leave the scoring little to choose between. 15% still catches the
+        // collapse this guards against — an earlier scoring put key and exit within 5–8%
+        // of each other on real seeds.
         float diagonal = Mathf.Sqrt(layout.Width * layout.Width + layout.Height * layout.Height);
         float floorDistance = diagonal * 0.15f;
 
         Assert.Greater(Vector2Int.Distance(keyRoom.Center, exit.Center), floorDistance,
             "the key is stashed on the exit's doorstep");
+    }
 
-        Room treasure = FindKind(layout, RoomKind.Treasure);
-        if (treasure != null)
+    /// <summary>
+    /// The guarantee a locked room has to keep: the door never costs the player anything
+    /// the run needs. Over many seeds, because how a treasure plot ends up connected
+    /// depends on where the corridors happened to be carved.
+    /// </summary>
+    [Test]
+    public void TreasureRoomsAreOptionalSmallDeadEnds()
+    {
+        var parameters = SmallParams();
+        int seeds = 60;
+        int fullCount = 0;
+
+        for (int i = 0; i < seeds; i++)
         {
-            Assert.Greater(Vector2Int.Distance(keyRoom.Center, treasure.Center), floorDistance,
-                "the key and the treasure are the same trip");
+            string seed = $"treasure{i}";
+            DungeonLayout layout = Generate(seed, parameters);
+
+            int count = CountKind(layout, RoomKind.Treasure);
+            Assert.LessOrEqual(count, parameters.TreasureRoomCount,
+                $"seed '{seed}': more treasure rooms than configured");
+            if (count == parameters.TreasureRoomCount) fullCount++;
+
+            foreach (var room in layout.Rooms)
+            {
+                if (room.Kind != RoomKind.Treasure) continue;
+
+                Assert.AreEqual(1, room.Degree,
+                    $"seed '{seed}': treasure room {room.Index} is on a through-route, so " +
+                    "locking it cuts off part of the map");
+
+                // The geometry, not the graph. A corridor routed past the room can open
+                // into it without a link being recorded — measured at 16.4% of plots at the
+                // shipped settings — and a room checked only for Degree 1 was locked with a
+                // second door standing open on the far side.
+                Assert.AreEqual(1, CountEntrances(layout, room),
+                    $"seed '{seed}': treasure room {room.Index} can be walked through");
+                Assert.Greater(room.DepthFromHub, 0, $"seed '{seed}': the hub was locked");
+                Assert.LessOrEqual(room.Area, parameters.TreasureMaxArea,
+                    $"seed '{seed}': treasure room {room.Index} is a wing, not a closet");
+            }
         }
+
+        // Not every seed: a map can fail to fit the last plot, or a corridor can spoil one
+        // past the spares. Measured over 500 seeds on this cramped map, 98.2% get the full
+        // count and none drop below two, so a floor of 90% catches a regression in the
+        // placement without turning an unlucky seed into a red build.
+        Assert.GreaterOrEqual(fullCount, seeds * 0.9f,
+            $"only {fullCount} of {seeds} seeds got all {parameters.TreasureRoomCount} treasure rooms");
+    }
+
+    /// <summary>
+    /// A locked room the populator cannot close is worse than an unlocked one: it reads as
+    /// content behind a key and is walked into through the gap beside the door.
+    /// </summary>
+    [Test]
+    public void EveryTreasureDoorwayCanHoldADoor()
+    {
+        var parameters = SmallParams();
+
+        for (int i = 0; i < 60; i++)
+        {
+            string seed = $"seal{i}";
+            DungeonLayout layout = Generate(seed, parameters);
+
+            foreach (var room in layout.Rooms)
+            {
+                if (room.Kind != RoomKind.Treasure) continue;
+
+                var doorways = RoomCorridorGenerator.DoorwayCells(layout, room);
+                Assert.IsNotEmpty(doorways, $"seed '{seed}': treasure room {room.Index} has no doorway");
+
+                foreach (Vector2Int cell in doorways)
+                {
+                    Assert.IsTrue(layout.HasDoorJambs(cell),
+                        $"seed '{seed}': treasure room {room.Index} has an open arch at {cell}");
+                    Assert.IsFalse(
+                        doorways.Contains(cell + Vector2Int.right) ||
+                        doorways.Contains(cell + Vector2Int.up),
+                        $"seed '{seed}': treasure room {room.Index} has an opening two cells wide " +
+                        $"at {cell}, which one door leaf cannot close");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The exit key lives in one of the locked rooms — that is what makes opening them the
+    /// way the run is finished rather than a side errand.
+    /// </summary>
+    [Test]
+    public void TheExitKeyIsInALockedTreasureRoom()
+    {
+        var parameters = SmallParams();
+
+        for (int i = 0; i < 60; i++)
+        {
+            string seed = $"keyroom{i}";
+            DungeonLayout layout = Generate(seed, parameters);
+
+            Room keyRoom = null;
+            foreach (var room in layout.Rooms)
+                if (room.HoldsExitKey) keyRoom = room;
+
+            if (FindKind(layout, RoomKind.Exit) == null)
+            {
+                Assert.IsNull(keyRoom, $"seed '{seed}': a key with nothing to unlock");
+                continue;
+            }
+
+            Assert.IsNotNull(keyRoom, $"seed '{seed}': the exit has no key anywhere");
+            Assert.AreEqual(RoomKind.Treasure, keyRoom.Kind,
+                $"seed '{seed}': the exit key is not in a treasure room");
+        }
+    }
+
+    [Test]
+    public void TreasureRoomsCanBeTurnedOff()
+    {
+        var parameters = SmallParams();
+        parameters.TreasureRoomCount = 0;
+
+        for (int i = 0; i < 20; i++)
+        {
+            DungeonLayout layout = Generate($"notreasure{i}", parameters);
+
+            Assert.AreEqual(0, CountKind(layout, RoomKind.Treasure));
+
+            // The key still has to be somewhere, or the dungeon cannot be finished.
+            if (FindKind(layout, RoomKind.Exit) == null) continue;
+
+            bool hasKeyRoom = false;
+            foreach (var room in layout.Rooms) hasKeyRoom |= room.HoldsExitKey;
+            Assert.IsTrue(hasKeyRoom, "no treasure rooms left the exit key nowhere to go");
+        }
+    }
+
+    /// <summary>
+    /// The hub keeps all four of its walls straight. It is never shaped, never decorated and
+    /// — since this test — never given perimeter notches either: the one room the player is
+    /// safe in has to be read at a glance, and a chamfered corner is one more thing in it to
+    /// resolve.
+    /// </summary>
+    [Test]
+    public void TheHubStaysARectangle()
+    {
+        var parameters = SmallParams();
+
+        // Sanitized, because the generator fits the hub to the room size range before
+        // placing it and this map's range is smaller than the default hub.
+        int side = parameters.Sanitized().HubRoomSize;
+
+        for (int i = 0; i < 40; i++)
+        {
+            string seed = $"hub-shape{i}";
+            Room hub = FindKind(Generate(seed, parameters), RoomKind.Hub);
+            Assert.IsNotNull(hub, $"seed '{seed}': no hub was placed");
+
+            Assert.AreEqual(RoomShape.Rectangle, hub.Shape, $"seed '{seed}': the hub was shaped");
+            Assert.AreEqual(side * side, hub.Area,
+                $"seed '{seed}': the hub lost cells to its outline detail");
+        }
+    }
+
+    /// <summary>
+    /// The hub sits at the middle of the map, so every shortest-corridor rule in the
+    /// generator points at it: left alone it collected eight corridors and read as a
+    /// junction rather than as somewhere to stop.
+    ///
+    /// The cap is a target, not a guarantee — a corridor is only dropped when the map is
+    /// still connected without it, and on a seed whose loops all landed elsewhere the hub
+    /// keeps what the dungeon cannot do without. Asserted as a share of seeds for that
+    /// reason: measured over 200 seeds, 78.5% of hubs come in at or under the cap and the
+    /// mean is 4.2 corridors.
+    /// </summary>
+    [Test]
+    public void TheHubIsNotACrossroads()
+    {
+        var parameters = SmallParams();
+        int seeds = 60;
+        int withinCap = 0;
+        int total = 0;
+
+        for (int i = 0; i < seeds; i++)
+        {
+            string seed = $"hub-degree{i}";
+            Room hub = FindKind(Generate(seed, parameters), RoomKind.Hub);
+            Assert.IsNotNull(hub, $"seed '{seed}': no hub was placed");
+
+            total += hub.Degree;
+            if (hub.Degree <= parameters.MaxHubCorridors) withinCap++;
+        }
+
+        Assert.GreaterOrEqual(withinCap, seeds * 0.6f,
+            $"only {withinCap} of {seeds} hubs came in at or under {parameters.MaxHubCorridors} corridors");
+        Assert.LessOrEqual(total / (float)seeds, parameters.MaxHubCorridors + 1.5f,
+            "the hub is still collecting corridors on average");
+    }
+
+    /// <summary>
+    /// Every way into the hub should be a doorway, not a gap. An opening with no jamb to
+    /// hang a leaf on is left as an open arch by the doorway pass, and a hub with one is a
+    /// safe room anything can walk straight into — which is what a corridor routed flush
+    /// along its wall used to produce, on 8 of 60 hubs at eight cells wide.
+    /// </summary>
+    [Test]
+    public void EveryWayIntoTheHubTakesADoor()
+    {
+        var parameters = SmallParams();
+        int seeds = 60;
+        int clean = 0;
+
+        for (int i = 0; i < seeds; i++)
+        {
+            DungeonLayout layout = Generate($"hub-doors{i}", parameters);
+            Room hub = FindKind(layout, RoomKind.Hub);
+            if (hub == null) continue;
+
+            if (CountArches(layout, hub) == 0) clean++;
+        }
+
+        // Not every seed: a room can still be placed close enough to the hub that the
+        // corridor between them has nowhere to turn but the clearance. Measured over 200
+        // seeds, 88.5% of hubs come out with no arch at all.
+        Assert.GreaterOrEqual(clean, seeds * 0.8f,
+            $"only {clean} of {seeds} hubs had a door on every way in");
+    }
+
+    /// <summary>Openings into the room that no door was hung in.</summary>
+    private static int CountArches(DungeonLayout layout, Room room)
+    {
+        var outside = new HashSet<Vector2Int>();
+        foreach (Vector2Int cell in room.Cells)
+        {
+            foreach (Vector2Int neighbour in Neighbours(cell))
+            {
+                if (room.Contains(neighbour) || !layout.IsWalkable(neighbour)) continue;
+                outside.Add(neighbour);
+            }
+        }
+
+        int arches = 0;
+        while (outside.Count > 0)
+        {
+            bool hasDoor = false;
+            var pending = new Stack<Vector2Int>();
+
+            foreach (Vector2Int cell in outside) { pending.Push(cell); break; }
+            outside.Remove(pending.Peek());
+
+            while (pending.Count > 0)
+            {
+                Vector2Int cell = pending.Pop();
+                if (layout[cell] == CellType.Door && layout.HasDoorJambs(cell)) hasDoor = true;
+
+                foreach (Vector2Int neighbour in Neighbours(cell))
+                {
+                    if (outside.Remove(neighbour)) pending.Push(neighbour);
+                }
+            }
+
+            if (!hasDoor) arches++;
+        }
+
+        return arches;
     }
 
     private static int CountKind(DungeonLayout layout, RoomKind kind)

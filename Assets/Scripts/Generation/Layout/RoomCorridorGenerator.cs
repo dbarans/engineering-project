@@ -69,20 +69,21 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
 
     private static DungeonLayout BuildOnce(string seed, LayoutParams p, DeterministicRandom random)
     {
-        List<Room> rooms = PlaceRooms(p, random.Derive("rooms"), out int hubIndex);
-        List<RoomLink> links = ConnectRooms(rooms, p, random.Derive("links"));
+        List<Room> rooms = PlaceRooms(p, random.Derive("rooms"), out int hubIndex,
+            out List<int> treasurePlots);
+        List<RoomLink> links = ConnectRooms(rooms, treasurePlots, hubIndex, p, random.Derive("links"));
 
         var layout = new DungeonLayout(seed, p.MapWidth, p.MapHeight, rooms, links);
 
         CarveRooms(layout, rooms);
-        DetailOutlines(layout, rooms, p, random.Derive("outlines"));
-        CorridorCarver.CarveAll(layout, rooms, links, p, random.Derive("corridors"));
+        DetailOutlines(layout, rooms, hubIndex, p, random.Derive("outlines"));
+        CorridorCarver.CarveAll(layout, rooms, links, hubIndex, p, random.Derive("corridors"));
         DoorwayNormalizer.Apply(layout, rooms, p.DoorwayWidth);
 
         // Roles are assigned before the interior pass because that pass reads them: the
         // start room and the hub are deliberately left legible, and it cannot know which
         // they are until the graph has been walked.
-        AssignRoomRoles(layout, rooms, links, hubIndex);
+        AssignRoomRoles(layout, rooms, links, hubIndex, treasurePlots, p);
 
         RoomInteriorDecorator.Decorate(layout, p, random.Derive("interiors"));
         Chokepoints.Detect(layout);
@@ -98,7 +99,8 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
     /// The hub is placed first, before any sampling, and <paramref name="hubIndex"/>
     /// reports where it landed in the list.
     /// </summary>
-    private static List<Room> PlaceRooms(LayoutParams p, DeterministicRandom random, out int hubIndex)
+    private static List<Room> PlaceRooms(LayoutParams p, DeterministicRandom random,
+        out int hubIndex, out List<int> treasurePlots)
     {
         var rooms = new List<Room>(p.TargetRoomCount);
         hubIndex = PlaceHub(rooms, p);
@@ -130,8 +132,71 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
             }
         }
 
+        treasurePlots = PlaceTreasurePlots(rooms, p, random.Derive("treasure"));
         return rooms;
     }
+
+    /// <summary>
+    /// Places the treasure plots: small rooms sampled after the ordinary ones, on whatever
+    /// space is left between them.
+    ///
+    /// Sampled rather than picked out of the finished map, which is what the treasure room
+    /// used to be — whichever room ended up farthest from the hub. That gave one reward
+    /// room, wherever the layout happened to leave it, standing open. Sampling gives
+    /// several, small enough to seal, and lets the loot be something the player decides to
+    /// open rather than something they walk into.
+    ///
+    /// A few more plots are placed than are wanted, because a plot can still lose the role
+    /// later: a corridor may cut a second way into it on its way past, which
+    /// <see cref="ValidateTreasureRooms"/> catches. The spares absorb that, and any that
+    /// are not needed become ordinary small rooms.
+    ///
+    /// They are deliberately not counted against <see cref="LayoutParams.TargetRoomCount"/>:
+    /// a treasure closet is not one of the rooms the run is made of, and spending a room
+    /// budget entry on one would quietly shrink the dungeon each time one fitted.
+    ///
+    /// Plain rectangles, never run through <see cref="RoomShaper"/>: at four cells to a
+    /// side there is nothing to carve that does not just make the room smaller.
+    /// </summary>
+    private static List<int> PlaceTreasurePlots(List<Room> rooms, LayoutParams p,
+        DeterministicRandom random)
+    {
+        var placed = new List<int>();
+        if (p.TreasureRoomCount <= 0) return placed;
+
+        int wanted = p.TreasureRoomCount + TreasurePlotSpares;
+        for (int i = 0; i < wanted; i++)
+        {
+            for (int attempt = 0; attempt < p.PlacementAttemptsPerRoom; attempt++)
+            {
+                int width = random.RangeInclusive(p.MinTreasureRoomSize, p.MaxTreasureRoomSize);
+                int height = random.RangeInclusive(p.MinTreasureRoomSize, p.MaxTreasureRoomSize);
+
+                int maxX = p.MapWidth - width - 1;
+                int maxY = p.MapHeight - height - 1;
+                if (maxX < 1 || maxY < 1) break;
+
+                var bounds = new RectInt(
+                    random.RangeInclusive(1, maxX),
+                    random.RangeInclusive(1, maxY),
+                    width, height);
+
+                if (Overlaps(rooms, bounds, p.RoomSpacing)) continue;
+
+                placed.Add(rooms.Count);
+                rooms.Add(new Room(rooms.Count, bounds) { IsTreasurePlot = true });
+                break;
+            }
+        }
+
+        return placed;
+    }
+
+    /// <summary>
+    /// Extra treasure plots placed beyond the count actually wanted, to cover the ones a
+    /// corridor later spoils by cutting a second way in.
+    /// </summary>
+    private const int TreasurePlotSpares = 4;
 
     /// <summary>
     /// Reserves the hub: a square room in the exact middle of the map, placed before any
@@ -222,17 +287,29 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
     /// Kruskal's minimum spanning tree over room-centre distances, plus a random
     /// fraction of the rejected edges. Only the shortest edges are considered for
     /// loops, otherwise a "loop" can be a corridor crossing the entire map.
+    ///
+    /// Treasure plots are held out of all of that and given exactly one corridor each, to
+    /// their nearest ordinary room. A locked room has to be a dead end or its lock stops
+    /// being optional: with a corridor out the far side it takes a piece of the map with
+    /// it, and the player without a key has lost a route rather than skipped a room. The
+    /// spanning tree would happily route through one, and a loop edge would hand it a
+    /// second door.
     /// </summary>
-    private static List<RoomLink> ConnectRooms(List<Room> rooms, LayoutParams p, DeterministicRandom random)
+    private static List<RoomLink> ConnectRooms(List<Room> rooms, List<int> treasurePlots,
+        int hubIndex, LayoutParams p, DeterministicRandom random)
     {
         var links = new List<RoomLink>();
         if (rooms.Count < 2) return links;
 
+        var treasure = new HashSet<int>(treasurePlots);
+
         var candidates = new List<(int a, int b, int distance)>();
         for (int a = 0; a < rooms.Count; a++)
         {
+            if (treasure.Contains(a)) continue;
             for (int b = a + 1; b < rooms.Count; b++)
             {
+                if (treasure.Contains(b)) continue;
                 Vector2Int delta = rooms[a].Center - rooms[b].Center;
                 candidates.Add((a, b, Mathf.Abs(delta.x) + Mathf.Abs(delta.y)));
             }
@@ -259,15 +336,144 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
                 rejected.Add(edge);
         }
 
-        // Loop candidates: the shortest quarter of the rejected edges.
-        int loopPool = Mathf.Max(1, rejected.Count / 4);
+        // Loop candidates: the shortest slice of the rejected edges, sized by the
+        // settings. Shortest first is what keeps a "loop" from being a corridor across the
+        // whole map — the rejected list is still in the distance order Kruskal sorted it
+        // into.
+        int loopPool = Mathf.Max(1, Mathf.RoundToInt(rejected.Count * p.LoopCandidateFraction));
+        loopPool = Mathf.Min(loopPool, rejected.Count);
         for (int i = 0; i < loopPool; i++)
         {
             if (random.Chance(p.ExtraLoopChance))
                 links.Add(new RoomLink(rejected[i].a, rejected[i].b));
         }
 
+        TrimHubCorridors(links, rooms, hubIndex, p);
+
+        foreach (int plot in treasurePlots)
+        {
+            int host = NearestOrdinaryRoom(rooms, treasure, plot);
+            if (host >= 0) links.Add(new RoomLink(plot, host));
+        }
+
         return links;
+    }
+
+    /// <summary>
+    /// Drops corridors into the hub until it has no more than
+    /// <see cref="LayoutParams.MaxHubCorridors"/> of them, longest first, and never one the
+    /// map still needs.
+    ///
+    /// Pruning afterwards rather than constraining the spanning tree: a degree-bounded
+    /// spanning tree is a harder problem than the one being solved, and the loop edges are
+    /// added after the tree anyway, so a cap enforced during the tree would be exceeded
+    /// again a few lines later. Here the whole graph exists and the question is only which
+    /// of the hub's corridors are redundant.
+    ///
+    /// Redundant is checked, not assumed: a link is dropped only when the rooms it joined
+    /// are still connected without it. That is what makes this safe to run after loops
+    /// have been added — the loops are usually what makes a hub corridor redundant in the
+    /// first place — and it is also why the cap is a target rather than a guarantee. On a
+    /// map whose loops all landed elsewhere, the hub keeps the corridors the dungeon cannot
+    /// do without.
+    ///
+    /// Longest first because a long corridor into the middle of the map is the one that
+    /// reads least like a door and most like a passage that happens to end there.
+    /// </summary>
+    private static void TrimHubCorridors(List<RoomLink> links, List<Room> rooms, int hubIndex,
+        LayoutParams p)
+    {
+        if (hubIndex < 0 || p.MaxHubCorridors <= 0) return;
+
+        var hubLinks = new List<int>();
+        for (int i = 0; i < links.Count; i++)
+        {
+            if (links[i].RoomA == hubIndex || links[i].RoomB == hubIndex) hubLinks.Add(i);
+        }
+        if (hubLinks.Count <= p.MaxHubCorridors) return;
+
+        hubLinks.Sort((left, right) =>
+        {
+            int byLength = LinkLength(rooms, links[right]).CompareTo(LinkLength(rooms, links[left]));
+            return byLength != 0 ? byLength : left.CompareTo(right);
+        });
+
+        var dropped = new HashSet<int>();
+        int remaining = hubLinks.Count;
+
+        foreach (int index in hubLinks)
+        {
+            if (remaining <= p.MaxHubCorridors) break;
+
+            dropped.Add(index);
+            if (StaysConnected(links, dropped, rooms.Count)) remaining--;
+            else dropped.Remove(index);
+        }
+
+        for (int i = links.Count - 1; i >= 0; i--)
+        {
+            if (dropped.Contains(i)) links.RemoveAt(i);
+        }
+    }
+
+    private static int LinkLength(List<Room> rooms, RoomLink link)
+    {
+        Vector2Int delta = rooms[link.RoomA].Center - rooms[link.RoomB].Center;
+        return Mathf.Abs(delta.x) + Mathf.Abs(delta.y);
+    }
+
+    /// <summary>
+    /// True when every room the links still join is reachable from the first of them —
+    /// union-find over the links that are not in <paramref name="dropped"/>.
+    ///
+    /// Rooms with no link at all are ignored rather than counted as a failure: the treasure
+    /// closets have not been connected yet at this point, and a room the tree never reached
+    /// is a separate fault the layout validator catches on the cells themselves.
+    /// </summary>
+    private static bool StaysConnected(List<RoomLink> links, HashSet<int> dropped, int roomCount)
+    {
+        var union = new UnionFind(roomCount);
+        var linked = new HashSet<int>();
+        int components = 0;
+
+        for (int i = 0; i < links.Count; i++)
+        {
+            if (dropped.Contains(i)) continue;
+
+            RoomLink link = links[i];
+            if (linked.Add(link.RoomA)) components++;
+            if (linked.Add(link.RoomB)) components++;
+            if (union.Union(link.RoomA, link.RoomB)) components--;
+        }
+
+        return components <= 1;
+    }
+
+    /// <summary>
+    /// The ordinary room nearest the given treasure plot — the one room it is given a
+    /// corridor to. Ties go to the lower index so the choice cannot depend on placement
+    /// order. Returns -1 on a map with no ordinary room at all, in which case the plot is
+    /// left unconnected and the role pass drops it: a sealed pocket nothing reaches is not
+    /// a locked room, it is a hole in the map.
+    /// </summary>
+    private static int NearestOrdinaryRoom(List<Room> rooms, HashSet<int> treasure, int plot)
+    {
+        int best = -1;
+        int bestDistance = int.MaxValue;
+
+        for (int i = 0; i < rooms.Count; i++)
+        {
+            if (i == plot || treasure.Contains(i)) continue;
+
+            Vector2Int delta = rooms[i].Center - rooms[plot].Center;
+            int distance = Mathf.Abs(delta.x) + Mathf.Abs(delta.y);
+            if (distance >= bestDistance) continue;
+
+            best = i;
+            bestDistance = distance;
+        }
+
+        return best;
     }
 
     private static void CarveRooms(DungeonLayout layout, List<Room> rooms)
@@ -293,13 +499,18 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
     /// A corridor carved afterwards simply punches back through any notch in its way,
     /// which is the right outcome: the doorway wins over the decoration.
     /// </summary>
-    private static void DetailOutlines(DungeonLayout layout, List<Room> rooms, LayoutParams p,
-        DeterministicRandom random)
+    private static void DetailOutlines(DungeonLayout layout, List<Room> rooms, int hubIndex,
+        LayoutParams p, DeterministicRandom random)
     {
         if (p.PerimeterDetail <= 0f) return;
 
         foreach (var room in rooms)
         {
+            // The hub keeps its four straight walls, for the same reason it is never shaped
+            // and never decorated: it is the one room that has to be read at a glance, and
+            // a chamfered corner or a buttress is one more thing in it to resolve.
+            if (room.Index == hubIndex) continue;
+
             List<Vector2Int> notches = RoomShaper.PerimeterNotches(
                 room.Cells, room.Shape, p.PerimeterDetail, random.Derive($"room{room.Index}"));
 
@@ -328,7 +539,7 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
     /// not happen.
     /// </summary>
     private static void AssignRoomRoles(DungeonLayout layout, List<Room> rooms, List<RoomLink> links,
-        int hubIndex)
+        int hubIndex, List<int> treasurePlots, LayoutParams p)
     {
         if (rooms.Count == 0) return;
 
@@ -338,6 +549,11 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
             rooms[i].Kind = i == hubIndex ? RoomKind.Hub : RoomKind.Normal;
             rooms[i].Degree = adjacency[i].Count;
         }
+
+        // Before the other roles, so none of them can be handed to a room that is about to
+        // be locked: every later pass skips a Treasure room.
+        foreach (int index in treasurePlots) rooms[index].Kind = RoomKind.Treasure;
+        ValidateTreasureRooms(layout, rooms, p);
 
         Room origin = hubIndex >= 0 ? rooms[hubIndex] : FarthestFromCentre(layout, rooms);
         layout.SpawnCell = origin.Center;
@@ -353,23 +569,104 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
             CutExitDoorway(layout, exit);
         }
 
-        Room treasure = null;
-        int maxDepth = 0;
+        if (exit != null) MarkKeyRoom(rooms, adjacency, exit);
+    }
+
+    /// <summary>
+    /// Decides which treasure plots keep the role, and demotes the rest to ordinary rooms.
+    /// Placement decides where they go; this decides which of them are locked, and it is a
+    /// correctness pass rather than a taste one — each rule below is a way a locked door
+    /// costs the player something the run needs:
+    ///
+    /// <list type="bullet">
+    /// <item><b>Dead end</b>, measured as <see cref="CountEntrances"/> 1 — one way in, read
+    /// off the geometry. <see cref="ConnectRooms"/> gives each plot a single graph edge, but
+    /// the graph is not what the player walks: a corridor routed past the room can open into
+    /// it without a link being recorded, and a room checked only for
+    /// <see cref="Room.Degree"/> 1 was locked with a second door standing open on the far
+    /// side. That is exactly the case this rule exists to catch.</item>
+    /// <item><b>Sealable</b>: every doorway cell can hold a door and no two of them are
+    /// adjacent. The populator hangs one leaf per opening and leaves jambless openings as
+    /// open arches, so a room failing either test is one whose lock has a hole beside
+    /// it.</item>
+    /// <item><b>Small</b>, per <see cref="LayoutParams.TreasureMaxArea"/> — a backstop on
+    /// the plot size rather than a real filter.</item>
+    /// </list>
+    ///
+    /// Plots beyond <see cref="LayoutParams.TreasureRoomCount"/> are demoted too: the
+    /// spares exist to cover the ones a corridor spoils, not to add rooms when nothing was
+    /// spoiled. Lowest index first, so which spare survives does not depend on placement
+    /// order.
+    ///
+    /// A demoted plot is an ordinary room in every respect, which is the point of demoting
+    /// rather than discarding: the space is already carved and connected, and a room the
+    /// player can walk into is a better outcome than a hole in the map.
+    /// </summary>
+    private static void ValidateTreasureRooms(DungeonLayout layout, List<Room> rooms, LayoutParams p)
+    {
+        int kept = 0;
+
         foreach (var room in rooms)
         {
-            // Normal only: a reward stashed in the one place the player is safe is not
-            // a reward, and the exit is already the room the whole run points at.
-            if (room.Kind != RoomKind.Normal) continue;
-            if (room.DepthFromHub > maxDepth)
+            if (room.Kind != RoomKind.Treasure) continue;
+
+            bool lockable = room.Degree == 1 &&
+                            CountEntrances(layout, room) == 1 &&
+                            room.Area <= p.TreasureMaxArea &&
+                            CanBeSealed(layout, room);
+
+            if (lockable && kept < p.TreasureRoomCount) kept++;
+            else room.Kind = RoomKind.Normal;
+        }
+    }
+
+    /// <summary>
+    /// True when every way into the room is an opening a single door leaf can close.
+    /// See <see cref="ValidateTreasureRooms"/> for why a room that fails this must not be
+    /// locked.
+    /// </summary>
+    private static bool CanBeSealed(DungeonLayout layout, Room room)
+    {
+        var doorways = DoorwayCells(layout, room);
+        if (doorways.Count == 0) return false; // sealed already, or reached some other way
+
+        foreach (Vector2Int cell in doorways)
+        {
+            if (!layout.HasDoorJambs(cell)) return false;
+
+            // Adjacent doorway cells are one opening wider than one leaf: the populator
+            // hangs a door on the first and skips the second, leaving a gap beside it.
+            if (doorways.Contains(cell + Vector2Int.right) ||
+                doorways.Contains(cell + Vector2Int.up))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The <see cref="CellType.Door"/> cells on the room's perimeter — every opening
+    /// leading into it.
+    /// </summary>
+    public static HashSet<Vector2Int> DoorwayCells(DungeonLayout layout, Room room)
+    {
+        var doorways = new HashSet<Vector2Int>();
+        foreach (Vector2Int cell in room.Cells)
+        {
+            for (int i = 0; i < Neighbours.Length; i++)
             {
-                maxDepth = room.DepthFromHub;
-                treasure = room;
+                Vector2Int neighbour = cell + Neighbours[i];
+                if (room.Contains(neighbour)) continue;
+                if (layout.Contains(neighbour.x, neighbour.y) &&
+                    layout[neighbour] == CellType.Door)
+                    doorways.Add(neighbour);
             }
         }
-        if (treasure != null) treasure.Kind = RoomKind.Treasure;
 
-        if (exit != null) MarkKeyRoom(rooms, adjacency, exit, treasure);
+        return doorways;
     }
+
+
 
     /// <summary>
     /// Picks the room the way out is in: the one nearest the edge of the map that has a
@@ -617,64 +914,67 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
     };
 
     /// <summary>
-    /// Flags the room holding the exit key: the one that keeps the greatest distance from
-    /// <i>both</i> the exit and the treasure, so the map's three destinations sit apart
-    /// instead of clustering in one corner.
+    /// Flags the room holding the exit key: the locked treasure room farthest from the
+    /// exit, so the way out and the thing that opens it sit at opposite ends of the map.
     ///
-    /// Scored on the <b>smaller</b> of the two distances, maximised. Scoring on distance
-    /// from the exit alone — which is what this did first, and in hops rather than metres —
-    /// put the key within a tenth of the map of the treasure on 7 of 60 maps and within a
-    /// fifth on 17, because "deepest from the hub" and "farthest from the exit" are two
-    /// different questions whose answers are correlated: both pull towards the same far end
-    /// of the graph. Maximising the minimum is what turns "far from one thing" into "far
-    /// from everything that matters", and it cannot be gamed by being enormously far from
-    /// one of the pair.
+    /// The key lives in a treasure room rather than in a room of its own. A dedicated key
+    /// room meant a trip the player made for one item and nothing else, in a room that was
+    /// otherwise ordinary and gave no sign of what was in it. Putting the key behind one of
+    /// the locks the player is already choosing between makes opening treasure rooms the
+    /// way the key is found — and makes the choice of which door to spend a key on
+    /// something the run can turn on.
     ///
-    /// Distance is straight-line here, and that is a deliberate reversal. The first version
-    /// used hop counts over the room graph, on the reasoning that the player walks corridors
-    /// rather than flying — true, but hop counts on a 200×200 map with 30 rooms are small
-    /// integers that tie constantly and correlate poorly with what the map looks like. The
-    /// player's sense of "these are at opposite ends of the dungeon" is spatial. Hops still
-    /// break ties, so the corridor reality is not thrown away entirely.
+    /// Distance is straight-line, with hops over the room graph breaking ties. That is a
+    /// deliberate reversal of the first version, which scored hops alone: on a 200×200 map
+    /// with 30 rooms hop counts are small integers that tie constantly and correlate poorly
+    /// with what the map looks like, while the player's sense of "these are at opposite ends
+    /// of the dungeon" is spatial. Hops still break ties, so the corridor reality is not
+    /// thrown away entirely.
     ///
-    /// The exit itself and the hub are excluded for the obvious reasons: a key locked
-    /// inside the door it opens, and a key handed over at the spawn point, are both the
-    /// same non-puzzle. The treasure room is excluded for a less obvious one: it and the
-    /// key room are the map's only two reasons to walk anywhere that is not the exit, and
-    /// letting one room be both collapses them into a single trip.
+    /// Falls back to the farthest ordinary room when the dungeon has no treasure rooms at
+    /// all — <c>treasureRoomCount</c> set to 0, or every plot demoted. The key has to be
+    /// somewhere reachable or the run cannot be finished, and that outweighs where it would
+    /// ideally sit.
     /// </summary>
-    private static void MarkKeyRoom(List<Room> rooms, List<int>[] adjacency, Room exit,
-        Room treasure)
+    private static void MarkKeyRoom(List<Room> rooms, List<int>[] adjacency, Room exit)
     {
         int[] hops = BreadthFirstDepths(adjacency, exit.Index);
 
+        Room best = PickKeyRoom(rooms, hops, exit, RoomKind.Treasure)
+                    ?? PickKeyRoom(rooms, hops, exit, RoomKind.Normal);
+
+        if (best != null) best.HoldsExitKey = true;
+    }
+
+    /// <summary>
+    /// The room of the given kind farthest from the exit, ties broken by hop count and then
+    /// by the lower index so the choice cannot depend on placement order. Rooms the graph
+    /// cannot reach are skipped: a key behind no corridor at all is a key that cannot be
+    /// fetched.
+    /// </summary>
+    private static Room PickKeyRoom(List<Room> rooms, int[] hops, Room exit, RoomKind kind)
+    {
         Room best = null;
-        long bestSpread = -1;
+        long bestDistance = -1;
         int bestHops = -1;
 
         foreach (var room in rooms)
         {
-            if (room.Index == exit.Index || room.Kind == RoomKind.Hub) continue;
-            if (room.Kind == RoomKind.Treasure) continue;
+            if (room.Index == exit.Index || room.Kind != kind) continue;
 
-            // Unreachable over the graph, which the loop-carving makes unlikely but does
-            // not forbid. A key behind no corridor at all is a key that cannot be fetched.
             int roomHops = hops[room.Index];
             if (roomHops < 0) continue;
 
-            long spread = SquaredDistance(room.Center, exit.Center);
-            if (treasure != null)
-                spread = System.Math.Min(spread, SquaredDistance(room.Center, treasure.Center));
-
-            if (spread < bestSpread) continue;
-            if (spread == bestSpread && roomHops <= bestHops) continue;
+            long distance = SquaredDistance(room.Center, exit.Center);
+            if (distance < bestDistance) continue;
+            if (distance == bestDistance && roomHops <= bestHops) continue;
 
             best = room;
-            bestSpread = spread;
+            bestDistance = distance;
             bestHops = roomHops;
         }
 
-        if (best != null) best.HoldsExitKey = true;
+        return best;
     }
 
     private static long SquaredDistance(Vector2Int a, Vector2Int b)
@@ -774,9 +1074,17 @@ public sealed class RoomCorridorGenerator : IDungeonLayoutGenerator
             return false;
         }
 
-        if (layout.Rooms.Count < parameters.MinRoomCount)
+        // Treasure closets excluded — including the ones demoted back to ordinary rooms,
+        // which is what the plot flag is for. They are sampled on top of the room budget,
+        // and counting them would let a map with too few real rooms pass by having fitted
+        // a couple of locked cupboards.
+        int placed = 0;
+        foreach (var room in layout.Rooms)
+            if (!room.IsTreasurePlot) placed++;
+
+        if (placed < parameters.MinRoomCount)
         {
-            failure = $"only {layout.Rooms.Count} rooms placed, {parameters.MinRoomCount} required";
+            failure = $"only {placed} rooms placed, {parameters.MinRoomCount} required";
             return false;
         }
 

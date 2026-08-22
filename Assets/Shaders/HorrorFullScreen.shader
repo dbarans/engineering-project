@@ -5,10 +5,9 @@
 // work (vignette, grain, grading, bloom) deliberately lives in the Volume profile instead —
 // see POSTFX_NOTES.md for which effect belongs where and why.
 //
-// Two uniforms are driven from script (HorrorPostProcessing) rather than set on the material,
-// so they are declared OUTSIDE the UnityPerMaterial CBUFFER and read as globals:
+// One uniform is driven from script (HorrorPostProcessing) rather than set on the material, so it
+// is declared OUTSIDE the UnityPerMaterial CBUFFER and read as a global:
 //   _HorrorIntensity — master 0..1 dial, 0 leaves the image untouched.
-//   _HorrorGlitch    — 0..1 burst, spikes on damage / a lamp dying nearby, decays back to 0.
 Shader "Custom/HorrorFullScreen"
 {
     Properties
@@ -19,9 +18,6 @@ Shader "Custom/HorrorFullScreen"
         _WarpAmount("Barrel Warp", Range(0, 0.3)) = 0.03
         _BreathAmount("Breathing Zoom", Range(0, 0.02)) = 0.0025
         _BreathSpeed("Breathing Speed", Range(0, 2)) = 0.22
-        _GlitchColorSplit("Glitch Colour Split", Range(0, 0.05)) = 0.006
-        _GlitchTearAmount("Glitch Tear Amount", Range(0, 0.2)) = 0.04
-        _GlitchBandCount("Glitch Band Count", Range(4, 128)) = 26
     }
 
     SubShader
@@ -52,29 +48,17 @@ Shader "Custom/HorrorFullScreen"
                 float _WarpAmount;
                 float _BreathAmount;
                 float _BreathSpeed;
-                float _GlitchColorSplit;
-                float _GlitchTearAmount;
-                float _GlitchBandCount;
             CBUFFER_END
 
-            // Script-driven globals — must stay out of UnityPerMaterial or the material's own
-            // (absent) values would shadow the globals and they would always read 0.
+            // Script-driven global — must stay out of UnityPerMaterial or the material's own
+            // (absent) value would shadow the global and it would always read 0.
             float _HorrorIntensity;
-            float _HorrorGlitch;
 
             #define SAMPLE_SCENE(uv) SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv)
-
-            // Cheap hash. Quantising by band index and by a coarse step of time is what makes the
-            // tearing hold still for a few frames instead of shimmering into noise.
-            float Hash(float n)
-            {
-                return frac(sin(n * 91.17) * 43758.5453);
-            }
 
             half4 Frag(Varyings IN) : SV_Target
             {
                 float intensity = saturate(_HorrorIntensity);
-                float glitch = saturate(_HorrorGlitch) * intensity;
 
                 float2 uv = IN.texcoord;
                 float2 centered = uv - 0.5;
@@ -88,22 +72,7 @@ Shader "Custom/HorrorFullScreen"
 
                 float2 warpedUV = centered + 0.5;
 
-                // Horizontal tearing: split the screen into bands, and displace only the bands
-                // whose hash clears a threshold that drops as the glitch rises. At glitch 0 the
-                // threshold is 1 and nothing ever tears.
-                float band = floor(warpedUV.y * _GlitchBandCount);
-                float timeStep = floor(_Time.y * 18.0);
-                float tearNoise = Hash(band + timeStep * 47.13);
-                float tearing = step(1.0 - glitch * 0.6, tearNoise);
-                warpedUV.x += (tearNoise - 0.5) * _GlitchTearAmount * glitch * tearing;
-
-                // Per-channel offset. Kept on the R/B pair only: splitting green too reads as a
-                // blur rather than as a broken signal.
-                float split = _GlitchColorSplit * glitch;
-                half3 color;
-                color.r = SAMPLE_SCENE(warpedUV + float2(split, 0)).r;
-                color.g = SAMPLE_SCENE(warpedUV).g;
-                color.b = SAMPLE_SCENE(warpedUV - float2(split, 0)).b;
+                half3 color = SAMPLE_SCENE(warpedUV).rgb;
 
                 // The warp can pull UVs off-screen, where a clamp sampler would smear the edge
                 // pixel into a streak. Black is what a CRT shows past the tube edge anyway.

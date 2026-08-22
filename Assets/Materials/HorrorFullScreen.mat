@@ -27,9 +27,6 @@ Material:
     m_Floats:
     - _BreathAmount: 0.0025
     - _BreathSpeed: 0.22
-    - _GlitchBandCount: 26
-    - _GlitchColorSplit: 0.006
-    - _GlitchTearAmount: 0.04
     - _ScanlineCount: 700
     - _ScanlineIntensity: 0.07
     - _ScanlineScrollSpeed: -2

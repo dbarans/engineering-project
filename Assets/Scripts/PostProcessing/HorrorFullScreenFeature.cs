@@ -6,7 +6,7 @@ using UnityEngine.Rendering.Universal;
 
 /// <summary>
 /// Renderer feature that runs <c>Shaders/HorrorFullScreen.shader</c> over the finished frame:
-/// barrel warp, breathing zoom, scanlines and the glitch tearing/colour split. Added to
+/// barrel warp, breathing zoom and scanlines. Added to
 /// <c>Settings/Renderer2D.asset</c> by <c>Tools ▸ Horror Post FX ▸ Set Up Horror Post-Processing</c>.
 ///
 /// Deliberately hand-rolled instead of URP's built-in <c>FullScreenPassRendererFeature</c>: this
@@ -14,8 +14,8 @@ using UnityEngine.Rendering.Universal;
 /// reflecting over URP internals whose field names move between package versions.
 ///
 /// Injected at <see cref="RenderPassEvent.AfterRenderingPostProcessing"/> — the warp has to run on
-/// top of the Volume's grading and bloom, otherwise the tearing would be graded and re-bloomed and
-/// stop reading as a broken signal.
+/// top of the Volume's grading and bloom, otherwise the warp and scanlines would be graded and
+/// re-bloomed and stop reading as a broken signal.
 /// </summary>
 public class HorrorFullScreenFeature : ScriptableRendererFeature
 {

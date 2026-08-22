@@ -28,7 +28,7 @@ Two layers, split by what each one can express:
 | Layer | Holds | Why there |
 |---|---|---|
 | `Settings/HorrorVolumeProfile.asset` | Tonemapping, Color Adjustments, Split Toning, Vignette, Film Grain, Chromatic Aberration, Bloom | Colour work. Tunable live in the inspector, no shader recompile, and URP already does it efficiently. |
-| `Shaders/HorrorFullScreen.shader` | Barrel warp, breathing zoom, scanlines, glitch tearing + colour split | UV-space distortion. **No Volume override can express this** — grading operates per pixel in place, it cannot move a pixel. |
+| `Shaders/HorrorFullScreen.shader` | Barrel warp, breathing zoom, scanlines | UV-space distortion. **No Volume override can express this** — grading operates per pixel in place, it cannot move a pixel. |
 
 Do not migrate effects across that line. Re-implementing a vignette in the fullscreen shader would
 just be a second, worse vignette that the profile cannot tune.
@@ -49,14 +49,13 @@ just be a second, worse vignette that the profile cannot tune.
 ## The reactive layer
 
 `PostProcessing/HorrorPostProcessing.cs` on the `Global Volume` object. A fixed profile makes every
-room look identical; this drives the overrides from four inputs, each given its own visual language
+room look identical; this drives the overrides from three inputs, each given its own visual language
 so they stay tellable apart:
 
 | Input | Source | Reads as |
 |---|---|---|
 | **Dread** | missing player health, below 60% | vignette closes in + heartbeat pulse (60→150 bpm), colour drains, grain rises |
 | **Alert** | any `EnemyBase` in `EnemyState.FollowPlayer` | tighter vignette + chromatic aberration |
-| **Glitch** | player took damage, or a `BrokenLightFlicker` blacked out within 12 units | tearing, colour split, brief exposure dip |
 | **Master** | `intensity` field | scales everything; 0 leaves the frame untouched |
 
 Every write is **baseline + reaction**, where the baseline is read out of the profile in `Awake`.
@@ -67,35 +66,26 @@ It reads `Volume.profile`, **not** `sharedProfile`. The former hands back a runt
 session cannot write its per-frame values back into the asset on disk. Getting this wrong means the
 profile slowly drifts to whatever the player's health was when you last hit stop.
 
-### Why enemies and lamps are polled, not injected
+### Why enemies are polled, not injected
 
-Both are spawned at runtime by the dungeon generator (`GENERATION_NOTES.md`), so there is nothing to
+They are spawned at runtime by the dungeon generator (`GENERATION_NOTES.md`), so there is nothing to
 wire up in the scene, and `EnemyBase` / `PlayerHealthSystem` raise no events. `RefreshTracking()`
 rescans every 2 s and the per-frame code only walks the cached arrays. If `EnemyBase` ever gains a
-detection event, the `UpdateAlert` poll should move over to it; the lamp poll should not, because it
-watches for the *edge* from lit to dark rather than for a state.
-
-The lamp check is on the edge for a reason: `BrokenLightFlicker` steps its intensity every few
-frames, so reacting to the intensity value itself would glitch the screen continuously under any
-flickering lamp.
-
-`HorrorPostProcessing.TriggerGlitch(strength)` is public — anything with a reason to rattle the
-image (a scripted scare, a door coming down) can fire one without this class knowing about it.
+detection event, the `UpdateAlert` poll should move over to it.
 
 ## The fullscreen pass
 
 `PostProcessing/HorrorFullScreenFeature.cs`, injected at `AfterRenderingPostProcessing`. The warp
-has to run **on top of** the Volume's grading and bloom; otherwise the tearing gets graded and
-re-bloomed and stops reading as a broken signal.
+has to run **on top of** the Volume's grading and bloom; otherwise the warp and scanlines get
+graded and re-bloomed and stop reading as a broken signal.
 
 Hand-rolled rather than URP's built-in `FullScreenPassRendererFeature` so the setup tool can assign
 the material from script against fields this repo owns, instead of reflecting over URP internals
 whose names move between package versions.
 
-Two shader uniforms are set from script via `Shader.SetGlobalFloat` — `_HorrorIntensity` and
-`_HorrorGlitch`. **They are declared outside the `UnityPerMaterial` CBUFFER on purpose.** A property
-inside that CBUFFER takes its value from the material, which would shadow the global and leave both
-permanently at 0.
+One shader uniform is set from script via `Shader.SetGlobalFloat` — `_HorrorIntensity`. **It is
+declared outside the `UnityPerMaterial` CBUFFER on purpose.** A property inside that CBUFFER takes
+its value from the material, which would shadow the global and leave it permanently at 0.
 
 ## Interaction with the vision system
 

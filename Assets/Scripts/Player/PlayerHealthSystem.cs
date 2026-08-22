@@ -76,4 +76,14 @@ public class PlayerHealthSystem : MonoBehaviour
     {
         return currentHealth;
     }
+
+    /// <summary>
+    /// The health the player starts a run with, and the ceiling <see cref="SetHealth"/> clamps to.
+    /// Exposed so effects that scale with how hurt the player is (see HorrorPostProcessing) can
+    /// work out a fraction rather than hard-coding the 100.
+    /// </summary>
+    public int GetMaxHealth()
+    {
+        return maxHealth;
+    }
 }

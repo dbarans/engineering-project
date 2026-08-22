@@ -105,8 +105,10 @@ mode-dependent — but it is a real change to stealth timing, not a pure additio
 - **No mixer groups / volume settings.** Belongs with the settings screen, which is
   where `KeyBindings` (GU-0060) is also headed. `SoundBank` is the natural place to add a
   master volume later.
-- **No footstep surface variation** (stone vs wood). Needs surface tagging on tiles that
-  does not exist yet.
+- **No footstep surface variation by tile** (stone vs wood). Tiles still carry no surface
+  tagging. The one exception is object-based rather than tile-based: a `NoisySurface`
+  volume (GU-0073, broken glass) replaces the footstep sound *and* the gameplay noise
+  radius while the player stands in it — see `PlayerSurfaceTracker`.
 
 ---
 

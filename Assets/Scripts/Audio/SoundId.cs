@@ -35,6 +35,14 @@ public static class SoundId
 
     public const string PlayerThrow = "player.throw";
 
+    // ---------------------------------------------------------------- surfaces
+    /// <summary>
+    /// A step taken on broken glass (<see cref="NoisySurface"/>). Replaces the ordinary
+    /// footstep for that step, in every movement mode — including sneaking, which is the
+    /// point of the surface: it is the one floor the player cannot cross quietly.
+    /// </summary>
+    public const string SurfaceGlassStep = "surface.glass.step";
+
     // ---------------------------------------------------------------- doors
     public const string DoorOpen = "door.open";
     public const string DoorClose = "door.close";

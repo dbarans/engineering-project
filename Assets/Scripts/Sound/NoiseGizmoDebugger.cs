@@ -48,17 +48,21 @@ public class NoiseGizmoDebugger : MonoBehaviour
         });
     }
 
-    /// <summary>Matches an emitted radius back to which NoiseSettings field it came from.</summary>
+    /// <summary>
+    /// Matches an emitted radius back to which NoiseSettings field it came from, falling
+    /// back to <see cref="GizmoRanges.OtherNoise"/> for the sources that hold their own
+    /// radii (noisy surfaces, barricades, doors) rather than reading the shared asset.
+    /// </summary>
     private GizmoRanges ClassifyRadius(float radius)
     {
-        if (noiseSettings == null) return GizmoRanges.None;
+        if (noiseSettings == null) return GizmoRanges.OtherNoise;
 
         if (Mathf.Approximately(radius, noiseSettings.walkNoiseRadius)) return GizmoRanges.PlayerWalkNoise;
         if (Mathf.Approximately(radius, noiseSettings.sprintNoiseRadius)) return GizmoRanges.PlayerSprintNoise;
         if (Mathf.Approximately(radius, noiseSettings.throwLandingRadius)) return GizmoRanges.PlayerThrowNoise;
         if (Mathf.Approximately(radius, noiseSettings.shootNoiseRadius)) return GizmoRanges.PlayerShootNoise;
 
-        return GizmoRanges.None;
+        return GizmoRanges.OtherNoise;
     }
 
     private void OnDrawGizmos()

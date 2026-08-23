@@ -383,7 +383,57 @@ public class DungeonPopulator : MonoBehaviour
             // it is the end of the run, not a room to loot.
             if (!authored && room.Kind != RoomKind.Hub && room.Kind != RoomKind.Exit)
                 SpawnProps(layout, room, free, roomOccupied, roomRandom, ref slot);
+
+            // Outside the `authored` guard, unlike the props: a rat is not part of anyone's
+            // arrangement of a room, which is exactly why a hand-authored interior has no
+            // reason to exclude it.
+            SpawnRats(layout, room, roomRandom.Derive("rats"));
         }
+    }
+
+    /// <summary>
+    /// Puts a few live rats on the room's floor.
+    ///
+    /// Deliberately not routed through <see cref="FreeCells"/> like everything else in the
+    /// room. That list is the room's placement budget — every cell taken out of it is a
+    /// cell no chest or prop can use — and a rat occupies nothing: it has no collider, it
+    /// walks off its spawn cell within seconds, and two of them standing on the same tile
+    /// for one frame costs nothing. Spending real floor on scenery that moves would make
+    /// rooms measurably emptier of the things the player can actually use.
+    ///
+    /// Rats get no guid and no <see cref="SaveableEntity"/> for the same reason: there is
+    /// nothing about one worth restoring, and where a given rat stood when the game was
+    /// saved is not a fact the world depends on.
+    ///
+    /// The hub is guaranteed at least one, skipping <see cref="RoomContentSettings.ratChancePerRoom"/>
+    /// entirely: it is the one room in every dungeon, and the one the player passes
+    /// through most, so it is the room where "sometimes there is a rat" would be most
+    /// visibly a coin flip rather than a place that has vermin.
+    /// </summary>
+    private void SpawnRats(DungeonLayout layout, Room room, DeterministicRandom random)
+    {
+        if (string.IsNullOrEmpty(content.ratPrefabId)) return;
+
+        // Not the exit room: the run ends the instant the player steps into it, so anything
+        // spawned there is content nobody sees for longer than a frame.
+        if (room.Kind == RoomKind.Exit) return;
+
+        bool guaranteed = room.Kind == RoomKind.Hub;
+        if (!guaranteed && !random.Chance(content.ratChancePerRoom)) return;
+
+        int minimum = guaranteed ? Mathf.Max(1, content.ratsPerRoomMin) : content.ratsPerRoomMin;
+        int count = random.RangeInclusive(minimum, Mathf.Max(minimum, content.ratsPerRoomMax));
+
+        var cells = new List<Vector2Int>(room.Area);
+        foreach (Vector2Int cell in room.Cells)
+        {
+            if (layout.IsWalkable(cell)) cells.Add(cell);
+        }
+        if (cells.Count == 0) return;
+
+        random.Shuffle(cells);
+        for (int i = 0; i < count && i < cells.Count; i++)
+            _prefabs.Spawn(content.ratPrefabId, builder.CellCenter(cells[i]), _contentRoot);
     }
 
     // ---------------------------------------------------------------- exit and key

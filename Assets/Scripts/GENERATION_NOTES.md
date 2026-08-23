@@ -3142,6 +3142,97 @@ doc comment now says so.
 
 ---
 
+---
+
+## 28 — The rat got up and walked off
+
+### A decal was the wrong container for the one thing that moves
+
+`DecalRat` was drawn in Stage 27 and painted flat into the decal tilemap with the cracks,
+the moss and the chippings. It was the best-read drawing of the three and the least worth
+having, for a reason none of the others share: a dungeon's cracks are meant to sit still,
+and a rat is the only thing on that list that a player would expect to react to them being
+there. Painted into a tilemap it cannot. A tile is a picture of a cell, not an object — it
+has no position of its own to change, no update, and nothing to hold a behaviour.
+
+So the rat became two things that used to be one.
+
+**A live rat** is now an object: `Assets/Prefabs/Rat.prefab`, a sprite and
+`WanderingRat`, built and drawn by `RatSetup` (`Tools ▸ Art ▸ Regenerate Rat`). It dashes a
+metre or two, sits still for a second or three, and bolts when the player comes within
+three units. It is drawn from directly above with its nose along +X, and the component
+rotates it into whichever direction it is travelling.
+
+**A dead rat** stays a decal, redrawn: lying on its side, with all four legs out the same
+way, bent at the joint and curled at the toes. The pose is doing all the work. The first
+attempt kept the Stage 27 top-down body and only splayed the legs, and it read as a rat
+*standing* — legs fanned out under a body are a stance however dead the rest of the drawing
+is. Parallel legs are not a stance, which is the whole point: no living animal holds all
+four in one direction.
+
+Keeping both is the reason the redraw was worth doing at all. Two rats in a cellar, one of
+which is scurrying and one of which is not, say something about the place; one rat that is
+sometimes a decal and sometimes an object would just look like a bug.
+
+### What it does not have
+
+No collider, no health, no interaction, no `SaveableEntity`, no guid. Under this project's
+convention only walls block movement and sight, and a rat is not a wall — see
+`project_vision_blocking_convention`. Nothing about where a given rat stood is worth
+restoring across a save, so nothing tries to.
+
+Which floor it may cross is asked of `PathfindingGrid.IsWalkableWorld` rather than of
+physics, because there is no collider to be stopped by anything. That answers the wall
+question and the prop question in one call: the grid samples obstacle colliders when it is
+built, so a rat will not scurry through a barrel either. A scene with no grid at all (the
+hand-built ones) gets a rat that wanders freely rather than one that refuses to move.
+
+### Spawning
+
+`DungeonPopulator.SpawnRats`, one roll per room: `ratChancePerRoom` (0.3) decides whether a
+room has any, then one or two of them. Not the exit room — the run ends the instant the
+player steps into it.
+
+Deliberately **not** routed through `FreeCells` like every other spawn. That list is the
+room's placement budget, and a cell taken out of it is a cell no chest or prop can use. A
+rat occupies nothing: no collider, and it has walked off its spawn cell within seconds. Two
+of them sharing a tile for one frame costs nothing, while spending real floor on scenery
+that moves would make rooms measurably emptier of the things the player can use. It is also
+outside the `authored` guard that suppresses random props in a templated room — a rat is not
+part of anyone's arrangement of a room, which is exactly why an authored interior has no
+reason to exclude it.
+
+### How this was checked
+
+Both drawings were rendered outside Unity and looked at, by the reflection route in these
+notes: compile the project to a library with Roslyn, invoke the private `DrawRat` on a real
+`ArtCanvas`, composite the result over the floor's mid stone and write a PNG by hand. That
+is what caught the dead rat reading as a standing one, which nothing short of opening the
+editor would otherwise have shown. `RatSetup.DrawSprite` was split so the drawing is a pure
+`ArtCanvas` method with no asset database in it, which is the shape that stays checkable.
+
+The compile is clean. Nothing about the movement itself has been run — `WanderingRat` needs
+a play session and a human's eyes.
+
+### In-editor checklist for this stage
+
+1. **Tools ▸ Art ▸ Regenerate Rat**. Draws `Assets/Generation/Props/Rat.png`, builds the
+   prefab and binds it as `critter.rat`. **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** does the
+   same on a fresh checkout, but only when the prefab is missing.
+2. **Tools ▸ Dungeon ▸ Regenerate Placeholder Tiles** for the dead rat — an ordinary setup
+   run leaves existing art alone, so without this the old top-down decal stays on disk.
+3. Regenerate a dungeon and watch a lit room for a few seconds. The rats should read as
+   moving at the edge of the vision cone before they read as rats.
+4. Walk at one. It should give ground and keep giving it, and it should not walk into a
+   wall, through a barrel, or out of a doorway it could not fit through.
+5. Check the size against a barrel. The sprite is 0.6 units in the prefab and the content
+   root scales it 2×, so a rat is a little over half a cell nose to tail.
+6. Find a dead one on the floor and check it does not read as a live one that has stopped.
+
+---
+
+---
+
 ## Risk register
 
 | Risk | Severity | Mitigation |

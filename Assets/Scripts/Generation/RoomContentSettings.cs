@@ -125,6 +125,20 @@ public class RoomContentSettings : ScriptableObject
              "in the open. Also what keeps the middle of a room clear to fight in.")]
     [Range(0f, 1f)] public float propWallBias = 0.8f;
 
+    [Header("Critters")]
+    [Tooltip("The live rat. Ambient scenery that moves: no collider, no threat, and nothing " +
+             "saved about it. Leave empty to generate a dungeon with none.")]
+    public string ratPrefabId = "critter.rat";
+
+    [Tooltip("Chance a room has rats in it at all. Deliberately not a per-cell scatter: a " +
+             "dungeon where every room has vermin has no vermin, it has a texture.")]
+    [Range(0f, 1f)] public float ratChancePerRoom = 0.3f;
+
+    [Tooltip("How many a room that has them gets. They keep to their own patch of floor, so " +
+             "more than a few in one room read as a swarm rather than as scenery.")]
+    [Min(0)] public int ratsPerRoomMin = 1;
+    [Min(0)] public int ratsPerRoomMax = 2;
+
     [Header("Corridor ambushes")]
     [Tooltip("Chance a blind alcove gets an enemy standing in it. An alcove is a pocket " +
              "the player walks past without ever having looked into, which makes it the " +

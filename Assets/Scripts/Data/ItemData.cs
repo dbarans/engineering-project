@@ -31,6 +31,11 @@ public class ItemData : ScriptableObject
     [Tooltip("Which combat style this item activates while selected in the hotbar. None = not a weapon.")]
     public WeaponType weaponType = WeaponType.None;
 
+    [Tooltip("Health restored when one unit of this item is used from the hotbar (hold the prepare " +
+             "button, see PlayerItemUse). 0 = not a healing item and holding the button does nothing.")]
+    [Min(0)]
+    public int healAmount = 0;
+
     [Tooltip("Durability ceiling for a wearable item such as a melee weapon: how many hits it lasts " +
              "before it is depleted. 0 = no durability (the item never wears out). Each connecting melee " +
              "hit spends one point; a depleted weapon still swings but does much less damage until repaired.")]

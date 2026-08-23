@@ -55,8 +55,11 @@ public class PlayerHealthSystem : MonoBehaviour
     /// <param name="heal"> Value of the healing depending of the healing type</param>
     public void Heal(int heal)
     {
-        currentHealth += heal;
-        if (healthBar != null) healthBar.SetHealth(currentHealth);
+        if (heal <= 0) return;
+
+        // Routed through SetHealth so healing cannot overshoot the maximum: a 50-point
+        // bandage used at 80 health tops the player up to 100, not to 130.
+        SetHealth(currentHealth + heal);
     }
     
     /// <summary>
@@ -86,4 +89,10 @@ public class PlayerHealthSystem : MonoBehaviour
     {
         return maxHealth;
     }
+
+    /// <summary>
+    /// True when there is nothing left to heal. Consumables check this before they are spent,
+    /// so a bandage is never burned for zero effect.
+    /// </summary>
+    public bool IsFull => currentHealth >= maxHealth;
 }

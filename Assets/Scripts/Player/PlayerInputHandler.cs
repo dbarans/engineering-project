@@ -15,6 +15,7 @@ public class PlayerInputHandler : MonoBehaviour
     [SerializeField] private PlayerAttack currentAttack;
     [SerializeField] private PlayerStaminaSystem playerStamina;
     [SerializeField] private PlayerHiding playerHiding;
+    [SerializeField] private PlayerItemUse itemUse;
     [SerializeField] private BackpackUI backpackUI;
 
     private IGameStateManager gameStateManager;
@@ -29,6 +30,7 @@ public class PlayerInputHandler : MonoBehaviour
         controls = InputService.Controls;
         if (playerStamina == null) playerStamina = GetComponent<PlayerStaminaSystem>();
         if (playerHiding == null) playerHiding = GetComponent<PlayerHiding>();
+        if (itemUse == null) itemUse = GetComponent<PlayerItemUse>();
         if (backpackUI == null) backpackUI = FindFirstObjectByType<BackpackUI>();
     }
 
@@ -129,6 +131,7 @@ public class PlayerInputHandler : MonoBehaviour
             playerLegs?.SetLegsPosition(Vector2.zero);
             playerStamina?.SetMoving(false);
             currentAttack?.StopCharging();
+            itemUse?.CancelUse();
             isAiming = false;
             ForceStopSprint();
         }
@@ -281,6 +284,14 @@ public class PlayerInputHandler : MonoBehaviour
         {
             return;
         }
+
+        // Consumables get the button first. They are never weapons, so nothing is ever
+        // both held and chargeable — a bandage under the selection simply means this press
+        // starts a heal instead of an aim.
+        if (itemUse != null && itemUse.TryBeginUse())
+        {
+            return;
+        }
         if (currentAttack == null)
         {
             return;
@@ -296,6 +307,7 @@ public class PlayerInputHandler : MonoBehaviour
     {
         isAiming = false;
         currentAttack?.StopCharging();
+        itemUse?.CancelUse();
     }
 
     /// <summary>

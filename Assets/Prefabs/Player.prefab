@@ -1156,6 +1156,8 @@ GameObject:
   - component: {fileID: 3908612447025518360}
   - component: {fileID: 6410944586657843330}
   - component: {fileID: 4763037826514429400}
+  - component: {fileID: 6900123456789012346}
+  - component: {fileID: 6900123456789012347}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -1422,11 +1424,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 09997e91dc8c9ce41bde8dfdb3428a39, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfView
-  viewRadius: 16.7
+  viewRadius: 15
   viewAngle: 100
   nearVisionRadius: 1
-  lanternEnabled: 0
-  lanternRadius: 2
+  heldLightEnabled: 0
+  heldViewAngle: 130
+  heldViewRadius: 20
+  heldLightRadius: 4.5
+  heldLightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   raysPerDegree: 1
   nearCircleRaysPerDegree: 0.25
   obstacleMask:
@@ -1436,6 +1441,7 @@ MonoBehaviour:
   edgeResolveIterations: 4
   directionSource: {fileID: 2038790236695264251}
   visionMaskMaterial: {fileID: 0}
+  viewTint: {r: 0, g: 0, b: 0, a: 1}
   sortingLayerName: Default
   sortingOrder: 5
   aimTransitionSpeed: 40
@@ -2189,3 +2195,31 @@ MonoBehaviour:
     fps: 50
     loop: 1
     nextClip: 
+--- !u!114 &6900123456789012346
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c7f4a92e6b84d5cb0f3a71d84e2c609, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HeldTorch
+  fieldOfView: {fileID: 1438528037279594877}
+  hotbar: {fileID: 0}
+--- !u!114 &6900123456789012347
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7785cdcc85952b04cbe0cb742d528a02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FlameFlicker
+  strength: 0.18
+  speed: 3.5

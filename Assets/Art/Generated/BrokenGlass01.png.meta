@@ -1,10 +1,16 @@
 fileFormatVersion: 2
-guid: 83a346fde56ed884b83eda9ebddd6590
+guid: 0b8d70874853e8b48be7f3d81ec0a493
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -4072481861401465919
-    second: PillarTile_0
+      213: -3445373293302788469
+    second: BrokenGlass01_0
+  - first:
+      213: 5030050509383697294
+    second: BrokenGlass01_1
+  - first:
+      213: -8006293241179190689
+    second: BrokenGlass01_2
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -51,7 +57,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 32
+  spritePixelsToUnits: 80
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -101,7 +107,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -113,61 +119,77 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: PillarTile_0
+      name: BrokenGlass01_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 32
-        height: 32
+        x: 1
+        y: 13
+        width: 48
+        height: 76
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
-      physicsShape:
-      - - {x: 0.28, y: 0}
-        - {x: 0.242487, y: 0.14}
-        - {x: 0.14, y: 0.242487}
-        - {x: 0, y: 0.28}
-        - {x: -0.14, y: 0.242487}
-        - {x: -0.242487, y: 0.14}
-        - {x: -0.28, y: 0}
-        - {x: -0.242487, y: -0.14}
-        - {x: -0.14, y: -0.242487}
-        - {x: 0, y: -0.28}
-        - {x: 0.14, y: -0.242487}
-        - {x: 0.242487, y: -0.14}
+      physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 1cba1f0f253ab77c0800000000000000
-      internalID: -4072481861401465919
+      spriteID: b8ec11e7e339f20d0800000000000000
+      internalID: -3445373293302788469
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: BrokenGlass01_1
+      rect:
+        serializedVersion: 2
+        x: 37
+        y: 21
+        width: 40
+        height: 48
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e838616b9445ec540800000000000000
+      internalID: 5030050509383697294
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: BrokenGlass01_2
+      rect:
+        serializedVersion: 2
+        x: 47
+        y: 67
+        width: 22
+        height: 26
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f5a47ef57bee3e090800000000000000
+      internalID: -8006293241179190689
       vertices: []
       indices: 
       edges: []
       weights: []
     outline: []
     customData: 
-    physicsShape:
-    - - {x: 12.5, y: 0}
-      - {x: 11.548493, y: 4.783543}
-      - {x: 8.838835, y: 8.838835}
-      - {x: 4.7835426, y: 11.548493}
-      - {x: -0.00000054639236, y: 12.5}
-      - {x: -4.783544, y: 11.548493}
-      - {x: -8.838835, y: 8.838835}
-      - {x: -11.548495, y: 4.7835407}
-      - {x: -12.5, y: -0.0000010927847}
-      - {x: -11.548493, y: -4.7835426}
-      - {x: -8.838833, y: -8.838836}
-      - {x: -4.7835393, y: -11.548496}
-      - {x: 0.00000014906101, y: -12.5}
-      - {x: 4.783545, y: -11.548493}
-      - {x: 8.838838, y: -8.838832}
-      - {x: 11.548494, y: -4.7835426}
+    physicsShape: []
     bones: []
     spriteID: 5e97eb03825dee720800000000000000
-    internalID: 1537655665
+    internalID: 0
     vertices: []
     indices: 
     edges: []
@@ -176,7 +198,9 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      PillarTile_0: -4072481861401465919
+      BrokenGlass01_0: -3445373293302788469
+      BrokenGlass01_1: 5030050509383697294
+      BrokenGlass01_2: -8006293241179190689
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

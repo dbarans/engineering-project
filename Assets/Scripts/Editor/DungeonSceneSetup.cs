@@ -2,6 +2,7 @@
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using UnityEditor.U2D.Sprites;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
@@ -70,10 +71,18 @@ public static class DungeonSceneSetup
     /// <summary>
     /// Radius of the pillar's column in pixels, of the 16 a tile's half-width gives. Short
     /// of the full cell so there is floor visible around the column and it reads as
-    /// something standing in the room; the cell stays solid regardless, because the tile's
-    /// collider is <see cref="Tile.ColliderType.Grid"/> and covers all of it.
+    /// something standing in the room. It is also the radius of the column's collider —
+    /// see <see cref="AssignCircularPhysicsShape"/> — so the shadow it casts matches the
+    /// stone that is drawn.
     /// </summary>
     private const float PillarRadius = 12.5f;
+
+    /// <summary>
+    /// How many sides the pillar's collider polygon has. Enough that a linecast grazing the
+    /// column cannot tell it from a circle at the size it is drawn (25 pixels across), few
+    /// enough that a colonnade stays cheap to merge into the composite collider.
+    /// </summary>
+    private const int PillarColliderSegments = 16;
 
     // Cool and desaturated, and — the part that matters — the floor is the *lightest*
     // thing on screen and the stone is darker than it.
@@ -267,6 +276,7 @@ public static class DungeonSceneSetup
         // full-cell tile to any Pillar cell touching the structure, so doorway jambs do
         // not develop holes.
         Tile pillarTile = EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Sprite);
+        AssignCircularPhysicsShape($"{TilesFolder}/PillarTile.png", PillarRadius);
         // Both of these used to be drawn here at 32 pixels in the cool placeholder palette.
         // They now come from InkedTileGenerator instead: 128 pixels, keyed to the hand-drawn
         // floor's own colour. The old assets are left on disk untouched, simply unreferenced.
@@ -1355,6 +1365,58 @@ public static class DungeonSceneSetup
         importer.SaveAndReimport();
     }
 
+    /// <summary>
+    /// Gives a sprite an explicit physics shape: a regular polygon of
+    /// <see cref="PillarColliderSegments"/> sides approximating a circle of
+    /// <paramref name="radiusPixels"/> around the middle of the sprite.
+    ///
+    /// This is what actually makes <see cref="Tile.ColliderType.Sprite"/> mean "the shape that
+    /// was drawn". A sprite with no authored physics shape falls back to one Unity generates
+    /// itself, and that fallback is a box the size of the whole sprite — so the round pillar was
+    /// colliding, and cutting the player's field of view, as a full square cell, casting a
+    /// shadow with corners the drawn column plainly does not have.
+    ///
+    /// Written through the sprite data provider API rather than the importer, because a physics
+    /// shape is sprite data (the Sprite Editor's Custom Physics Shape) and not an import setting.
+    /// </summary>
+    /// <param name="texturePath">Asset path of the sprite's texture.</param>
+    /// <param name="radiusPixels">Radius of the collider, in the texture's own pixels.</param>
+    private static void AssignCircularPhysicsShape(string texturePath, float radiusPixels)
+    {
+        var importer = AssetImporter.GetAtPath(texturePath) as TextureImporter;
+        if (importer == null)
+        {
+            Debug.LogWarning($"[DungeonSetup] No texture at '{texturePath}' — its collider shape " +
+                             "was left as Unity's generated fallback.");
+            return;
+        }
+
+        var factories = new SpriteDataProviderFactories();
+        factories.Init();
+
+        ISpriteEditorDataProvider provider = factories.GetSpriteEditorDataProviderFromObject(importer);
+        if (provider == null) return;
+
+        provider.InitSpriteEditorDataProvider();
+        var physicsOutlines = provider.GetDataProvider<ISpritePhysicsOutlineDataProvider>();
+        if (physicsOutlines == null) return;
+
+        // Outline vertices are in pixels measured from the middle of the sprite's rect, which for
+        // a whole-texture tile sprite is the middle of the texture — where the column is drawn.
+        var circle = new Vector2[PillarColliderSegments];
+        for (int i = 0; i < PillarColliderSegments; i++)
+        {
+            float angle = i / (float)PillarColliderSegments * Mathf.PI * 2f;
+            circle[i] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radiusPixels;
+        }
+
+        foreach (SpriteRect spriteRect in provider.GetSpriteRects())
+            physicsOutlines.SetOutlines(spriteRect.spriteID, new List<Vector2[]> { circle });
+
+        provider.Apply();
+        importer.SaveAndReimport();
+    }
+
     private static PrefabRegistry EnsureRegistry()
     {
         var registry = AssetDatabase.LoadAssetAtPath<PrefabRegistry>(RegistryPath);
@@ -2410,6 +2472,7 @@ public static class DungeonSceneSetup
         EnsureTile("WallTile", TileStyle.WallTop, Tile.ColliderType.Grid, overwrite: true);
         EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid, overwrite: true);
         EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Sprite, overwrite: true);
+        AssignCircularPhysicsShape($"{TilesFolder}/PillarTile.png", PillarRadius);
         InkedTileGenerator.EnsureRubble(overwrite: true);
         InkedTileGenerator.EnsureExitFloor(overwrite: true);
         EnsureDecalTiles(overwrite: true);

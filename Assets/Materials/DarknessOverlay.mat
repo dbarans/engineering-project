@@ -44,6 +44,7 @@ Material:
     - _Darkness: 0.681
     - _EdgeSoftness: 0.51
     - _EnableExternalAlpha: 0
+    - _TintStrength: 0.4
     - _ZWrite: 0
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}

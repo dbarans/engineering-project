@@ -10,9 +10,14 @@ using UnityEngine;
 /// Walls and trees on the obstacle mask cut the light, so a lamp does not shine through a wall.
 /// Small props never block it, per the project's vision-blocking convention.
 ///
+/// The colour it burns with is its own (<see cref="lightColor"/>), and so is how far its rim
+/// fades out (<see cref="edgeSoftness"/>): both are pushed per lamp through a
+/// <see cref="MaterialPropertyBlock"/>, so every light in the scene can share one mask material
+/// and still look like a different kind of light.
+///
 /// Brightness over time is not this component's job: add an <see cref="ILightIntensity"/>
-/// component next to it (<see cref="FlameFlicker"/> for a living flame, <see cref="BrokenLightFlicker"/>
-/// for a failing one) and the light is scaled by it. That never changes the shape of the lit area
+/// component next to it — <see cref="FlameFlicker"/>, since every light in this game is something
+/// burning — and the light is scaled by it. That never changes the shape of the lit area
 /// (the raycast mesh), only how bright the shader draws it.
 ///
 /// Attach to the lamp GameObject and assign the same VisionMaskWriter material the player's
@@ -27,6 +32,11 @@ public class StationaryLightSource : MonoBehaviour
     [SerializeField] private LayerMask obstacleMask;
     [Tooltip("Rays per degree used to trace the lit circle. The lit area is a plain circle with no cone to keep sharp, so this can stay well below the player's cone resolution.")]
     [SerializeField] private float raysPerDegree = 0.5f;
+    [Tooltip("Colour this lamp burns with. Warm by default: an oil flame is the only warm thing in a dungeon lit by daylight-white vision, which is what separates a lit room from a seen one at a glance.")]
+    [SerializeField] private Color lightColor = new Color(1f, 0.68f, 0.34f, 1f);
+    [Tooltip("How much of the radius the lamp fades out over: 0 ends at a hard edge, 1 fades from the middle. Wide by default so a lamp bleeds into the dark instead of cutting a disc out of it.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float edgeSoftness = 0.6f;
 
     [Header("Rebuilding")]
     [Tooltip("Seconds between mesh rebuilds. The lamp does not move, so it only needs to keep up with obstacles that do (opening doors). Set to 0 to rebuild every frame.")]
@@ -49,6 +59,8 @@ public class StationaryLightSource : MonoBehaviour
     [SerializeField] private GizmoDebugSettings gizmoDebugSettings;
 
     private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
+    private static readonly int LightTintId = Shader.PropertyToID("_LightTint");
+    private static readonly int EdgeSoftnessId = Shader.PropertyToID("_EdgeSoftness");
 
     private Mesh lightMesh;
     private MeshRenderer meshRenderer;
@@ -95,7 +107,7 @@ public class StationaryLightSource : MonoBehaviour
 
         if (!lit) return;
 
-        ApplyIntensity();
+        ApplyLight();
 
         if (Time.time < nextRebuildTime) return;
         nextRebuildTime = Time.time + Mathf.Max(0f, rebuildInterval);
@@ -104,18 +116,23 @@ public class StationaryLightSource : MonoBehaviour
     }
 
     /// <summary>
-    /// Scales the light by its <see cref="ILightIntensity"/> component, if it has one. Runs every
+    /// Pushes this lamp's own look — colour, rim fade and the brightness its
+    /// <see cref="ILightIntensity"/> component asks for — onto the mask renderer. Runs every
     /// frame — far cheaper than <see cref="rebuildInterval"/>, which paces the raycast re-trace —
-    /// so a flicker stays smooth even while the mesh itself is retraced rarely. Only pushes to the
-    /// renderer when the value actually changed.
+    /// so a flicker stays smooth even while the mesh itself is retraced rarely. Only pushes when
+    /// the brightness actually changed, since the colour and the fade never do on their own.
     /// </summary>
-    private void ApplyIntensity()
+    private void ApplyLight()
     {
         float intensity = intensitySource != null ? Mathf.Clamp01(intensitySource.Intensity) : 1f;
         if (Mathf.Approximately(intensity, lastAppliedIntensity)) return;
 
         lastAppliedIntensity = intensity;
         propertyBlock.SetFloat(IntensityId, intensity);
+        // Re-set every frame the block is pushed: SetPropertyBlock replaces the whole block,
+        // so anything left out of it would fall back to the shared material's value.
+        propertyBlock.SetColor(LightTintId, lightColor);
+        propertyBlock.SetFloat(EdgeSoftnessId, edgeSoftness);
         meshRenderer.SetPropertyBlock(propertyBlock);
     }
 
@@ -161,7 +178,7 @@ public class StationaryLightSource : MonoBehaviour
     {
         if (gizmoDebugSettings != null && !gizmoDebugSettings.IsVisible(GizmoRanges.LightRadius)) return;
 
-        Gizmos.color = new Color(1f, 0.85f, 0.4f);
+        Gizmos.color = lightColor;
         Gizmos.DrawWireSphere(transform.position, lightRadius);
     }
 }

@@ -3273,3 +3273,33 @@ Everything below needs the Unity editor and has not been run yet.
 5. Enter Play mode and check the two things the whole design rests on: **generated walls block the player's field of view**, and **an enemy paths around them instead of through them**. If either fails, the suspect is the collider ordering in `DungeonPainter.RebuildColliders`.
 6. Walk to the camp room, save at the typewriter, quit, load. The same dungeon must come back, with dead enemies still dead and collected loot still gone.
 7. Tune `RoomContentSettings` — the starting spawn table is a guess, not a design.
+
+---
+
+## GU-0076 — Lamps outside the hub, and glass that looks like glass
+
+Two content changes, both in the generator's tables rather than in its algorithms.
+
+**Lamps are no longer hub-only.** `RoomContentSettings.lampChancePerRoom` (0.55) is rolled once
+per lamp up to `maxLampsPerRoom` (2) for every ordinary room, and `DungeonPopulator.SpawnRoomLamps`
+places them with the same wall-hugging fixture placement the hub uses — before the room's props,
+since both compete for the cells along a wall and a lamp stranded in the middle of a room is the
+worse outcome. A lamp that finds no cell is skipped without a warning: it makes a room darker, not
+a run unplayable. The lighting side of this (colour, fade, the held torch) is in `LIGHT_NOTES.md`.
+
+**The pillar's collider is round at last.** `PillarTile` has always been drawn as a disc and
+always carried `Tile.ColliderType.Sprite` so the collider would follow it — but a sprite with no
+authored physics shape falls back to one Unity generates, and that fallback is a box the size of
+the whole sprite. Every free-standing column was therefore colliding, and cutting the player's
+field of view, as a full square cell: a colonnade cast one unbroken band of shadow with corners
+none of the drawn columns have. `DungeonSceneSetup.AssignCircularPhysicsShape` now writes an
+explicit 16-sided outline of `PillarRadius` through the sprite data provider API, so the shadow
+matches the stone. Run **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** (or Regenerate Placeholder
+Tiles) to apply it to the tile already on disk.
+
+**`prop.brokenglass` has real art.** `Editor/BrokenGlassArt.cs` breaks a pane at one point, radiates
+cracks from it, pulls the wedges apart and kicks a few of them clear, then powders the gaps — four
+variants, drawn deterministically from the variant's name. `World/SpriteVariant.cs` on the prefab
+picks which one an instance draws, and its rotation, by hashing its own spawn position, so the
+clusters the prop table places read as several things broken rather than one picture stamped three
+times. Deterministic on purpose: the same seed rebuilds the same debris, and none of it is saved.

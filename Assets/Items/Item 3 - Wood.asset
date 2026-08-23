@@ -12,8 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: Item 3 - Wood
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: 65c59ccc59b5690458cb9e5324edc5dc, type: 3}
   id: ace0a8d83e674e12921766d1c1f6252f
+  icon: {fileID: 21300000, guid: 2d223a13b13864644a55e64f0e5f2ffe, type: 3}
   itemName: Wood
   value: 5
   maxStack: 8
+  weaponType: 0
+  maxDurability: 0

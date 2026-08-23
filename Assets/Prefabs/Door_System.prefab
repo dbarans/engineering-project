@@ -209,8 +209,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0.7071068, w: 0.7071068}
   m_LocalPosition: {x: -0.017, y: -0.0044, z: 0}
-  m_LocalScale: {x: -0.38153002, y: -0.35538822, z: -2.2666667}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 4.02, y: 1.144, z: 1}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 2545188973065071282}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 90}
@@ -263,9 +263,9 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 8
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -7773951638589178532, guid: dd4a9cbbf0e5bef44bba5c57068ef04e, type: 3}
-  m_Color: {r: 0.5773585, g: 0.5773585, b: 0.5773585, a: 1}
-  m_FlipX: 0
+  m_Sprite: {fileID: 21300000, guid: c04bb718296106d4490ea7a1818bd3f2, type: 3}
+  m_Color: {r: 0.6377357, g: 0.5122449, b: 0.37903157, a: 1}
+  m_FlipX: 1
   m_FlipY: 0
   m_DrawMode: 0
   m_Size: {x: 2.56, y: 2.56}
@@ -377,6 +377,7 @@ MonoBehaviour:
   lockOnlyFromOutside: 1
   requiresKeyToOpen: 0
   requiredKeyItem: {fileID: 11400000, guid: 6e99b352a93d14e4e9bc628196155ce9, type: 2}
+  isReinforced: 0
   staminaCostForRamming: 40
   ramDamage: 15
   maxHealth: 100

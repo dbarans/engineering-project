@@ -64,6 +64,17 @@ public static class DungeonSceneSetup
     /// <summary>How many floor variants are generated; more of them hides the grid better.</summary>
     private const int FloorVariantCount = 3;
 
+    /// <summary>How many variants of the exit room's floor are generated.</summary>
+    private const int ExitFloorVariantCount = 3;
+
+    /// <summary>
+    /// Radius of the pillar's column in pixels, of the 16 a tile's half-width gives. Short
+    /// of the full cell so there is floor visible around the column and it reads as
+    /// something standing in the room; the cell stays solid regardless, because the tile's
+    /// collider is <see cref="Tile.ColliderType.Grid"/> and covers all of it.
+    /// </summary>
+    private const float PillarRadius = 12.5f;
+
     // Cool and desaturated, and — the part that matters — the floor is the *lightest*
     // thing on screen and the stone is darker than it.
     //
@@ -80,8 +91,8 @@ public static class DungeonSceneSetup
     private static readonly Color WallCapColor = new Color32(0x6E, 0x7A, 0x76, 0xFF);
     private static readonly Color WallFaceColor = new Color32(0x2E, 0x36, 0x34, 0xFF);
     private static readonly Color WallFaceShadowColor = new Color32(0x17, 0x1B, 0x1A, 0xFF);
-    private static readonly Color PillarColor = new Color32(0x6E, 0x7A, 0x76, 0xFF);
-    private static readonly Color PillarShadowColor = new Color32(0x25, 0x2B, 0x2A, 0xFF);
+    private static readonly Color ExitFloorColor = new Color32(0x6A, 0x74, 0x6F, 0xFF);
+    private static readonly Color ExitFloorJointColor = new Color32(0x3F, 0x47, 0x44, 0xFF);
     private static readonly Color RubbleColor = new Color32(0x39, 0x41, 0x3F, 0xFF);
     private static readonly Color RubbleChunkColor = new Color32(0x4E, 0x58, 0x55, 0xFF);
     private static readonly Color ThresholdColor = new Color32(0x4A, 0x54, 0x51, 0xFF);
@@ -89,6 +100,19 @@ public static class DungeonSceneSetup
     private static readonly Color CrackColor = new Color32(0x0F, 0x13, 0x12, 0xFF);
     private static readonly Color StainColor = new Color32(0x16, 0x1A, 0x19, 0xFF);
     private static readonly Color GritColor = new Color32(0x76, 0x82, 0x7E, 0xFF);
+
+    // The dungeon's growing and rotting things. Kept at the same low saturation as the
+    // stone — except the moss, which gets the only real hue in the palette, because a
+    // patch of damp growth is the one thing down here that is meant to look alive.
+    private static readonly Color MushroomCapColor = new Color32(0xB4, 0xAE, 0x93, 0xFF);
+    private static readonly Color MushroomStemColor = new Color32(0x8C, 0x87, 0x72, 0xFF);
+    private static readonly Color MushroomShadeColor = new Color32(0x4E, 0x4A, 0x3D, 0xFF);
+    private static readonly Color BoneColor = new Color32(0xAE, 0xA8, 0x93, 0xFF);
+    private static readonly Color BoneShadeColor = new Color32(0x5C, 0x57, 0x49, 0xFF);
+    private static readonly Color MossColor = new Color32(0x4F, 0x6B, 0x4A, 0xFF);
+    private static readonly Color MossLightColor = new Color32(0x68, 0x84, 0x5C, 0xFF);
+    private static readonly Color PuddleColor = new Color32(0x1C, 0x26, 0x28, 0xFF);
+    private static readonly Color PuddleSheenColor = new Color32(0x7E, 0x8C, 0x8A, 0xFF);
 
     /// <summary>Fully transparent; the floor underneath shows through wherever a decal has nothing to say.</summary>
     private static readonly Color Nothing = new Color(0f, 0f, 0f, 0f);
@@ -101,7 +125,7 @@ public static class DungeonSceneSetup
     private const uint MasonrySeed = 0x5A17E501u;
 
     /// <summary>How many decal variants are generated.</summary>
-    private const int DecalVariantCount = 4;
+    private const int DecalVariantCount = 8;
 
     // ---------------------------------------------------------------- hand-drawn art
 
@@ -233,10 +257,25 @@ public static class DungeonSceneSetup
 
         Tile wallTile = EnsureTile("WallTile", TileStyle.WallTop, Tile.ColliderType.Grid);
         Tile wallFaceTile = EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid);
-        Tile pillarTile = EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Grid);
-        Tile rubbleTile = EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid);
+        // Sprite rather than Grid, and that is the whole point of the round plan: the
+        // collider follows the drawn column, so a colonnade casts one shadow per column
+        // with light between them instead of one unbroken band. FieldOfView linecasts
+        // against these colliders and PathfindingGrid overlap-tests a circle at the cell
+        // centre, which the column still covers, so the cell stays unwalkable.
+        //
+        // Only free-standing columns get this tile — DungeonPainter gives the wall's
+        // full-cell tile to any Pillar cell touching the structure, so doorway jambs do
+        // not develop holes.
+        Tile pillarTile = EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Sprite);
+        // Both of these used to be drawn here at 32 pixels in the cool placeholder palette.
+        // They now come from InkedTileGenerator instead: 128 pixels, keyed to the hand-drawn
+        // floor's own colour. The old assets are left on disk untouched, simply unreferenced.
+        Tile rubbleTile = FirstOrNull(InkedTileGenerator.EnsureRubble());
+        Tile[] exitFloorTiles = InkedTileGenerator.EnsureExitFloor();
         Tile[] natureDecals = EnsureNatureDecals();
-        Tile[] decalTiles = CombineDecals(EnsureDecalTiles(), EnsurePaperDecals(), natureDecals);
+        Tile[] inkedDecals = InkedTileGenerator.EnsureInkedDecals();
+        Tile[] decalTiles = CombineDecals(EnsureDecalTiles(), EnsurePaperDecals(), natureDecals,
+            inkedDecals);
 
         // Also guaranteed once in the hub, on top of being rare scatter everywhere else via
         // decalTiles above — see DungeonPainter.hubGuaranteedDecalTile. Found by name in the
@@ -244,6 +283,7 @@ public static class DungeonSceneSetup
         // same Tile reference decalTiles carries and never risks the two disagreeing.
         Tile sleepingBagTile = FindTileByName(natureDecals, "DecalSleepingBag");
         Tile[] wallAutotiles = EnsureWallAutotiles();
+
         PrefabRegistry registry = EnsureRegistry();
         EnsureRegistryEntries(registry);
         DungeonGenerationSettings settings = EnsureSettings();
@@ -256,8 +296,8 @@ public static class DungeonSceneSetup
 
         WarnOnCellSizeMismatch(grid);
         WireGenerator(grid, floor, decals, walls, floorTiles, floorMosaicSize, wallTile,
-            wallFaceTile, pillarTile, rubbleTile, decalTiles, sleepingBagTile, wallAutotiles,
-            settings, contentSettings, registry);
+            wallFaceTile, pillarTile, rubbleTile, exitFloorTiles, decalTiles, sleepingBagTile,
+            wallAutotiles, settings, contentSettings, registry);
 
         EditorSceneManager.MarkSceneDirty(grid.gameObject.scene);
         AssetDatabase.SaveAssets();
@@ -360,7 +400,7 @@ public static class DungeonSceneSetup
     /// </summary>
     private static void WireGenerator(Grid grid, Tilemap floor, Tilemap decals, Tilemap walls,
         Tile[] floorTiles, int floorMosaicSize, Tile wallTile, Tile wallFaceTile,
-        Tile pillarTile, Tile rubbleTile,
+        Tile pillarTile, Tile rubbleTile, Tile[] exitFloorTiles,
         Tile[] decalTiles, Tile hubGuaranteedDecalTile, Tile[] wallAutotiles,
         DungeonGenerationSettings settings,
         RoomContentSettings contentSettings, PrefabRegistry registry)
@@ -381,6 +421,7 @@ public static class DungeonSceneSetup
         SetRef(painter, "wallFaceTile", wallFaceTile);
         SetRef(painter, "pillarTile", pillarTile);
         SetRef(painter, "rubbleTile", rubbleTile);
+        SetArray(painter, "exitFloorTiles", exitFloorTiles);
 
         var builder = EditorSetupUtility.EnsureComponent<DungeonBuilder>(root);
         SetRef(builder, "settings", settings);
@@ -507,10 +548,17 @@ public static class DungeonSceneSetup
         WallFace,
 
         /// <summary>
-        /// Free-standing pillar: a lit round column on a dark base, so it reads as an
-        /// object standing in the room rather than as a piece of the wall.
+        /// Free-standing pillar: the wall's masonry cut to a round plan and edged like an
+        /// exposed wall side, so it reads as a column of the same stone standing in the
+        /// room. Transparent outside the column, so the floor shows through around it.
         /// </summary>
         Pillar,
+
+        /// <summary>
+        /// Floor of the exit room: cut flagstones, lighter than the rough ground
+        /// elsewhere, so the room the run ends in does not look like every other room.
+        /// </summary>
+        ExitFloor,
 
         /// <summary>Collapsed masonry: scattered lighter chunks over a dark bed.</summary>
         Rubble,
@@ -533,6 +581,18 @@ public static class DungeonSceneSetup
 
         /// <summary>Decal: loose chippings, lighter than the floor they lie on.</summary>
         Grit,
+
+        /// <summary>Decal: a clump of pale mushrooms grown out of the joints in the floor.</summary>
+        Mushrooms,
+
+        /// <summary>Decal: a few scattered bones, picked clean.</summary>
+        Bones,
+
+        /// <summary>Decal: a patch of damp moss, the one green thing in the dungeon.</summary>
+        Moss,
+
+        /// <summary>Decal: standing water, dark, with the light catching one edge of it.</summary>
+        Puddle,
 
         /// <summary>
         /// One of the sixteen wall autotile variants. Which one is carried separately in
@@ -564,7 +624,9 @@ public static class DungeonSceneSetup
     /// </summary>
     private static bool IsDecal(TileStyle style)
     {
-        return style == TileStyle.Crack || style == TileStyle.Stain || style == TileStyle.Grit;
+        return style == TileStyle.Crack || style == TileStyle.Stain || style == TileStyle.Grit ||
+               style == TileStyle.Mushrooms || style == TileStyle.Bones ||
+               style == TileStyle.Moss || style == TileStyle.Puddle;
     }
 
     /// <summary>
@@ -587,7 +649,9 @@ public static class DungeonSceneSetup
         {
             if (IsDecal(style))
             {
-                DrawDecal(texture, style, random);
+                var pixels = new Color[TilePixels * TilePixels];
+                DrawDecal(pixels, style, random);
+                texture.SetPixels(pixels);
             }
             else
             {
@@ -744,20 +808,86 @@ public static class DungeonSceneSetup
 
             case TileStyle.Pillar:
             {
-                // A disc rather than a square, so a colonnade reads as columns instead of
-                // as a grid of wall stubs. Outside the disc is floor-dark, which is what
-                // makes the pillar look like it is standing on the floor.
-                const float radius = 12f;
+                // The wall's own masonry, cut to a round plan. A pillar is a piece of the
+                // same structure standing free in the room, so it has to be built out of
+                // the same stone: the disc this replaces was two shades lighter than any
+                // wall, smooth where the wall is coursed, and shaded from the top in a
+                // game drawn from directly above — three separate reasons for it to read
+                // as a different material sitting next to the masonry rather than as part
+                // of it. Doorway jambs are pillars too (DoorwayNormalizer), which put the
+                // mismatch in the one place the player looks at head-on.
+                //
+                // Everything outside the column is left transparent rather than filled
+                // with FloorColor. The painter floors pillar cells like any other open
+                // cell, so what shows through is the real floor — including the hand-drawn
+                // art, which the old placeholder grey was painting over.
                 float dx = x - (TilePixels - 1) * 0.5f;
                 float dy = y - (TilePixels - 1) * 0.5f;
                 float distance = Mathf.Sqrt(dx * dx + dy * dy);
 
-                if (distance > radius) return Jitter(FloorColor, 0.02f, random);
+                // The silhouette wanders a pixel, the way the wall's rim does along its
+                // length, so the column reads as knocked-about stone and not as a compass
+                // circle. Keyed on position rather than drawn from the stream, so it stays
+                // put between runs like the rest of the stonework.
+                float radius = PillarRadius +
+                    (Fbm(x, y, MasonrySeed ^ 0x51E7A2C3u) > 0.05f ? 0.5f : -0.5f);
 
-                // Lit from the top: the shading is what stops a flat disc looking like a hole.
-                float lit = Mathf.InverseLerp(radius, -radius * 0.4f, dy - distance * 0.3f);
-                Color color = Color.Lerp(PillarShadowColor, PillarColor, lit);
-                return Jitter(color, 0.025f, random);
+                if (distance > radius) return Nothing;
+
+                // A free-standing column is exposed on all four sides, so it gets the drawn
+                // edge an exposed wall side gets — same colour, same two-to-three pixels.
+                // Measured around the circumference rather than across the tile, so the
+                // depth varies along the edge instead of mirroring across the column.
+                // One pixel shallower than the wall's, because the column is a quarter of a
+                // wall run's width: at the wall's full depth the rim eats most of the disc and
+                // the masonry inside it never shows.
+                int along = Mathf.RoundToInt(Mathf.Atan2(dy, dx) * radius);
+                if (distance > radius - (RimDepth(along, 0) - 1))
+                    return Jitter(WallJointColor, 0.02f, random);
+
+                goto case TileStyle.WallTop;
+            }
+
+            case TileStyle.ExitFloor:
+            {
+                // No longer painted — InkedTileGenerator draws the exit floor now, at 128
+                // pixels and in the hand-drawn floor's own colour. Kept for the same reason
+                // TileStyle.Doorway is: the routine is the record of what the placeholder
+                // looked like, and it costs nothing sitting here.
+                // Cut flagstones instead of the rough ground everywhere else. The exit is
+                // the room the whole run is looking for, and worked stone underfoot is what
+                // says it has been found — a change of surface the player reads before they
+                // have seen anything else in the room.
+                //
+                // Lighter than the ordinary floor rather than darker, for the reason the
+                // palette above gives: the floor is the lightest thing on screen, and the
+                // exit has to sit at the top of that range to register at all inside the
+                // vision cone.
+                const int slab = TilePixels / 2;
+
+                // Nearest joint rather than a modulo test, so the wobble can push a joint
+                // off where the grid would have put it — the wall's trick, and the joints
+                // still line up across cell borders because the noise wraps on the tile.
+                int slabX = Mathf.RoundToInt(x / (float)slab) * slab;
+                int slabY = Mathf.RoundToInt(y / (float)slab) * slab;
+
+                bool joint =
+                    x == slabX + Wobble(y, slabX, 0xB5297A4Du, TilePixels) ||
+                    y == slabY + Wobble(x, slabY, 0x68E31DA4u, TilePixels);
+                if (joint) return Jitter(ExitFloorJointColor, 0.03f, random);
+
+                // One tone per slab, spread by the golden ratio for the same reason the
+                // wall's stones are: there are only four of them per tile, and a random
+                // draw kept handing two neighbours the same shade.
+                int stoneIndex = (y / slab) * (TilePixels / slab) + (x / slab);
+                float slabTone = stoneIndex * 0.6180339887f;
+                slabTone -= Mathf.Floor(slabTone);
+                Color slabColor = Shade(ExitFloorColor, (slabTone - 0.5f) * 0.07f);
+
+                // The same mottle the wall carries, so the two surfaces are recognisably
+                // the same stone worked to different ends.
+                slabColor = Shade(slabColor, Fbm(x, y, MasonrySeed ^ 0x1B873593u) * 0.10f);
+                return Jitter(slabColor, 0.02f, random);
             }
 
             case TileStyle.Doorway:
@@ -778,6 +908,9 @@ public static class DungeonSceneSetup
 
             case TileStyle.Rubble:
             {
+                // No longer painted either, and for the same reason: this filled the cell
+                // with speckle on a four-pixel lattice in a palette two shades lighter and
+                // colder than the floor, so a collapse read as a rectangle of static.
                 // Chunks on a 4px lattice with jittered membership: regular enough to read
                 // as broken masonry, irregular enough not to read as a pattern.
                 bool chunk = (x / 4 + y / 4) % 2 == 0 ? random.Chance(0.75f) : random.Chance(0.25f);
@@ -798,12 +931,18 @@ public static class DungeonSceneSetup
     /// Draws one decal over a transparent tile. Everything not marked stays transparent,
     /// which is what lets the same decal sit on any of the floor variants.
     /// </summary>
-    private static void DrawDecal(Texture2D texture, TileStyle style, DeterministicRandom random)
+    /// <summary>Writes one pixel of a decal buffer, which is laid out row-major from the bottom.</summary>
+    private static void SetPixel(Color[] pixels, int x, int y, Color color)
+    {
+        pixels[y * TilePixels + x] = color;
+    }
+
+    private static void DrawDecal(Color[] pixels, TileStyle style, DeterministicRandom random)
     {
         for (int y = 0; y < TilePixels; y++)
         {
             for (int x = 0; x < TilePixels; x++)
-                texture.SetPixel(x, y, Nothing);
+                SetPixel(pixels, x, y, Nothing);
         }
 
         switch (style)
@@ -821,7 +960,7 @@ public static class DungeonSceneSetup
                     drift = Mathf.Clamp(drift, 2f, TilePixels - 3f);
                     int across = Mathf.RoundToInt(drift);
 
-                    PlotCrack(texture, horizontal, i, across, random);
+                    PlotCrack(pixels, horizontal, i, across, random);
 
                     // A short spur every so often, so the fracture forks instead of
                     // running the whole width as one unbroken stroke.
@@ -830,7 +969,7 @@ public static class DungeonSceneSetup
                     int spur = random.RangeInclusive(2, 5);
                     int direction = random.Chance(0.5f) ? 1 : -1;
                     for (int s = 1; s <= spur; s++)
-                        PlotCrack(texture, horizontal, i + s * direction, across + s * direction, random);
+                        PlotCrack(pixels, horizontal, i + s * direction, across + s * direction, random);
                 }
                 return;
             }
@@ -859,11 +998,114 @@ public static class DungeonSceneSetup
                             float edge = 1f - Mathf.Sqrt(dx * dx + dy * dy) / radius;
                             float alpha = Mathf.Clamp01(edge * 0.75f);
 
-                            Color existing = texture.GetPixel(x, y);
+                            Color existing = pixels[(y) * TilePixels + (x)];
                             if (alpha <= existing.a) continue;
 
-                            texture.SetPixel(x, y, new Color(StainColor.r, StainColor.g, StainColor.b, alpha));
+                            SetPixel(pixels, x, y, new Color(StainColor.r, StainColor.g, StainColor.b, alpha));
                         }
+                    }
+                }
+                return;
+            }
+
+            case TileStyle.Mushrooms:
+            {
+                // A clump rather than a scatter: mushrooms come up together out of one patch
+                // of damp, and three drawn in a group read as growth where three spread
+                // evenly over the tile read as three unrelated dots.
+                float clumpX = random.RangeInclusive(11, TilePixels - 12);
+                float clumpY = random.RangeInclusive(11, TilePixels - 12);
+                int caps = random.RangeInclusive(3, 6);
+
+                for (int c = 0; c < caps; c++)
+                {
+                    int capX = Mathf.RoundToInt(clumpX + (random.NextFloat() * 2f - 1f) * 6f);
+                    int capY = Mathf.RoundToInt(clumpY + (random.NextFloat() * 2f - 1f) * 6f);
+                    DrawMushroom(pixels, capX, capY, random.RangeInclusive(2, 4), random);
+                }
+                return;
+            }
+
+            case TileStyle.Bones:
+            {
+                // Long bones only, no skull. A skull at 32 pixels is four pixels of eye
+                // socket and reads as a smudge, while a shaft with knuckles at both ends
+                // reads as a bone at any size — which is the whole job of a decal.
+                int bones = random.RangeInclusive(3, 5);
+                for (int b = 0; b < bones; b++)
+                {
+                    float angle = random.NextFloat() * Mathf.PI;
+                    float length = random.RangeInclusive(10, 15);
+                    float cx = random.RangeInclusive(9, TilePixels - 10);
+                    float cy = random.RangeInclusive(9, TilePixels - 10);
+
+                    DrawBone(pixels, cx, cy, angle, length, random);
+                }
+                return;
+            }
+
+            case TileStyle.Moss:
+            {
+                // Grown out from one point rather than laid down as a shape: every pixel is
+                // kept on a falling probability with distance, so the patch frays at its
+                // edge the way something spreading does instead of ending on a line.
+                float centreX = random.RangeInclusive(10, TilePixels - 11);
+                float centreY = random.RangeInclusive(10, TilePixels - 11);
+                float reach = random.RangeInclusive(11, 15);
+
+                for (int y = 0; y < TilePixels; y++)
+                {
+                    for (int x = 0; x < TilePixels; x++)
+                    {
+                        float dx = x - centreX;
+                        float dy = y - centreY;
+                        float distance = Mathf.Sqrt(dx * dx + dy * dy);
+                        if (distance > reach) continue;
+
+                        float density = Mathf.InverseLerp(reach, 0f, distance);
+                        if (!random.Chance(Mathf.Pow(density, 0.45f) * 0.95f)) continue;
+
+                        Color color = Jitter(random.Chance(0.3f) ? MossLightColor : MossColor, 0.05f, random);
+                        color.a = Mathf.Clamp01(0.6f + density * 0.4f);
+                        SetPixel(pixels, x, y, color);
+                    }
+                }
+                return;
+            }
+
+            case TileStyle.Puddle:
+            {
+                // One body of water, not a union of blobs like the stain: a puddle has a
+                // surface, and the thing that says so is the sheen along one edge of it.
+                // The lit edge is fixed, not random, so every puddle in a room agrees about
+                // where the light is.
+                float centreX = random.RangeInclusive(13, TilePixels - 14);
+                float centreY = random.RangeInclusive(13, TilePixels - 14);
+                float radiusX = random.RangeInclusive(8, 12);
+                float radiusY = random.RangeInclusive(6, 10);
+
+                for (int y = 0; y < TilePixels; y++)
+                {
+                    for (int x = 0; x < TilePixels; x++)
+                    {
+                        float nx = (x - centreX) / radiusX;
+                        float ny = (y - centreY) / radiusY;
+
+                        // The outline wanders, so the puddle is not an ellipse anybody can
+                        // name. Keyed on position rather than drawn from the stream, so the
+                        // edge stays put instead of dissolving into per-pixel noise.
+                        float edge = Mathf.Sqrt(nx * nx + ny * ny) - Fbm(x, y, MasonrySeed ^ 0x2545F491u) * 0.35f;
+                        if (edge > 1f) continue;
+
+                        // The sheen: a band just inside the upper edge, where a wet surface
+                        // returns the light instead of swallowing it.
+                        bool sheen = edge > 0.62f && ny > 0.1f;
+
+                        Color color = Jitter(sheen ? PuddleSheenColor : PuddleColor, 0.03f, random);
+                        color.a = sheen
+                            ? 0.85f
+                            : Mathf.Clamp01(0.55f + Mathf.InverseLerp(1f, 0f, edge) * 0.4f);
+                        SetPixel(pixels, x, y, color);
                     }
                 }
                 return;
@@ -885,7 +1127,7 @@ public static class DungeonSceneSetup
                     for (int dy = 0; dy < size; dy++)
                     {
                         for (int dx = 0; dx < size; dx++)
-                            texture.SetPixel(x + dx, y + dy, color);
+                            SetPixel(pixels, x + dx, y + dy, color);
                     }
                 }
                 return;
@@ -893,8 +1135,85 @@ public static class DungeonSceneSetup
         }
     }
 
+    /// <summary>
+    /// One mushroom: a cap with a lit crown and a shaded underside, over a short stem.
+    /// Drawn as a half-disc rather than a full one, because from above what is visible of a
+    /// mushroom is the cap and a sliver of stem below it, and a full disc reads as a pebble.
+    /// </summary>
+    private static void DrawMushroom(Color[] pixels, int capX, int capY, int radius,
+        DeterministicRandom random)
+    {
+        for (int y = capY - radius; y <= capY + radius; y++)
+        {
+            for (int x = capX - radius; x <= capX + radius; x++)
+            {
+                if (x < 0 || y < 0 || x >= TilePixels || y >= TilePixels) continue;
+
+                float dx = x - capX;
+                float dy = y - capY;
+                if (dx * dx + dy * dy > radius * radius) continue;
+
+                // The lower third of the cap is its own shadow, which is what gives the
+                // shape any depth at all at four pixels across.
+                bool underside = dy < -radius * 0.35f;
+                Color color = Jitter(underside ? MushroomShadeColor : MushroomCapColor, 0.04f, random);
+                color.a = 1f;
+                SetPixel(pixels, x, y, color);
+            }
+        }
+
+        // The stem, showing below the cap.
+        for (int y = capY - radius - 2; y < capY - radius; y++)
+        {
+            if (y < 0 || y >= TilePixels || capX < 0 || capX >= TilePixels) continue;
+
+            Color stem = Jitter(MushroomStemColor, 0.04f, random);
+            stem.a = 1f;
+            SetPixel(pixels, capX, y, stem);
+        }
+    }
+
+    /// <summary>
+    /// One long bone: a shaft walked from end to end with a knuckle at each end. Walked
+    /// rather than rasterised from an equation, because a bone is two pixels wide and any
+    /// anti-aliasing at that size turns it into a grey smear.
+    /// </summary>
+    private static void DrawBone(Color[] pixels, float cx, float cy, float angle,
+        float length, DeterministicRandom random)
+    {
+        float dx = Mathf.Cos(angle);
+        float dy = Mathf.Sin(angle);
+
+        for (float t = -length * 0.5f; t <= length * 0.5f; t += 0.5f)
+        {
+            int x = Mathf.RoundToInt(cx + dx * t);
+            int y = Mathf.RoundToInt(cy + dy * t);
+
+            // A knuckle at each end, one pixel wider than the shaft.
+            bool knuckle = Mathf.Abs(t) > length * 0.5f - 1.5f;
+            int half = knuckle ? 1 : 0;
+
+            for (int oy = -half; oy <= half; oy++)
+            {
+                for (int ox = -half; ox <= half; ox++)
+                {
+                    int px = x + ox;
+                    int py = y + oy;
+                    if (px < 0 || py < 0 || px >= TilePixels || py >= TilePixels) continue;
+
+                    // The far side of the shaft is shaded, so two bones crossing still read
+                    // as two bones rather than as one forked one.
+                    bool shaded = oy < 0 && knuckle;
+                    Color color = Jitter(shaded ? BoneShadeColor : BoneColor, 0.04f, random);
+                    color.a = 1f;
+                    SetPixel(pixels, px, py, color);
+                }
+            }
+        }
+    }
+
     /// <summary>Plots one cell of a crack, given the run/across coordinates and its axis.</summary>
-    private static void PlotCrack(Texture2D texture, bool horizontal, int along, int across,
+    private static void PlotCrack(Color[] pixels, bool horizontal, int along, int across,
         DeterministicRandom random)
     {
         if (along < 0 || along >= TilePixels || across < 0 || across >= TilePixels) return;
@@ -904,7 +1223,7 @@ public static class DungeonSceneSetup
 
         Color color = Jitter(CrackColor, 0.03f, random);
         color.a = 0.65f + random.NextFloat() * 0.3f;
-        texture.SetPixel(x, y, color);
+        SetPixel(pixels, x, y, color);
     }
 
     /// <summary>Lightens (positive amount) or darkens (negative) a colour, keeping its alpha.</summary>
@@ -1291,7 +1610,11 @@ public static class DungeonSceneSetup
             ("DecalCrackA", TileStyle.Crack),
             ("DecalCrackB", TileStyle.Crack),
             ("DecalStain", TileStyle.Stain),
-            ("DecalGrit", TileStyle.Grit)
+            ("DecalGrit", TileStyle.Grit),
+            ("DecalMushrooms", TileStyle.Mushrooms),
+            ("DecalBones", TileStyle.Bones),
+            ("DecalMoss", TileStyle.Moss),
+            ("DecalPuddle", TileStyle.Puddle)
         };
 
         var tiles = new Tile[DecalVariantCount];
@@ -2023,6 +2346,16 @@ public static class DungeonSceneSetup
     /// composition <i>is</i> the mix — including within one source, for callers like
     /// <see cref="EnsureNatureDecals"/> that repeat a tile reference to weight it.
     /// </summary>
+    /// <summary>
+    /// The first tile of a generated set, for the painter slots that take a single tile
+    /// rather than an array. <see cref="DungeonPainter"/>'s rubble slot is one tile, so the
+    /// other two variants are drawn and left for whenever that slot becomes an array.
+    /// </summary>
+    private static Tile FirstOrNull(Tile[] tiles)
+    {
+        return tiles != null && tiles.Length > 0 ? tiles[0] : null;
+    }
+
     private static Tile[] CombineDecals(params Tile[][] sources)
     {
         var all = new List<Tile>();
@@ -2071,9 +2404,11 @@ public static class DungeonSceneSetup
         }
         EnsureTile("WallTile", TileStyle.WallTop, Tile.ColliderType.Grid, overwrite: true);
         EnsureTile("WallFaceTile", TileStyle.WallFace, Tile.ColliderType.Grid, overwrite: true);
-        EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Grid, overwrite: true);
-        EnsureTile("RubbleTile", TileStyle.Rubble, Tile.ColliderType.Grid, overwrite: true);
+        EnsureTile("PillarTile", TileStyle.Pillar, Tile.ColliderType.Sprite, overwrite: true);
+        InkedTileGenerator.EnsureRubble(overwrite: true);
+        InkedTileGenerator.EnsureExitFloor(overwrite: true);
         EnsureDecalTiles(overwrite: true);
+        InkedTileGenerator.EnsureInkedDecals(overwrite: true);
         EnsureWallAutotiles(overwrite: true);
 
         // Recut from the source art as well. These are not placeholders, but they are just as

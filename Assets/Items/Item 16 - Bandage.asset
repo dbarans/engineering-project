@@ -18,4 +18,5 @@ MonoBehaviour:
   value: 20
   maxStack: 2
   weaponType: 0
+  healAmount: 50
   maxDurability: 0

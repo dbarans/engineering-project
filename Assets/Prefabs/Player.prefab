@@ -1155,6 +1155,7 @@ GameObject:
   - component: {fileID: 5570424979841258393}
   - component: {fileID: 3908612447025518360}
   - component: {fileID: 6410944586657843330}
+  - component: {fileID: 4763037826514429400}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -1198,6 +1199,7 @@ MonoBehaviour:
   currentAttack: {fileID: 3513556798588415593}
   playerStamina: {fileID: 4763037826514429300}
   playerHiding: {fileID: 3908612447025518360}
+  itemUse: {fileID: 4763037826514429400}
   backpackUI: {fileID: 0}
 --- !u!50 &397985806577126160
 Rigidbody2D:
@@ -1573,6 +1575,22 @@ MonoBehaviour:
   crouchPassableLayers:
     serializedVersion: 2
     m_Bits: 8192
+--- !u!114 &4763037826514429400
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 39834312afa643d8ac43c83b75378358, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerItemUse
+  health: {fileID: 8207531894350391586}
+  slotInventory: {fileID: 157545601758896288}
+  hotbar: {fileID: 0}
+  holdSeconds: 1
 --- !u!114 &6410944586657843330
 MonoBehaviour:
   m_ObjectHideFlags: 0

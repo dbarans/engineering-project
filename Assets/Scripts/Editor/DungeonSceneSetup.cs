@@ -283,6 +283,10 @@ public static class DungeonSceneSetup
         // same Tile reference decalTiles carries and never risks the two disagreeing.
         Tile sleepingBagTile = FindTileByName(natureDecals, "DecalSleepingBag");
         Tile[] wallAutotiles = EnsureWallAutotiles();
+        // Before the registry entries below, which bind ids to prefabs that already exist:
+        // the rat is generated rather than authored, so on a fresh checkout there is no
+        // prefab at its path until this has run.
+        RatSetup.EnsurePrefab();
 
         PrefabRegistry registry = EnsureRegistry();
         EnsureRegistryEntries(registry);
@@ -1391,6 +1395,7 @@ public static class DungeonSceneSetup
             ("prop.table", "Assets/Prefabs/Table.prefab"),
             ("prop.statue01", "Assets/Prefabs/Statue01.prefab"),
             ("prop.statue02", "Assets/Prefabs/Statue02.prefab"),
+            ("critter.rat", "Assets/Prefabs/Rat.prefab"),
             ("enemy.skullguy", "Assets/Prefabs/SkullGuyEnemy.prefab"),
             ("enemy.blindlistener", "Assets/Prefabs/BlindListenerEnemy.prefab")
         };

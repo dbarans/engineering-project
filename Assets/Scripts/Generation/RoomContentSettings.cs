@@ -155,6 +155,18 @@ public class RoomContentSettings : ScriptableObject
              "and reads as somewhere to stop, rather than one pool of light in a dark box.")]
     [Min(0)] public int hubLamps = 3;
 
+    [Header("Lamps")]
+    [Tooltip("Chance an ordinary room was left with a lamp still burning in it, rolled once " +
+             "per lamp up to Max Lamps Per Room. Lamps are the only fixed light outside the " +
+             "hub: they are what gives a room a shape to read from the doorway, and what makes " +
+             "the corridors between them worth being afraid of. The exit and the hub are " +
+             "excluded — the hub has its own lamps, and the exit ends the run.")]
+    [Range(0f, 1f)] public float lampChancePerRoom = 0.55f;
+
+    [Tooltip("Most lamps one ordinary room can be given. Two lets a long room be lit at both " +
+             "ends without ever becoming as bright as the hub.")]
+    [Min(0)] public int maxLampsPerRoom = 2;
+
     [Tooltip("Chests left in the hub, spawned empty. They are the player's own storage, " +
              "not loot — what ends up in them is whatever they decide not to carry.")]
     [Min(0)] public int hubChests = 3;

@@ -156,6 +156,8 @@ MonoBehaviour:
   craftingTablePrefabId: world.craftingtable
   lightPrefabId: world.lamp
   hubLamps: 1
+  lampChancePerRoom: 0.55
+  maxLampsPerRoom: 2
   hubChests: 2
   exitKeyItemId: 9f3d5c81a04e47b2b8e607fa2d59c134
   templates: []

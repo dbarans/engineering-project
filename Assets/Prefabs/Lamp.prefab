@@ -228,11 +228,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0f630c3d73376384394ee13c77e32007, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StationaryLightSource
-  lightRadius: 4.15
+  lightRadius: 5.5
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 4864
   raysPerDegree: 0.5
+  lightColor: {r: 1, g: 0.68, b: 0.34, a: 1}
+  edgeSoftness: 0.6
   rebuildInterval: 0.1
   edgeDistanceThreshold: 0.5
   edgeResolveIterations: 4

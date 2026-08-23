@@ -382,7 +382,12 @@ public class DungeonPopulator : MonoBehaviour
             // exactly where its fixtures stand. The exit room is bare for its own reason:
             // it is the end of the run, not a room to loot.
             if (!authored && room.Kind != RoomKind.Hub && room.Kind != RoomKind.Exit)
+            {
+                // Lamps first: both want the cells along a wall, and a room reads far worse
+                // with its light out in the middle than with one barrel fewer against it.
+                SpawnRoomLamps(layout, room, free, roomOccupied, roomRandom.Derive("lamps"), ref slot);
                 SpawnProps(layout, room, free, roomOccupied, roomRandom, ref slot);
+            }
         }
     }
 
@@ -639,6 +644,14 @@ public class DungeonPopulator : MonoBehaviour
     private const int MaxLampSpacing = 5;
 
     /// <summary>
+    /// How far apart a room's own lamps are kept. Roughly a lamp's lit radius in cells, so a
+    /// second lamp lights a different part of the room rather than the same pool twice. Smaller
+    /// than the hub's spacing because an ordinary room is smaller, and a lamp that cannot find a
+    /// cell far enough from the first one is simply not placed.
+    /// </summary>
+    private const int RoomLampSpacing = 3;
+
+    /// <summary>
     /// Furnishes the hub — the run's only save station and crafting table, lamps enough
     /// to light it from several sides, and empty chests for the player's own storage.
     ///
@@ -682,17 +695,42 @@ public class DungeonPopulator : MonoBehaviour
     }
 
     /// <summary>
-    /// Places one hub fixture near a wall but never touching one, clear of the fixtures
+    /// Lights an ordinary room: up to <see cref="RoomContentSettings.maxLampsPerRoom"/> lamps,
+    /// each rolled separately, placed against a wall the way the hub's own lamps are.
+    ///
+    /// Rolling per lamp rather than picking a count is what keeps the dungeon uneven — most
+    /// rooms hold one lamp, a few hold two and a few none at all — and an unlit room is the
+    /// point of lighting the others. Nothing is logged when a lamp finds no cell: unlike the
+    /// hub's save station, a lamp that did not fit is a darker room, not a broken run.
+    /// </summary>
+    private void SpawnRoomLamps(DungeonLayout layout, Room room, List<Vector2Int> free,
+        List<(Vector2Int cell, int footprint)> occupied, DeterministicRandom random, ref int slot)
+    {
+        if (string.IsNullOrEmpty(content.lightPrefabId)) return;
+
+        for (int i = 0; i < content.maxLampsPerRoom; i++)
+        {
+            if (!random.Chance(content.lampChancePerRoom)) continue;
+
+            SpawnFixture(layout, room, free, occupied, content.lightPrefabId,
+                RoomLampSpacing, ref slot, required: false);
+        }
+    }
+
+    /// <summary>
+    /// Places one fixture near a wall but never touching one, clear of the fixtures
     /// already standing. Returns the instance, or null when nothing was placed.
     ///
     /// <paramref name="minSpacing"/> overrides the prefab's own footprint when something
     /// needs to be kept further apart than its size demands — the lamps.
     ///
-    /// Failing to place a fixture is worth saying out loud: a dungeon whose save station
-    /// silently did not spawn cannot be saved in.
+    /// Failing to place a <paramref name="required"/> fixture is worth saying out loud: a
+    /// dungeon whose save station silently did not spawn cannot be saved in. An optional one
+    /// — a room's lamp — is expected to miss sometimes and stays quiet.
     /// </summary>
     private GameObject SpawnFixture(DungeonLayout layout, Room room, List<Vector2Int> free,
-        List<(Vector2Int cell, int footprint)> placed, string prefabId, int minSpacing, ref int slot)
+        List<(Vector2Int cell, int footprint)> placed, string prefabId, int minSpacing, ref int slot,
+        bool required = true)
     {
         if (string.IsNullOrEmpty(prefabId)) return null;
 
@@ -703,15 +741,23 @@ public class DungeonPopulator : MonoBehaviour
 
         if (!TryTakeFixtureCell(layout, free, placed, footprint, spacing, blocking, out Vector2Int cell))
         {
-            Debug.LogWarning(
-                $"[DungeonPopulator] No room left in the hub for '{prefabId}' — it was not " +
-                "spawned. Raise Hub Room Size on the generation settings.", this);
+            if (required)
+            {
+                Debug.LogWarning(
+                    $"[DungeonPopulator] No room left in the hub for '{prefabId}' — it was not " +
+                    "spawned. Raise Hub Room Size on the generation settings.", this);
+            }
             return null;
         }
 
         GameObject instance = _prefabs.Spawn(prefabId, builder.CellCenter(cell), _contentRoot,
             SlotGuid(layout.Seed, room.Index, slot++));
-        placed.Add((cell, spacing));
+
+        // Recorded at its own size rather than at the spacing it asked for: the spacing is a rule
+        // about this fixture and its own kind (keep the lamps apart), and writing it into the
+        // occupancy list would apply it to everything placed afterwards as well — which in an
+        // ordinary room means the props, cleared out of a five-cell hole around every lamp.
+        placed.Add((cell, footprint));
         return instance;
     }
 

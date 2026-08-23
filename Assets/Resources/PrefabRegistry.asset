@@ -37,3 +37,5 @@ MonoBehaviour:
     prefab: {fileID: 8342154479092525223, guid: ef28a0eb54e964e408138a524cf1600c, type: 3}
   - id: prop.statue02
     prefab: {fileID: 8342154479092525223, guid: 6fa2a28fa5e9d9d44a01d08e84e63257, type: 3}
+  - id: prop.brokenglass
+    prefab: {fileID: 205151291423162924, guid: 4662f02528f81ea4881be64f954b6db9, type: 3}

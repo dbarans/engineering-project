@@ -18,6 +18,15 @@ public enum GizmoRanges
     EnemyHearing = 1 << 5,
     EnemyAlwaysDetect = 1 << 6,
     LightRadius = 1 << 7,
+
+    /// <summary>
+    /// Any emitted noise whose radius matches no <see cref="NoiseSettings"/> field: a step
+    /// on a <see cref="NoisySurface"/>, a barricade stage breaking, a door being smashed.
+    /// Those sources carry their own radii on the component that makes them, so there is
+    /// nothing central to match them against — without this catch-all they were classified
+    /// as <see cref="None"/> and therefore never drawn at all.
+    /// </summary>
+    OtherNoise = 1 << 8,
 }
 
 [CreateAssetMenu(fileName = "GizmoDebugSettings", menuName = "Debug/Gizmo Debug Settings")]

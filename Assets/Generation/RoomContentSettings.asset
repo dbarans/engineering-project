@@ -141,6 +141,10 @@ MonoBehaviour:
     weight: 0.26
     minDepth: 0
     solitary: 1
+  - prefabId: prop.brokenglass
+    weight: 0.25
+    minDepth: 0
+    solitary: 0
   propsPerHundredFloorCells: 4
   propsPerClusterMin: 2
   propsPerClusterMax: 5

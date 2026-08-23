@@ -39,3 +39,5 @@ MonoBehaviour:
     prefab: {fileID: 8342154479092525223, guid: 6fa2a28fa5e9d9d44a01d08e84e63257, type: 3}
   - id: prop.brokenglass
     prefab: {fileID: 205151291423162924, guid: 4662f02528f81ea4881be64f954b6db9, type: 3}
+  - id: critter.rat
+    prefab: {fileID: 7954475328320676871, guid: 4feb7cc8f9317f047b541dd20a248f0b, type: 3}

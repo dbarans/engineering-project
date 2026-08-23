@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: Item 6 - Ink
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: b89f929398c1456998d7bd4ccf6b54ac, type: 3}
   id: d4010ec17b594394a2a36831f75082aa
+  icon: {fileID: 21300000, guid: 530f204c9b70afc4094da82d400170b7, type: 3}
   itemName: Ink
   value: 25
   maxStack: 1
   weaponType: 0
+  maxDurability: 0

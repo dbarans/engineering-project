@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: Item 8 - Scrap
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: 3e4fcc84a0ac95b429c56452575f6021, type: 3}
   id: 5c8a7f2e1b9d4c3a8e6f0d1c2b3a4e5f
+  icon: {fileID: 21300000, guid: 03a3d9861648d624f8d808a901b8798c, type: 3}
   itemName: Scrap
   value: 2
   maxStack: 6

@@ -12,11 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: Item 16 - Bandage
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: 7b0f5d2ac91e4836a24d8f603bc17e5d, type: 3}
   id: b1782e4c0d9a4f63ae52c8710f6d3b95
+  icon: {fileID: 21300000, guid: 1ac35a6bc6e3d534390874b823fab1f4, type: 3}
   itemName: Bandage
   value: 20
   maxStack: 2
   weaponType: 0
-  healAmount: 50
   maxDurability: 0

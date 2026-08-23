@@ -41,7 +41,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Darkness: 0.95
+    - _Darkness: 0.681
     - _EdgeSoftness: 0.51
     - _EnableExternalAlpha: 0
     - _TintStrength: 0.4

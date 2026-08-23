@@ -50,6 +50,18 @@ RGB instead would brighten as much as it tinted, and every lit floor would drift
 `_TintStrength` is the one knob to turn if the look is wrong. It is additive, so it brightens as it
 warms; much above ~0.8 the floor under a lamp blows out to flat orange.
 
+## Everything burns
+
+There is no electricity in this game, so `FlameFlicker` is the only `ILightIntensity` in the
+project: a gentle Perlin wobble, seeded per instance so two lights in view never waver together.
+The lamp and the torch differ only in their numbers — the lamp at `strength 0.12 / speed 1.6`
+behind its glass, the torch at `0.18 / 3.5` out in the open air.
+
+`BrokenLightFlicker` — the failing-bulb component, with its flutter bursts and blackouts — was
+deleted with this pass. Its whole premise was a badly wired lamp, which this setting cannot have.
+Should a light ever need to *fail* rather than waver, it wants a new component (guttering fuel,
+not a loose connection), not that one back.
+
 ## The lamp
 
 `StationaryLightSource` gained two fields, both pushed per lamp through a `MaterialPropertyBlock`

@@ -20,5 +20,5 @@ MonoBehaviour:
   weaponType: 0
   healAmount: 0
   lightRadius: 4.5
-  lightColor: {r: 1, g: 0.74, b: 0.34, a: 1}
+  lightColor: {r: 0.3509434, g: 0.27026305, b: 0.18474188, a: 1}
   maxDurability: 0

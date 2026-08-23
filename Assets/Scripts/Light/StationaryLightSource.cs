@@ -16,8 +16,8 @@ using UnityEngine;
 /// and still look like a different kind of light.
 ///
 /// Brightness over time is not this component's job: add an <see cref="ILightIntensity"/>
-/// component next to it (<see cref="FlameFlicker"/> for a living flame, <see cref="BrokenLightFlicker"/>
-/// for a failing one) and the light is scaled by it. That never changes the shape of the lit area
+/// component next to it — <see cref="FlameFlicker"/>, since every light in this game is something
+/// burning — and the light is scaled by it. That never changes the shape of the lit area
 /// (the raycast mesh), only how bright the shader draws it.
 ///
 /// Attach to the lamp GameObject and assign the same VisionMaskWriter material the player's

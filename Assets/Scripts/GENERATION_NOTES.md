@@ -3287,6 +3287,16 @@ since both compete for the cells along a wall and a lamp stranded in the middle 
 worse outcome. A lamp that finds no cell is skipped without a warning: it makes a room darker, not
 a run unplayable. The lighting side of this (colour, fade, the held torch) is in `LIGHT_NOTES.md`.
 
+**The pillar's collider is round at last.** `PillarTile` has always been drawn as a disc and
+always carried `Tile.ColliderType.Sprite` so the collider would follow it — but a sprite with no
+authored physics shape falls back to one Unity generates, and that fallback is a box the size of
+the whole sprite. Every free-standing column was therefore colliding, and cutting the player's
+field of view, as a full square cell: a colonnade cast one unbroken band of shadow with corners
+none of the drawn columns have. `DungeonSceneSetup.AssignCircularPhysicsShape` now writes an
+explicit 16-sided outline of `PillarRadius` through the sprite data provider API, so the shadow
+matches the stone. Run **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** (or Regenerate Placeholder
+Tiles) to apply it to the tile already on disk.
+
 **`prop.brokenglass` has real art.** `Editor/BrokenGlassArt.cs` breaks a pane at one point, radiates
 cracks from it, pulls the wedges apart and kicks a few of them clear, then powders the gaps — four
 variants, drawn deterministically from the variant's name. `World/SpriteVariant.cs` on the prefab

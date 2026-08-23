@@ -152,6 +152,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ad34c85a9f1f1304892aae5ee444f4f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyCorpse
+  containerTitle: Corpse
   columns: 2
   rows: 2
   interactRange: 5

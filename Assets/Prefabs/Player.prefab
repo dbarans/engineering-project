@@ -198,7 +198,7 @@ MonoBehaviour:
     m_Bits: 1
   m_VolumeTrigger: {fileID: 0}
   m_VolumeFrameworkUpdateModeOption: 2
-  m_RenderPostProcessing: 0
+  m_RenderPostProcessing: 1
   m_Antialiasing: 0
   m_AntialiasingQuality: 2
   m_StopNaN: 0
@@ -1926,7 +1926,7 @@ MonoBehaviour:
   chargeTimeRequired: 1.5
   enemyLayer:
     serializedVersion: 2
-    m_Bits: 4224
+    m_Bits: 6272
   attackPoint: {fileID: 7231161171343297202}
   minAttackRadius: 0.3
   maxAttackRadius: 0.9

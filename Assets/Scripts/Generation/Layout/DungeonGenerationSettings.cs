@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// Tuning knobs for <see cref="RoomCorridorGenerator"/>. Kept as an asset so layout
@@ -54,6 +54,13 @@ public class DungeonGenerationSettings : ScriptableObject
              "outlines square.")]
     [Range(0f, 1f)] public float perimeterDetail = 0.6f;
 
+    [Tooltip("Most corridors allowed to meet the hub, or 0 for no cap. The hub sits at " +
+             "the middle of the map, so the shortest-corridor rules all point at it and it " +
+             "collects eight of them if left alone — a junction rather than the one room " +
+             "the player is safe in. The cap also keeps its walls long enough to hang doors " +
+             "on: openings crowded together are the ones left as open arches.")]
+    [Min(0)] public int maxHubCorridors = 4;
+
     [Header("Corridors")]
     [Tooltip("Narrowest corridor, and the width used at every doorway.")]
     [Min(1)] public int corridorWidth = 1;
@@ -72,6 +79,15 @@ public class DungeonGenerationSettings : ScriptableObject
              "escape routes, which the stealth and noise systems depend on. 0 = a pure tree.")]
     [Range(0f, 1f)] public float extraLoopChance = 0.25f;
 
+    [Tooltip("Share of the discarded corridors that are considered as loops at all, " +
+             "shortest first. Works with the chance above rather than instead of it: the " +
+             "chance decides how eagerly a candidate is taken, this decides how many there " +
+             "are. Raise both to make most of the map reachable by more than one route — " +
+             "the Layout Preview reports that directly as \"rooms with a way round\". " +
+             "Past roughly half, the pool starts offering corridors that cross the map to " +
+             "join rooms that were never near each other.")]
+    [Range(0f, 1f)] public float loopCandidateFraction = 0.25f;
+
     [Tooltip("Chance a corridor takes two turns instead of one. An L can be seen down " +
              "from its corner; a Z cannot be seen down from anywhere.")]
     [Range(0f, 1f)] public float doubleBendChance = 0.35f;
@@ -79,6 +95,23 @@ public class DungeonGenerationSettings : ScriptableObject
     [Tooltip("Per-cell chance of opening a blind pocket off a corridor. These are the " +
              "layout's ambush slots — somewhere the player walks past without looking in.")]
     [Range(0f, 0.25f)] public float alcoveChance = 0.04f;
+
+    [Header("Treasure rooms")]
+    [Tooltip("How many small dead-end rooms are locked behind a craftable key and stocked " +
+             "with the run's rewards. One of them also holds the exit key. These are the " +
+             "dungeon's decisions: the player weighs a door against a key and a detour. " +
+             "0 turns them off, which also sends the exit key back to an ordinary room.")]
+    [Min(0)] public int treasureRoomCount = 3;
+
+    [Tooltip("Size range of a treasure plot. Below the ordinary minimum room size on " +
+             "purpose: these are closets, and at the size of a real room a locked door " +
+             "reads as the dungeon withholding a wing of itself.")]
+    [Min(3)] public int minTreasureRoomSize = 4;
+    [Min(3)] public int maxTreasureRoomSize = 6;
+
+    [Tooltip("Backstop on the range above: a treasure plot that ends up with more floor " +
+             "than this is demoted to an ordinary unlocked room.")]
+    [Min(0)] public int treasureMaxArea = 80;
 
     [Header("Validation")]
     [Tooltip("Retries with a derived seed when a layout fails validation.")]
@@ -98,15 +131,21 @@ public class DungeonGenerationSettings : ScriptableObject
             RoomSpacing = roomSpacing,
             PlacementAttemptsPerRoom = placementAttemptsPerRoom,
             HubRoomSize = hubRoomSize,
+            MaxHubCorridors = maxHubCorridors,
             CorridorWidth = corridorWidth,
             MaxCorridorWidth = maxCorridorWidth,
             DoorwayWidth = doorwayWidth,
             ExtraLoopChance = extraLoopChance,
+            LoopCandidateFraction = loopCandidateFraction,
             DoubleBendChance = doubleBendChance,
             AlcoveChance = alcoveChance,
             ShapedRoomChance = shapedRoomChance,
             InteriorDensity = interiorDensity,
             PerimeterDetail = perimeterDetail,
+            TreasureRoomCount = treasureRoomCount,
+            MinTreasureRoomSize = minTreasureRoomSize,
+            MaxTreasureRoomSize = maxTreasureRoomSize,
+            TreasureMaxArea = treasureMaxArea,
             MaxGenerationAttempts = maxGenerationAttempts
         }.Sanitized();
     }
@@ -128,5 +167,6 @@ public class DungeonGenerationSettings : ScriptableObject
         if (minRoomSize > maxRoomSize) minRoomSize = maxRoomSize;
 
         hubRoomSize = Mathf.Clamp(hubRoomSize, minRoomSize, maxRoomSize);
+        if (maxTreasureRoomSize < minTreasureRoomSize) maxTreasureRoomSize = minTreasureRoomSize;
     }
 }

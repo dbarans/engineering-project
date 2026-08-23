@@ -58,6 +58,7 @@ MonoBehaviour:
   maxLootPerRoom: 0
   guaranteedItemId: d4010ec17b594394a2a36831f75082aa
   guaranteedItemDrops: 0
+  treasureKeyItemId: 0b5baa00fb954bf783a7a1d08d0187ee
   treasureLoot:
   - itemId: d4010ec17b594394a2a36831f75082aa
     weight: 1.5

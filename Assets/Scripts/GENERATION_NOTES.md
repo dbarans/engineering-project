@@ -27,6 +27,9 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 17 — Doors on one jamb, threshold tile, pillars in passages, doors in shadow, table pathfinding | fixed, measured over 200 seeds; **needs an editor look** | see §17 below |
 | 18 — Mushroom and sleeping-bag decals | done; **needs a Setup run and an editor look** | see §18 below |
 | 19 — Statues, a scene-wiring gap, a build-order bug, and a fragile footprint formula | fixed, one confirmed by static proof rather than measurement; **needs an editor look** | see §19 below |
+| 22 — Treasure rooms: small locked loot rooms holding the exit key | done in code, measured over 500 + 200 seeds; **needs an editor look** | see §22 below |
+| 23 — A way round: two-route metric and loop tuning | done in code, swept over 6 settings and measured on 200 seeds; **needs an editor look** | see §23 below |
+| 24 — The hub was a crossroads: corridor cap, clearance, straight walls | done in code, measured over 60 + 200 seeds; **needs an editor look** | see §24 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -2272,7 +2275,9 @@ Three pieces, deliberately placed at opposite ends of the map from each other:
 - **`Room.HoldsExitKey`** — the room holding the chest with the key, chosen as the room
   **farthest from the exit over the room graph**. Hops, not metres: the player walks
   corridors, and two rooms either side of one wall can be a dozen rooms apart to walk
-  between.
+  between. *(Superseded by §22: the key now lives in one of the locked treasure rooms, and
+  the distance is measured straight-line with hops breaking ties. There is no room dedicated
+  to the key any more.)*
 
 ### The lock is on the way out, not on the way in
 
@@ -2500,6 +2505,274 @@ seed and the settings. All of it is inside `#if UNITY_EDITOR`.
 4. Find the key chest on the far side of the map; it holds exactly one key and nothing else.
 5. Open the exit door with the key — the key is consumed — and stand on the threshold. The
    console logs the run as complete.
+
+---
+
+## Stage 22 — Treasure rooms: small locked loot rooms, one of them holding the exit key
+
+Two things were wrong with the reward layout this replaces. The treasure room was whichever
+room ended up farthest from the hub — one room, wherever the layout happened to leave it,
+standing open and costing the player nothing but walking. And the exit key sat in a room of
+its own, an ordinary room that gave no sign of what was in it and existed to be walked to
+once.
+
+This stage replaces both with one arrangement: **several small locked rooms, and the key is
+in one of them.**
+
+### The shape of it
+
+- **`RoomKind.Treasure`** is now a closet-sized dead-end room, sampled by the generator
+  (4–6 cells to a side) on top of the room budget rather than picked out of the finished
+  map. Three per dungeon at the shipped settings.
+- **Its door takes the craftable key** (`Door Key`, the silver one), not the golden exit
+  key. The player can always open one in principle; what they are deciding is whether *this*
+  door is worth a key, the scrap and the detour, with only its position on the map to judge
+  by.
+- **`Room.HoldsExitKey`** now lands on the treasure room farthest from the exit. There is no
+  dedicated key room any more: the player finds the key by opening the rooms they wanted to
+  open anyway, which is what makes the choice of which door to spend a key on something the
+  run can turn on.
+- **What is inside**: the treasure chest table and loose treasure loot, and no enemies —
+  nothing walked into a sealed closet, and one locked in is one the player can hear and
+  never reach.
+
+### The three rules that keep the lock optional rather than punishing
+
+Each is a correctness condition, checked rather than assumed
+(`RoomCorridorGenerator.ValidateTreasureRooms`, plus the tests in
+`RoomCorridorGeneratorTests`):
+
+1. **Always a dead end**, measured on the geometry — `CountEntrances`, groups of adjoining
+   walkable cells just outside the room — and not on the room graph. `ConnectRooms` holds
+   treasure plots out of the spanning tree and out of the loop edges and gives each one a
+   single corridor to its nearest ordinary room, so `Room.Degree` is 1 by construction; but
+   the graph is not what the player walks. A corridor routed *past* the room punches into it
+   without a link being recorded. Checking `Degree` alone locked rooms with a second door
+   standing open on the far side, at **16.4% of plots over 200 shipped-settings seeds** —
+   which is what showed up in the editor as a treasure room that was not a dead end. The
+   entrance count catches it; the spare plots (four, up from two) absorb the demotions it
+   causes.
+2. **Always closable.** Every doorway cell must be able to hold a door leaf and no two of
+   them may be adjacent — the same test the populator applies when deciding where to hang
+   doors, shared through `DungeonLayout.HasDoorJambs` so the two passes cannot disagree. A
+   room advertised as locked that is walked into through the arch beside its door is worse
+   than an unlocked one.
+3. **Nothing else the run needs is behind a lock.** Never the hub and never the exit — those
+   roles are assigned after the treasure plots are tagged, and both skip them — and the
+   guaranteed lamp fuel is spawned anywhere but a treasure room. The exit key is the one
+   deliberate exception, and it is safe because its lock is *craftable*: `Door Key` costs
+   3 × `Scrap`, and scrap is in both the floor-loot and the chest tables.
+
+A plot that fails 1 or 2 (a corridor cut a second way in on its way past) is **demoted to an
+ordinary room** rather than discarded: the space is already carved and connected, and a room
+the player can walk into beats a hole in the map. Four spare plots are sampled beyond the
+count wanted so a demotion does not cost the dungeon a treasure room; spares that are not
+needed are demoted too. `Room.IsTreasurePlot` records that a room was sampled as a closet
+whether or not it kept the role, so a demoted one is still not charged to the room budget.
+
+### Why sampled rather than picked
+
+The first implementation of this locked whichever small dead end the finished map happened
+to contain. Measured over 500 seeds at the default settings that left **68% of dungeons with
+no locked room at all** — the dead ends a layout produces are mostly already spoken for by
+the exit and the key room, and what is left is rarely small. The feature existed and was
+almost never seen.
+
+Measured after the change, 500 seeds on the tests' cramped 64×48 map and 200 on the shipped
+200×200 one:
+
+| Figure | Cramped (8 rooms) | Shipped (30 rooms) |
+|--------|-------------------|--------------------|
+| Treasure rooms per dungeon | 2.98 | 3.00 |
+| Seeds with all 3 | 98.2% | 99.5% |
+| Seeds with fewer than 2 | 0 | 0 |
+| Mean floor area | 24.2 cells | 24.8 cells |
+| Rooms charged to the budget | 8.00 | 30.00 |
+| Rooms breaking any of the three rules | 0 | 0 |
+| Dungeons where the exit key is in a treasure room | 100% | 100% |
+| Seeds with unreachable cells | 0 | 0 |
+
+### Settings
+
+`DungeonGenerationSettings`: `treasureRoomCount` (0 turns them off, which also sends the exit
+key back to an ordinary room), `minTreasureRoomSize` / `maxTreasureRoomSize`,
+`treasureMaxArea` as a backstop. Note the interaction with the loop settings measured in
+§23 — more corridors means more closets clipped and demoted.
+`RoomContentSettings`: `treasureKeyItemId`, plus the treasure loot and chest fields that were
+already there — they now apply to every treasure room rather than to the one deep one, which
+is worth a retune.
+
+### In-editor checklist for this stage
+
+1. Regenerate the dungeon and look for the magenta **TREASURE** gizmos — small rooms off a
+   single corridor — and the amber **KEY (Treasure)** one among them.
+2. Walk to one. The door must refuse to open and refuse to be rammed, and the HUD toast must
+   name the key it wants.
+3. Craft a Door Key, open it: the key is consumed, the door stays open, chests inside.
+4. Save inside one, load: the door is still open and the looted chest is still empty.
+5. Confirm the golden key is inside a locked room and that lamp fuel never is.
+
+## Stage 23 — A way round: measuring and tuning how much of the map has two routes
+
+"Loops give escape routes" has been in the design since D2, and `extraLoopChance` has been
+there to provide them since Stage 1. What was missing was any way to tell whether they
+landed anywhere useful. `LoopRatio` counts cycles per room and says nothing about *where*
+they are: three loops clustered in one corner leave the rest of the map a tree, and the
+number looks the same either way.
+
+### The measurement
+
+`DungeonMetrics.RoomsWithTwoRoutes` — rooms reachable from the hub without crossing a
+**bridge**, a corridor whose loss would disconnect the graph. That is the hub's
+two-edge-connected component, found with the standard depth-first low-link scan (iterative,
+so the settings cannot imply a stack depth) and then flooded over the non-bridge edges.
+`TwoRouteRatio` divides it by the rooms that are *supposed* to have a way round.
+
+Treasure closets are excluded from that denominator — every sampled one, not only the ones
+that kept the lock, because all of them are held out of the corridor graph's loop edges and
+so can never have a second route however the settings are turned up. Counting them would put
+a ceiling on the ratio that no setting could lift.
+
+It is printed by the Layout Preview window with everything else:
+`rooms with a way round 29/30 (97%)   one way in by design 7`.
+
+### The new setting
+
+`loopCandidateFraction` — the share of the corridors the spanning tree rejected that are
+considered as loops at all, shortest first. It multiplies with `extraLoopChance` rather than
+replacing it, and the two fail differently: with only the chance raised the map saturates
+(at 1.0 every candidate in the pool is already taken and it cannot get more connected), while
+with only the pool raised the generator starts admitting corridors that cross half the map to
+join two rooms that were never near each other. Shortest-first ordering is what keeps the
+second failure at bay for the values below.
+
+### The sweep
+
+40 seeds per row on the shipped map (200×200, 30 rooms), everything else at the shipped
+settings:
+
+| `extraLoopChance` | `loopCandidateFraction` | Rooms with a way round | Loops | Corridors | Open ground | Chokepoint cells |
+|---|---|---|---|---|---|---|
+| 0.094 (what shipped) | 0.25 | 53% | 10 | 46 | 15.2% | 375 |
+| **0.35** | **0.35** | **98%** | **51** | **87** | **21.0%** | **226** |
+| 0.50 | 0.35 | 99% | 71 | 107 | 23.1% | 233 |
+| 0.50 | 0.50 | 100% | 102 | 138 | 27.9% | 223 |
+| 0.70 | 0.50 | 100% | 143 | 179 | 31.2% | 230 |
+| 1.00 | 0.50 | 100% | 203 | 239 | 35.2% | 230 |
+
+0.35 / 0.35 is what the asset now ships. It is the knee of the curve: it takes the map from
+half of it being a tree to nearly all of it having a way round, and it drops chokepoint cells
+from 375 to 226 — the corridors where a fight cannot be avoided. Past it the returns are a
+percentage point or two, paid for by doubling the corridors and opening a third of the map,
+which is a different dungeon rather than a better-connected one.
+
+### The interaction to watch
+
+More corridors means more of them routed past the treasure closets, and a corridor that
+clips a closet gives it a second way in and costs it its lock (§22). Measured at the shipped
+map: 2.98 treasure rooms per dungeon at the old loop settings, 2.90 at 0.35/0.35, 2.38 at
+0.5/0.5 and 2.08 at 1.0/0.5. The spare plots were raised from two to four to absorb it.
+**Turning the loop settings up much further needs `treasureRoomCount` or the spares raised
+with them**, or dungeons quietly start shipping with one locked room instead of three.
+
+### Final configuration, 200 seeds on the shipped map
+
+| Figure | Value |
+|--------|-------|
+| Rooms with a way round | 97% |
+| Loops / corridors | 50 / 86 |
+| Open ground | 20.9% |
+| Chokepoint cells | 228 |
+| Treasure rooms per dungeon | 2.90 (all three on 91.5% of seeds) |
+| Treasure rooms breaking a rule | 0 |
+| Dungeons where the exit key is in a treasure room | 100% |
+| Rooms charged to the room budget | 30.00 |
+| Broken layouts | 0 |
+
+The 4.1 leftover closets per dungeon — plots sampled as spares and demoted — stay in the map
+as small unlocked dead-end rooms with ordinary contents. That is the cost of the arrangement,
+and it is deliberate: the space is already carved and connected, so the alternative is a hole
+in the map or a corridor to a wall.
+
+---
+
+## Stage 24 — The hub was a crossroads: corridor cap, clearance, and its four straight walls
+
+Turning the loops up (§23) made a fault visible that had been there all along. The hub is
+the middle of the map by construction, and every shortest-corridor rule in the generator
+points at the middle: the spanning tree hangs branches off it, the loop pass adds more, and
+corridors between rooms on opposite sides of the map are routed straight past it. Measured
+over 60 seeds at the shipped settings, the hub had **8.0 corridors** and **0.83 openings per
+hub that no door could be hung in** — some of them the full eight cells of one side. The one
+room the player is meant to be safe in read as a junction with holes in it.
+
+Three separate causes, three fixes.
+
+### 1. It collected corridors — `maxHubCorridors`
+
+A new setting, 4 by default. Enforced by pruning after the graph is built rather than by
+constraining the spanning tree: a degree-bounded spanning tree is a harder problem than the
+one being solved, and the loop edges are added after the tree anyway, so a cap enforced
+during it would be exceeded a few lines later. Corridors are dropped longest-first — a long
+corridor into the middle of the map is the one that reads least like a door — and only when
+the rooms it joined are **still connected without it**, checked with union-find.
+
+That check is what makes the cap a target rather than a guarantee. Over 200 seeds, 78.5% of
+hubs come in at or under 4 corridors and the mean is **4.2**, down from 8.0. The rest are
+seeds whose loops all landed elsewhere, where the hub keeps corridors the dungeon cannot do
+without — the right outcome, since the alternative is a room nothing can reach.
+
+### 2. Corridors ran along its walls — clearance
+
+A corridor passing the hub at one cell's distance opens its whole side into the passage,
+and the doorway pass correctly refuses to hang a door there: there is nothing to hang it
+between. `CorridorCarver` now keeps a **two-cell clearance** around the hub for corridors
+that are merely passing by, and re-rolls the corridor's shape up to six times to find one
+that misses. Re-rolling rather than routing around: the shapes a corridor may take are
+already a small fixed set — one bend or two, either axis first, the turn anywhere in the
+middle third — and one of them usually misses, while a path bending its way around an
+obstacle would be a fourth shape that looks nothing like the other three. If none of them
+miss, the corridor is carved anyway; a crossed clearance beats a room cut off.
+
+The hub's *own* corridors have to reach it, so for those only the **bends** are kept out of
+the clearance. A corridor that turns a corner just outside the hub runs along its wall for
+those few cells and opens them — the same fault arrived at from the other direction. Kept
+out, the last run comes at the wall straight on and crosses it in one cell: a doorway.
+
+That second half is what did most of the work. Arches per hub, over 60 seeds: **0.83** →
+0.45 with the clearance alone → **0.10** with the bends kept out too, and the eight-cell
+openings went from 8 seeds in 60 to 1.
+
+### 3. Its corners were being chamfered — no outline detail
+
+`DetailOutlines` was notching every room's perimeter, the hub included. It is now skipped
+there, for the same reason it is never shaped and never decorated: the one room that has to
+be read at a glance should not have a chamfered corner or a buttress in it to resolve.
+
+### Measured after all three, 60 seeds on the shipped map
+
+| Figure | Before | After |
+|--------|--------|-------|
+| Corridors into the hub | 8.02 | 4.18 |
+| Hub openings with a door | 3.30 | 2.98 |
+| Hub openings left as an arch | 0.83 | 0.10 |
+| Hubs with no arch at all (200 seeds) | — | 88.5% |
+| Hub floor area | 8×8, unnotched | 8×8, unnotched |
+| Rooms with a way round | 98% | 98% |
+| Treasure rooms per dungeon | 2.95 | 2.97 (all three on 96.7% of seeds) |
+| Broken layouts | 0 | 0 |
+
+Nothing else moved: the loop settings, the treasure rooms and the connectivity guarantees
+all measure the same on either side of the change.
+
+### In-editor checklist for this stage
+
+1. Regenerate and look at the hub: four straight walls, three or four doorways, a door in
+   every one of them.
+2. Walk out of each and confirm none of them is a hole into a corridor running past.
+3. Check the save station and crafting table still have wall to stand against.
+
+---
 
 ---
 

@@ -93,6 +93,13 @@ public static class DungeonSceneSetup
     /// <summary>Fully transparent; the floor underneath shows through wherever a decal has nothing to say.</summary>
     private static readonly Color Nothing = new Color(0f, 0f, 0f, 0f);
 
+    /// <summary>
+    /// Seed for the wall's stonework. A constant rather than the tile's own name, so all
+    /// sixteen autotile variants share one course of masonry and a long wall run reads as
+    /// continuous stone instead of as sixteen unrelated swatches butted together.
+    /// </summary>
+    private const uint MasonrySeed = 0x5A17E501u;
+
     /// <summary>How many decal variants are generated.</summary>
     private const int DecalVariantCount = 4;
 
@@ -139,6 +146,20 @@ public static class DungeonSceneSetup
     /// own <c>floorMosaicSize</c>, which this setup writes.
     /// </summary>
     private const int FloorMosaicSize = 4;
+
+    /// <summary>
+    /// Edge of the wall mosaic, in tiles. Same idea as <see cref="FloorMosaicSize"/>, but the
+    /// masonry is drawn straight into the block rather than cut out of a source image: each of
+    /// the sixteen exposure masks gets this many tiles squared, and the painter picks between
+    /// them by cell position. Must stay in sync with the painter's <c>wallMosaicSize</c>.
+    ///
+    /// The point is that one 32px tile only holds eight stones, and stamping the same eight
+    /// down every cell is what made a wall run read as wallpaper — no amount of noise inside
+    /// a single tile fixes that, because the noise repeats with it. Two doubles the period in
+    /// both directions for four times the files; three would be better still and costs sixteen
+    /// times nine tiles, which is more placeholder art than this is worth.
+    /// </summary>
+    private const int WallMosaicSize = 2;
 
     /// <summary>
     /// How many sheets each paper decal variant is built from. One entry per variant, so this
@@ -353,6 +374,7 @@ public static class DungeonSceneSetup
         SetArray(painter, "decalTiles", decalTiles);
         SetRef(painter, "hubGuaranteedDecalTile", hubGuaranteedDecalTile);
         SetArray(painter, "wallAutotiles", wallAutotiles);
+        SetInt(painter, "wallMosaicSize", WallMosaicSize);
         SetArray(painter, "floorTiles", floorTiles);
         SetInt(painter, "floorMosaicSize", floorMosaicSize);
         SetRef(painter, "wallTile", wallTile);
@@ -524,6 +546,19 @@ public static class DungeonSceneSetup
     private static int _wallMask;
 
     /// <summary>
+    /// Which cell of the mosaic block the wall tile currently being drawn occupies, and how
+    /// wide the block is in pixels. Together these turn the tile's local pixel coordinates
+    /// into block coordinates, which is what lets the stonework run on across cell borders:
+    /// the courses, the stone tones and the noise are all keyed on the block position, so
+    /// neighbouring tiles of the same block continue each other instead of restarting.
+    ///
+    /// A block of one — the plain <see cref="TileStyle.WallTop"/> fallback tile — is the same
+    /// drawing with the block reduced to a single cell, so it still works on its own.
+    /// </summary>
+    private static int _wallCellX, _wallCellY;
+    private static int _wallBlockPixels = TilePixels;
+
+    /// <summary>
     /// Decals are drawn as a whole rather than pixel by pixel, because a crack is a path
     /// across the tile and a path cannot be decided from one pixel's coordinates alone.
     /// </summary>
@@ -590,12 +625,18 @@ public static class DungeonSceneSetup
                 bool south = (_wallMask & 4) != 0;
                 bool west = (_wallMask & 8) != 0;
 
-                const int rim = 3;
+                // The rim's depth wanders by a pixel along its length, so the outline reads
+                // as stone that has been knocked about rather than as a drawn border. Keyed
+                // on the block position like the stonework, so the tiles of one block do not
+                // all wander in the same places.
+                int rimX = _wallCellX * TilePixels + x;
+                int rimY = _wallCellY * TilePixels + y;
+
                 bool onRim =
-                    (north && y >= TilePixels - rim) ||
-                    (east && x >= TilePixels - rim) ||
-                    (west && x < rim) ||
-                    (south && y < rim);
+                    (north && y >= TilePixels - RimDepth(rimX, 0)) ||
+                    (east && x >= TilePixels - RimDepth(rimY, 1)) ||
+                    (west && x < RimDepth(rimY, 2)) ||
+                    (south && y < RimDepth(rimX, 3));
 
                 if (onRim) return Jitter(WallJointColor, 0.02f, random);
 
@@ -606,12 +647,85 @@ public static class DungeonSceneSetup
             {
                 // Horizontal courses with staggered vertical joints, so the wall reads as
                 // masonry instead of a single slab.
-                int course = y / (TilePixels / 4);
-                bool jointRow = y % (TilePixels / 4) == 0;
-                bool jointColumn = (x + (course % 2) * (TilePixels / 4)) % (TilePixels / 2) == 0;
+                //
+                // Flat colour on a ruled grid was the problem: a wall run read as graph
+                // paper. Four things break that up, and every one of them is keyed on the
+                // pixel's position rather than drawn from the stream, so the pattern lines
+                // up across neighbouring cells instead of restarting at each tile edge —
+                // the joints wander a pixel, each stone carries its own tone, each stone
+                // is bevelled top and bottom, and a slow mottle with fine pitting over it
+                // runs across the whole face.
+                const int courseHeight = TilePixels / 4;
+                const int brickWidth = TilePixels / 2;
 
-                Color color = jointRow || jointColumn ? WallJointColor : WallTopColor;
-                return Jitter(color, 0.02f, random);
+                // Everything below works in block coordinates, not tile ones. There are eight
+                // stones in a 32px tile; a block of N by N tiles holds N*N times as many, and
+                // that is the only thing that actually lengthens the period of the wall.
+                int blockX = _wallCellX * TilePixels + x;
+                int blockY = _wallCellY * TilePixels + y;
+                int block = _wallBlockPixels;
+
+                int course = blockY / courseHeight;
+                int column = blockX + (course % 2) * (brickWidth / 2);
+
+                // Nearest joint rather than a modulo test, because the wobble has to be
+                // able to push a joint off where the grid would have put it.
+                int jointY = Mathf.RoundToInt(blockY / (float)courseHeight) * courseHeight;
+                int jointX = Mathf.RoundToInt(column / (float)brickWidth) * brickWidth;
+
+                bool jointRow = blockY == jointY + Wobble(blockX, jointY, 0x9E3779B9u, block);
+                bool jointColumn = column == jointX + Wobble(course, jointX, 0x85EBCA6Bu, block);
+                if (jointRow || jointColumn) return Jitter(WallJointColor, 0.03f, random);
+
+                // Wrapped to the block, so the half-stone at one edge and its other half at
+                // the far edge are the same stone and come out the same tone.
+                int stoneX = (column / brickWidth) % (block / brickWidth);
+                int stoneY = course % (block / courseHeight);
+
+                // A corner knocked off a quarter of the stones. Cheap, and it does more for
+                // the wall than any amount of grain: it gives the eye irregular silhouettes
+                // to read the courses by instead of a run of identical rectangles.
+                uint stoneHash = DeterministicRandom.Hash(MasonrySeed ^ 0x7A1CE5u, stoneX, stoneY);
+                if ((stoneHash & 3) == 0)
+                {
+                    int localX = column - (column / brickWidth) * brickWidth;
+                    int localY = blockY - course * courseHeight;
+                    int corner = (int)((stoneHash >> 2) & 3);
+                    int chip = 2 + (int)((stoneHash >> 4) & 1);
+
+                    int fromX = (corner & 1) == 0 ? localX : brickWidth - 1 - localX;
+                    int fromY = (corner & 2) == 0 ? localY : courseHeight - 1 - localY;
+                    if (fromX + fromY < chip) return Jitter(WallJointColor, 0.03f, random);
+                }
+
+                // Tone spread by the golden ratio over the eight stones in a tile rather
+                // than drawn at random. There are only eight, and a random draw kept
+                // handing a whole course two dark stones, which — with the same texture
+                // stamped down every cell — came out as a black band running the length of
+                // the wall every four courses. Stepping by the golden ratio guarantees the
+                // eight tones are spread, so no course is uniformly dark.
+                int stone = stoneY * (block / brickWidth) + stoneX;
+                float tone = stone * 0.6180339887f;
+                tone -= Mathf.Floor(tone);
+                Color color = Shade(WallTopColor, (tone - 0.5f) * 0.13f);
+
+                // One lit pixel at the top of each stone and one shadowed at its foot. That
+                // is all the relief 32 pixels will carry, and it is what stops the courses
+                // reading as printed lines.
+                int intoCourse = blockY - course * courseHeight;
+                if (intoCourse == courseHeight - 1) color = Shade(color, 0.045f);
+                else if (intoCourse == 1) color = Shade(color, -0.04f);
+
+                // Damp and soot across the stone, then pitting picked out of a finer octave.
+                color = Shade(color, Fbm(blockX, blockY, MasonrySeed ^ 0x27D4EB2Fu, block) * 0.14f);
+                // A quarter of the block as the wrap rather than a scaled coordinate: same
+                // effect — a finer field — but it still repeats on the block boundary.
+                if (Fbm(blockX, blockY, MasonrySeed ^ 0xC2B2AE35u, block / 4) > 0.18f)
+                    color = Shade(color, -0.05f);
+
+                // Less stream jitter than before: the position-keyed detail above is now
+                // carrying the texture, and grain on top of it only muddies the bevels.
+                return Jitter(color, 0.012f, random);
             }
 
             case TileStyle.WallFace:
@@ -622,7 +736,10 @@ public static class DungeonSceneSetup
 
                 float depth = 1f - y / (float)(TilePixels - capHeight);
                 Color color = Color.Lerp(WallFaceColor, WallFaceShadowColor, depth * 0.6f);
-                return Jitter(color, 0.025f, random);
+
+                // Same mottle as the wall top, so the two surfaces look like the same stone.
+                color = Shade(color, Fbm(x, y, MasonrySeed ^ 0x165667B1u) * 0.08f);
+                return Jitter(color, 0.02f, random);
             }
 
             case TileStyle.Pillar:
@@ -788,6 +905,92 @@ public static class DungeonSceneSetup
         Color color = Jitter(CrackColor, 0.03f, random);
         color.a = 0.65f + random.NextFloat() * 0.3f;
         texture.SetPixel(x, y, color);
+    }
+
+    /// <summary>Lightens (positive amount) or darkens (negative) a colour, keeping its alpha.</summary>
+    private static Color Shade(Color color, float amount)
+    {
+        return new Color(
+            Mathf.Clamp01(color.r + amount),
+            Mathf.Clamp01(color.g + amount),
+            Mathf.Clamp01(color.b + amount),
+            color.a);
+    }
+
+    /// <summary>How deep the drawn edge of a wall runs at one point along it: 2px or 3px.</summary>
+    private static int RimDepth(int along, int side)
+    {
+        const int rim = 3;
+        // No scaling of the coordinate: multiplying it would slide the noise's own wrap
+        // off the block's, and the field has to repeat exactly where the block does.
+        return Fbm(along, side * 9f, MasonrySeed ^ 0x3C6EF372u, _wallBlockPixels) > 0.06f
+            ? rim - 1
+            : rim;
+    }
+
+    /// <summary>
+    /// Whether a joint line steps a pixel off the grid at this point along it. Binary
+    /// rather than a continuous offset: at 32 pixels a joint is one pixel wide, so a
+    /// fractional displacement would only blur it.
+    /// </summary>
+    private static int Wobble(int along, int joint, uint salt, int wrapPixels)
+    {
+        return Fbm(along, joint * 3.1f, salt, wrapPixels) > 0.05f ? 1 : 0;
+    }
+
+    /// <summary>
+    /// Three octaves of value noise, returning roughly <c>[-0.5, 0.5]</c> centred on zero.
+    ///
+    /// Every octave's lattice wraps over <paramref name="wrapPixels"/>, so the result is
+    /// continuous where one tile meets the next. That is the whole reason for hand-rolling
+    /// this rather than reaching for <see cref="Mathf.PerlinNoise"/>: the same block of
+    /// textures is stamped across every cell of a wall, and noise that does not wrap puts a
+    /// visible seam on every cell boundary.
+    /// </summary>
+    private static float Fbm(float x, float y, uint salt, int wrapPixels = TilePixels)
+    {
+        float sum = 0f;
+        float total = 0f;
+        float amplitude = 1f;
+        int period = 4;
+
+        for (int octave = 0; octave < 3; octave++)
+        {
+            float frequency = period / (float)wrapPixels;
+            sum += amplitude * (ValueNoise(x * frequency, y * frequency, period,
+                salt + (uint)octave * 0x9E3779B9u) - 0.5f);
+            total += amplitude;
+            amplitude *= 0.5f;
+            period *= 2;
+        }
+
+        return sum / total;
+    }
+
+    /// <summary>Bilinear value noise on a lattice that repeats every <paramref name="period"/> cells.</summary>
+    private static float ValueNoise(float x, float y, int period, uint salt)
+    {
+        int x0 = Mathf.FloorToInt(x);
+        int y0 = Mathf.FloorToInt(y);
+        float fx = x - x0;
+        float fy = y - y0;
+
+        // Smoothstep the weights; linear interpolation alone leaves the lattice visible
+        // as a grid of creases.
+        fx = fx * fx * (3f - 2f * fx);
+        fy = fy * fy * (3f - 2f * fy);
+
+        float bottom = Mathf.Lerp(Lattice(x0, y0, period, salt), Lattice(x0 + 1, y0, period, salt), fx);
+        float top = Mathf.Lerp(Lattice(x0, y0 + 1, period, salt), Lattice(x0 + 1, y0 + 1, period, salt), fx);
+        return Mathf.Lerp(bottom, top, fy);
+    }
+
+    /// <summary>One lattice corner's value in <c>[0, 1)</c>, wrapped so the field is periodic.</summary>
+    private static float Lattice(int x, int y, int period, uint salt)
+    {
+        int wrappedX = ((x % period) + period) % period;
+        int wrappedY = ((y % period) + period) % period;
+        return (DeterministicRandom.Hash(salt, wrappedX, wrappedY) >> 8) / (float)(1 << 24);
     }
 
     /// <summary>Nudges a colour by a symmetric random amount, keeping it in range and its alpha.</summary>
@@ -1026,24 +1229,53 @@ public static class DungeonSceneSetup
     }
 
     /// <summary>
-    /// The sixteen wall variants, one per combination of exposed sides.
+    /// The wall variants: one per combination of exposed sides, times one per cell of the
+    /// mosaic block, laid out mask-major so the painter can index it as
+    /// <c>mask * size * size + row * size + column</c>.
     ///
     /// Generated rather than authored because the alternative is a hand-cut wall sheet,
     /// and that has been the blocker on making outlines readable since Stage 5. These are
     /// placeholders in the same sense as the rest: enough for the geometry to be legible
     /// and to be judged, not a substitute for real art. When the real sheet arrives it can
-    /// either fill these same sixteen slots or be swapped for a Rule Tile — the painter
-    /// only asks for a tile per mask and does not care which.
+    /// either fill these same slots or be swapped for a Rule Tile — the painter only asks
+    /// for a tile per mask and position and does not care which.
+    ///
+    /// The block's first cell keeps the bare <c>WallTile_NN</c> name the earlier setup runs
+    /// created, so a scene wired before the mosaic existed keeps its references and simply
+    /// paints that one cell everywhere until it is wired again.
     /// </summary>
     private static Tile[] EnsureWallAutotiles(bool overwrite = false)
     {
-        var tiles = new Tile[16];
-        for (int mask = 0; mask < tiles.Length; mask++)
+        const int cells = WallMosaicSize * WallMosaicSize;
+        var tiles = new Tile[16 * cells];
+
+        _wallBlockPixels = TilePixels * WallMosaicSize;
+
+        for (int mask = 0; mask < 16; mask++)
         {
             _wallMask = mask;
-            tiles[mask] = EnsureTile($"WallTile_{mask:00}", TileStyle.WallAutotile,
-                Tile.ColliderType.Grid, overwrite);
+            for (int row = 0; row < WallMosaicSize; row++)
+            {
+                for (int column = 0; column < WallMosaicSize; column++)
+                {
+                    _wallCellX = column;
+                    _wallCellY = row;
+
+                    string name = row == 0 && column == 0
+                        ? $"WallTile_{mask:00}"
+                        : $"WallTile_{mask:00}_{column}{row}";
+
+                    tiles[mask * cells + row * WallMosaicSize + column] = EnsureTile(
+                        name, TileStyle.WallAutotile, Tile.ColliderType.Grid, overwrite);
+                }
+            }
         }
+
+        // Back to a single-cell block, so anything drawn after this — the plain WallTile
+        // fallback, on a regenerate — is not left keyed on a block it is not part of.
+        _wallCellX = _wallCellY = 0;
+        _wallBlockPixels = TilePixels;
+
         return tiles;
     }
 
@@ -1852,7 +2084,12 @@ public static class DungeonSceneSetup
         EnsureNatureDecals(overwrite: true);
 
         AssetDatabase.SaveAssets();
-        Debug.Log($"[DungeonSetup] Placeholder tiles redrawn in '{TilesFolder}'.");
+        // Redrawing does not rewire anything. A scene wired before the wall mosaic existed
+        // still holds sixteen wall tiles and paints the block's first cell everywhere, which
+        // looks like the redraw half worked rather than like a scene that needs rewiring.
+        Debug.Log($"[DungeonSetup] Placeholder tiles redrawn in '{TilesFolder}'. " +
+                  "Run Tools > Dungeon > Setup Scene Tilemaps to pick up tiles the scene " +
+                  "does not reference yet.");
     }
 
     /// <summary>Sets a private serialized field by name, the way the other setup tools do.</summary>

@@ -26,6 +26,13 @@ public static class ChestSetup
 {
     private const string GeneratedArtFolder = "Assets/Generation";
     private const string ChestSpritePath = GeneratedArtFolder + "/Chest.png";
+
+    // lukaszhanczyk's original placeholder (d431ea5, GU-0053) — a front-elevation drawing,
+    // superseded when the sprite was redrawn top-down (see BuildChestTexture). Kept as a
+    // plain archived file, unreferenced by anything and untouched by every tool in this
+    // class, so it survives regardless of how many times the chest art is redrawn.
+    private const string ChestOriginalSpritePath = GeneratedArtFolder + "/Chest_Original.png";
+
     private const string ChestPrefabPath = "Assets/Prefabs/World/Chest.prefab";
     private const string ResourcesFolder = "Assets/Resources";
     private const string RegistryPath = ResourcesFolder + "/" + PrefabRegistry.ResourcesPath + ".asset";
@@ -401,51 +408,61 @@ public static class ChestSetup
     }
 
     /// <summary>
-    /// Draws a placeholder chest: a dark-framed body, a lid band across the top and a
-    /// lit clasp, so it reads as a chest rather than as another crate at a glance. The
-    /// grain is seeded from a fixed string, so re-running produces byte-identical files
-    /// and does not churn the repository.
+    /// Redraws the chest sprite over whatever is on disk, for when the drawing changes.
+    /// <see cref="EnsureChestSprite"/> deliberately leaves an existing file alone so real
+    /// art survives a re-run, which also means it can never update a placeholder.
+    /// </summary>
+    public static void RegenerateChestSprite()
+    {
+        Directory.CreateDirectory(GeneratedArtFolder);
+        File.WriteAllBytes(ChestSpritePath, BuildChestTexture());
+        AssetDatabase.ImportAsset(ChestSpritePath, ImportAssetOptions.ForceSynchronousImport);
+        ConfigureTextureImporter(ChestSpritePath);
+    }
+
+    // The chest's footprint. Wider than it is deep, because that is what a chest looks
+    // like from above, and inset from the sprite's edge so two of them in adjacent cells
+    // do not touch.
+    private const int ChestLeft = 3;
+    private const int ChestRight = ChestPixels - 4;
+    private const int ChestBottom = 6;
+    private const int ChestTop = ChestPixels - 7;
+
+    /// <summary>The iron bands, set in from the ends where the corner brackets already are.</summary>
+    private const int FirstBand = 9;
+    private const int SecondBand = ChestPixels - 11;
+
+    private static readonly Color32 ChestFrame = new Color32(0x1E, 0x18, 0x11, 0xFF);
+    private static readonly Color32 ChestWoodDark = new Color32(0x45, 0x33, 0x21, 0xFF);
+    private static readonly Color32 ChestWoodLight = new Color32(0x6E, 0x53, 0x35, 0xFF);
+    private static readonly Color32 ChestIron = new Color32(0x4C, 0x54, 0x50, 0xFF);
+    private static readonly Color32 ChestIronDark = new Color32(0x24, 0x29, 0x27, 0xFF);
+    private static readonly Color32 ChestBrass = new Color32(0x8A, 0x77, 0x42, 0xFF);
+
+    /// <summary>
+    /// Draws a placeholder chest seen from directly above, like everything else in the
+    /// dungeon: a planked lid inside an iron-bound frame, two bands across it and a brass
+    /// lock plate on the front edge.
+    ///
+    /// The earlier drawing was a front elevation — a body with a lid band along its top
+    /// edge — which in a game viewed from overhead read as a chest lying on its back. The
+    /// vocabulary a top-down chest has is the grain of the lid, the bands crossing it and
+    /// the lock, so that is what this draws.
+    ///
+    /// The grain is seeded from a fixed string, so re-running produces byte-identical
+    /// files and does not churn the repository.
     /// </summary>
     private static byte[] BuildChestTexture()
     {
         var random = new DeterministicRandom("chest");
         var texture = new Texture2D(ChestPixels, ChestPixels, TextureFormat.RGBA32, false);
 
-        var frame = new Color(0.10f, 0.08f, 0.06f, 1f);
-        var body = new Color(0.42f, 0.28f, 0.16f, 1f);
-        var lid = new Color(0.52f, 0.35f, 0.20f, 1f);
-        var metal = new Color(0.72f, 0.64f, 0.36f, 1f);
-
-        const int margin = 3;              // transparent border, so chests don't touch when adjacent
-        int lidTop = ChestPixels - margin;
-        int lidBottom = ChestPixels - margin - 9;
-        int claspLeft = ChestPixels / 2 - 2;
-
         try
         {
             for (int y = 0; y < ChestPixels; y++)
             {
                 for (int x = 0; x < ChestPixels; x++)
-                {
-                    bool inside = x >= margin && x < ChestPixels - margin &&
-                                  y >= margin && y < lidTop;
-                    if (!inside)
-                    {
-                        texture.SetPixel(x, y, Color.clear);
-                        continue;
-                    }
-
-                    bool edge = x == margin || x == ChestPixels - margin - 1 ||
-                                y == margin || y == lidTop - 1 ||
-                                y == lidBottom;                     // the lid seam
-                    bool clasp = x >= claspLeft && x < claspLeft + 4 &&
-                                 y >= lidBottom - 3 && y <= lidBottom + 3;
-
-                    Color color = edge ? frame : (y > lidBottom ? lid : body);
-                    if (clasp && !edge) color = metal;
-
-                    texture.SetPixel(x, y, Jitter(color, 0.03f, random));
-                }
+                    texture.SetPixel(x, y, ChestPixel(x, y, random));
             }
 
             texture.Apply();
@@ -455,6 +472,44 @@ public static class ChestSetup
         {
             Object.DestroyImmediate(texture);
         }
+    }
+
+    /// <summary>One pixel of the chest sprite. Pure, so the drawing can be judged on its own.</summary>
+    private static Color ChestPixel(int x, int y, DeterministicRandom random)
+    {
+        if (x < ChestLeft || x > ChestRight || y < ChestBottom || y > ChestTop) return Color.clear;
+
+        bool outline = x == ChestLeft || x == ChestRight || y == ChestBottom || y == ChestTop;
+
+        // Iron at the four corners, three pixels along each edge, so the chest reads as
+        // bound rather than as a plain box.
+        bool corner = (x <= ChestLeft + 2 || x >= ChestRight - 2) &&
+                      (y <= ChestBottom + 2 || y >= ChestTop - 2);
+
+        // The lock plate breaks the front edge, which is what makes that edge the front
+        // and gives the sprite an orientation at a glance.
+        int lockLeft = ChestPixels / 2 - 2;
+        bool lockPlate = x >= lockLeft && x < lockLeft + 5 && y <= ChestBottom + 4;
+        bool keyhole = x == lockLeft + 2 && y >= ChestBottom + 1 && y <= ChestBottom + 2;
+
+        Color color;
+        if (lockPlate) color = keyhole ? ChestFrame : ChestBrass;
+        else if (outline) color = ChestFrame;
+        else if (corner) color = ChestIronDark;
+        else if (x == FirstBand || x == SecondBand) color = ChestIron;
+        else if (x == FirstBand + 1 || x == SecondBand + 1) color = ChestIronDark;
+        else
+        {
+            // Planks running the length of the lid, with the crest catching the light: a
+            // lid is domed, and from above that shows as a bright band along its centre
+            // falling away towards both long edges.
+            float crest = (ChestBottom + ChestTop) * 0.5f;
+            bool seam = y % 5 == ChestBottom % 5;
+            float fromCrest = Mathf.Abs(y - crest) / (crest - ChestBottom);
+            color = seam ? ChestWoodDark : Color.Lerp(ChestWoodLight, ChestWoodDark, fromCrest * 0.85f);
+        }
+
+        return Jitter(color, 0.03f, random);
     }
 
     /// <summary>Nudges a colour by a symmetric random amount, keeping it in range and its alpha.</summary>

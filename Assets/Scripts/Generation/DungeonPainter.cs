@@ -211,7 +211,24 @@ public class DungeonPainter : MonoBehaviour
                 switch (cell)
                 {
                     case CellType.Pillar:
-                        walls[index] = pillar;
+                        // Two different things wear this cell type, and they need different
+                        // tiles. DoorwayNormalizer walls up the excess of a wide opening and
+                        // turns the couple of cells nearest the door into Pillar purely so
+                        // they read as built jambs rather than as the bedrock the opening was
+                        // cut through — those are part of the wall mass and have to stay solid
+                        // right across the cell. RoomInteriorDecorator's colonnades are the
+                        // other thing: columns standing clear in a room, whose tile carries a
+                        // collider shaped like the drawn column, so sight and light pass
+                        // through the gaps between them instead of stopping at the cell edge.
+                        //
+                        // Touching anything solid is what tells them apart, and it is the
+                        // right test rather than a convenient one: a column with a wall
+                        // against it is a buttress, not a column.
+                        walls[index] = TouchesSolid(layout, x, y)
+                            ? autotiled
+                                ? PickWall(ExposureMask(layout, shell, x, y), wallBlock, x, y)
+                                : wallTile
+                            : pillar;
                         break;
 
                     case CellType.Rubble:
@@ -384,6 +401,29 @@ public class DungeonPainter : MonoBehaviour
     /// continued into rock that is not there, and the dungeon would lose its silhouette
     /// against the black.
     /// </summary>
+    /// <summary>
+    /// Whether any of the four orthogonal neighbours is solid structure. Diagonals are left
+    /// out on purpose: two columns touching only at a corner still have a gap between them
+    /// that light gets through, and calling that pair a wall would close it.
+    /// </summary>
+    private static bool TouchesSolid(DungeonLayout layout, int x, int y)
+    {
+        return IsSolid(layout, x, y + 1) || IsSolid(layout, x + 1, y) ||
+               IsSolid(layout, x, y - 1) || IsSolid(layout, x - 1, y);
+    }
+
+    /// <summary>
+    /// True for the cell types that make up the structure. Outside the map counts as solid,
+    /// so a pillar against the border is treated as attached to it.
+    /// </summary>
+    private static bool IsSolid(DungeonLayout layout, int x, int y)
+    {
+        if (!layout.Contains(x, y)) return true;
+
+        CellType cell = layout[x, y];
+        return cell == CellType.Wall || cell == CellType.Pillar || cell == CellType.Rubble;
+    }
+
     private static int ExposureMask(DungeonLayout layout, bool[] shell, int x, int y)
     {
         int mask = 0;

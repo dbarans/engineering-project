@@ -30,6 +30,9 @@ Written in English to match the rest of the project's documentation (see `ENEMY_
 | 22 — Treasure rooms: small locked loot rooms holding the exit key | done in code, measured over 500 + 200 seeds; **needs an editor look** | see §22 below |
 | 23 — A way round: two-route metric and loop tuning | done in code, swept over 6 settings and measured on 200 seeds; **needs an editor look** | see §23 below |
 | 24 — The hub was a crossroads: corridor cap, clearance, straight walls | done in code, measured over 60 + 200 seeds; **needs an editor look** | see §24 below |
+| 25 — Pillars matched to the walls, an exit floor, and procedural prop art | done in code, previewed outside Unity; **needs two tool runs and an editor look** | see §25 below |
+| 26 — Light between the pillars, four new decals, door and plank art | done in code, previewed outside Unity; **needs the three tool runs and an editor look** | see §26 below |
+| 27 — Inked art: item icons, HUD bars, three floor decals | done in code, previewed outside Unity; **needs three tool runs and an editor look** | see §27 below |
 
 **Verification so far is compile-level plus logic-level, not in-editor.** The layout
 assembly is engine-free by design, so it was run outside Unity against 500 seeds
@@ -2773,6 +2776,369 @@ all measure the same on either side of the change.
 3. Check the save station and crafting table still have wall to stand against.
 
 ---
+
+---
+
+## 25 — Pillars matched to the walls, an exit floor, and procedural prop art
+
+### The pillar did not belong to the wall it was made of
+
+`PillarTile` was drawn as a smooth disc of `#6E7A76` shaded from the top down to `#252B2A`,
+while the wall next to it is `#3B4442` masonry in courses with `#272E2D` joints and a drawn
+rim on every exposed side. Three separate mismatches, each enough on its own:
+
+- **Two shades too light.** `PillarColor` was the same value as `WallCapColor`, the lightest
+  stone in the palette, so a pillar was brighter than any wall around it.
+- **Smooth where the wall is coursed.** No joints, no stones, no chipped corners — the four
+  things the wall spends its whole texture budget on.
+- **Lit from the top.** The wall tiles deliberately carry *no* faked height, because the game
+  is seen from directly above and a lit cap reads as a wall viewed at an angle. The pillar
+  did exactly that.
+
+On top of which, everything outside the disc was filled with `FloorColor` — flat placeholder
+grey stamped over the hand-drawn floor art from §16, so a pillar came with a square patch of
+the old floor around it.
+
+The fix reuses the wall: the pillar is now the `WallTop` masonry clipped to a round plan,
+with the same `RimDepth` edge an exposed wall side gets, and **transparent** outside the
+column. The painter already floors pillar cells like any other open cell, so the real floor
+shows through. `Tile.ColliderType.Grid` is unchanged, so the cell still blocks the whole
+square — vision and pathfinding read exactly what they read before.
+
+This matters more than a colonnade would suggest, because `DoorwayNormalizer` builds doorway
+jambs out of `Pillar` cells. The mismatch was sitting in the one place the player looks at
+head-on.
+
+### The exit room looked like every other room
+
+`DungeonPainter.exitFloorTiles` has existed since the exit door went in, along with
+`BuildExitFloorMask` and `PickExitFloor` — and nothing ever generated tiles to put in it, so
+the slot stayed empty and the mask returned null. `ExitFloorTile` A–C now fill it: cut
+flagstones, two by two per tile with wobbled joints, one tone per slab spread by the golden
+ratio, and the wall's mottle over the top so it is recognisably the same stone worked to a
+different end. Lighter than the ordinary floor rather than darker, per the palette rule from
+§7 — the floor is the lightest thing on screen, so the exit has to sit at the top of that
+range to register inside the vision cone at all.
+
+### Props on a magenta checker
+
+`Sack01`, `Sack02`, `Statue01` and `Statue02` all pointed at the same `PlaceholderProp.png`
+— a magenta checkerboard — and `Candle01` and `Lamp` at `swirly-circle.png` from the GDS UI
+pack. Six props, two stand-ins, nothing that says what any of them is. `EnemyCorpse` was a
+blank white square.
+
+`PropArtGenerator` (`Tools ▸ Dungeon ▸ Regenerate Prop Art`) draws all seven from above, in
+the dungeon's palette, and re-points each prefab's `SpriteRenderer` at the result:
+
+| Prop | What it draws |
+|------|---------------|
+| `Sack01` | A tied sack, slumped: an ellipse with a bunched neck, a cord ring and folds radiating from it |
+| `Sack02` | The same sack split, with grain spilled to one side |
+| `Statue01` | A figure on a round plinth — head, shoulders, arms as three masses separated by hard dark gaps; the plinth is the wall's stone with the same rim |
+| `Statue02` | The same statue headless, a rough stump where the neck was, chips on the plinth |
+| `Candle01` | A stub in its own pool of wax, with a hot core — hard bands, because it lands about a third of a tile across on screen |
+| `Lamp` | A caged lantern: iron ring, three straight bars over lit glass, handle across the top |
+| `EnemyCorpse` | Face down, arms out, on what it left on the floor |
+
+**Sizing is what makes it a drop-in.** Every sprite is 32×32 and its pixels-per-unit is
+derived from the world size of the stand-in it replaces (2.56 for the checker, 1.28 for the
+swirl, 1.0 for the corpse sheet), so no prefab transform is touched and nothing already
+placed in a scene changes size. The `Lamp` prefab has 13 instances in `Dungeon.unity`; they
+keep their footprint exactly.
+
+The chest was redrawn too, in `ChestSetup`, where it belongs. It was a front elevation — a
+body with a lid band along its top edge — which from overhead read as a chest lying on its
+back. It is now a planked lid inside an iron-bound frame, two bands across it and a brass
+lock plate on the front edge. `ChestSetup.RegenerateChestSprite` is new: `EnsureChestSprite`
+deliberately never overwrites an existing file so real art survives a re-run, which also
+meant it could never update its own placeholder.
+
+### How this was checked without the editor
+
+The drawing routines are pure — `PixelColor`, `ChestPixel` and `PropArtGenerator.PixelColor`
+take coordinates and a `DeterministicRandom` and return a `Color`, touching nothing else —
+so they were invoked by reflection from a plain `net8.0` host against Unity's
+`UnityEngine.CoreModule`, composited over the generated floor and written out as PNGs. That
+is what caught the two drawings that compiled fine and looked wrong: the statue's head sat
+*inside* its shoulders and the two merged into one lozenge, and the lantern's bars were
+keyed on the angle to the centre, which draws a pinwheel rather than bars.
+
+It cannot check anything past the sprite itself. Import settings, the pixels-per-unit
+arithmetic, sorting against the wall tilemap and how any of it looks in the vision cone need
+the editor.
+
+### In-editor checklist for this stage
+
+1. **Tools ▸ Dungeon ▸ Regenerate Placeholder Tiles** — redraws the pillar and writes the
+   three new `ExitFloorTile` assets.
+2. **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** — required, and only because `exitFloorTiles`
+   is a slot the scene has never had filled. Without it the exit room floors like everywhere
+   else and nothing looks broken, which is the failure mode to watch for.
+3. **Tools ▸ Dungeon ▸ Regenerate Prop Art** — draws the seven props, re-points their
+   prefabs and redraws the chest.
+4. Regenerate a dungeon and look at a doorway: the jambs should be the same stone as the
+   wall they interrupt, with floor art visible around them, not a grey patch.
+5. Find the exit room and confirm the flagstones read as a different surface from inside the
+   vision cone — that is the only place the player ever sees them.
+6. Check prop sizes against what they were. Nothing should have moved or resized; if
+   something did, the pixels-per-unit for that prop is wrong, not its transform.
+
+---
+
+---
+
+## 26 — Light between the pillars, four new decals, door and plank art
+
+### A colonnade cast one shadow instead of eight
+
+`PillarTile` carried `Tile.ColliderType.Grid`, so however small the column was drawn, the
+whole cell blocked. `FieldOfView` linecasts against those colliders, so a row of columns
+threw one unbroken band of shadow — the light never got between them. Making the column
+round in §25 only made the mismatch easier to see.
+
+The tile is now `ColliderType.Sprite`: the collider follows the drawn column, so each one
+casts its own shadow with light in the gaps. `PathfindingGrid` overlap-tests a circle at the
+cell centre, which the column still covers, so the cell stays unwalkable — nothing about
+pathing changes.
+
+**That change alone would have put holes in every doorway**, and this is the part worth
+remembering. `DoorwayNormalizer` walls up the excess of a wide opening and makes the couple
+of cells nearest the door `Pillar` rather than `Wall` — purely cosmetic when it was written,
+because "both are solid and both stop vision". With a sprite-shaped collider that stopped
+being true: jambs would have become round columns with daylight around them.
+
+So the painter now tells the two apart. A `Pillar` cell touching solid structure
+orthogonally is part of the wall mass and gets the wall's tile and its full-cell collider; a
+`Pillar` cell standing clear on all four sides is a column and gets the round tile. Diagonals
+deliberately do not count — two columns touching at a corner still have a gap light gets
+through, and calling that pair a wall would close it.
+
+The upshot is that doorway jambs now read as built wall with the wall's own rim outlining
+them, which is closer to what §17 was after than a round column in a door frame ever was.
+
+### Four decals that are not damage
+
+Everything scattered on the floor was wear — two cracks, a stain, chippings. Four additions,
+and they are things that *live* down there rather than things that happened to the stone:
+
+| Decal | Notes |
+|-------|-------|
+| `DecalMushrooms` | A clump of three to six caps, each a half-disc with a shaded underside over a short stem. Clumped, not scattered: three drawn together read as growth, three spread evenly read as three unrelated dots |
+| `DecalBones` | Three to five long bones, each a shaft walked end to end with a knuckle at both ends. No skull — at 32 pixels a skull is four pixels of eye socket and reads as a smudge |
+| `DecalMoss` | Grown outwards from a point, every pixel kept on a probability falling with distance, so the patch frays at its edge instead of ending on a line. The only real hue in the palette |
+| `DecalPuddle` | One body of water with a wandering outline and a sheen along its upper edge. The sheen is the thing that says the surface is wet, and it is on a fixed side so every puddle in a room agrees about where the light is |
+
+`DecalVariantCount` went 4 → 8. Nothing else needed changing: the painter picks uniformly
+from `decalTiles`, so they are in the scatter the moment the setup tool fills the array.
+
+Two of them needed tuning after looking at them rather than after reasoning about them. The
+moss was drawn so sparse it read as green noise — probability fell off linearly from the
+centre, so most of the patch sat under a coin flip; flattening the falloff filled the middle
+and kept the frayed edge. The puddle's sheen was invisible at half alpha over near-black.
+
+### The door was a slice of table art
+
+`Door_System`'s leaf pointed at `FURNITURE_pngy_stol_0` — a 984×520 crop of the table
+sprite, squashed to a leaf by a scale of 0.102 × 0.22 with another 0.2 × 1 on its parent.
+The three barricade stages and the Plank item's icon all pointed at `Plank.png`, a 32×32
+white square.
+
+- **`Plank.png`** is now a sawn board: grain along its length, darker end grain at both ends,
+  two nail heads. Redrawing that one file re-boards all three barricade stages *and* fixes
+  the inventory icon, with no prefab edit at all. Kept square on purpose — it is used at
+  three different scales under a parent with a non-uniform scale, so a sprite with a strong
+  aspect ratio of its own would come out stretched differently at every stage.
+- **The door leaf** is a new 16×64 sprite: three boards along its length, two iron bands
+  across them and a ring at the end away from the hinge.
+
+The leaf is the one prop whose transform is recomputed rather than preserved, because its
+stand-in had a completely different shape. The generator measures the sprite's world size,
+divides out the parent's scale and sets the sprite child's `localScale` to land at
+**0.201 × 1.144** world units — what the old setup worked out to. `Door_Visual` is left
+alone: it carries the `BoxCollider2D` that blocks the opening, and scaling it would resize
+that collider.
+
+### How this was checked, and what it did not check
+
+The decal routines were moved off `Texture2D` onto a plain `Color[]` buffer, and the plank
+drawing was split into a pure `PlankPixel`. Both for the same reason the rest of the drawing
+code is shaped that way: `Texture2D` is native and cannot run outside Unity, so anything
+that touches it cannot be looked at without opening the editor. The blend in the stain case
+also stops looking like graphics work once it is plain array access.
+
+Everything in this stage was rendered outside Unity and looked at. What that cannot reach:
+
+- **Whether the sprite-shaped collider is the shape it should be.** Unity generates the
+  physics shape from the sprite's tight mesh at import. It has never been looked at.
+- **Which end of the door leaf the hinge is on.** The ring is drawn at one end; if
+  `Door_Pivot` puts the hinge there, it is on the wrong end and the sprite wants flipping.
+- **Which way the barricade planks lie.** `Door_Visual`'s 0.2 × 1 scale squashes anything
+  under it fivefold in x, and that transform is not safe to change from here.
+
+### In-editor checklist for this stage
+
+1. **Tools ▸ Dungeon ▸ Regenerate Placeholder Tiles**, then **Setup Scene Tilemaps**, then
+   **Tools ▸ Dungeon ▸ Regenerate Prop Art**. The third one also redraws the chest and the
+   plank.
+2. Stand a player next to a colonnade. **Light must reach between the columns** — that is the
+   whole point of this stage. One unbroken band of shadow means the tile is still on `Grid`,
+   or the sprite has no physics shape.
+3. Walk up to a wide doorway and check the jambs are solid: no light through them, and the
+   player cannot slip past the frame.
+4. Check a door: the leaf should cover its opening exactly as before, and swing on the same
+   hinge. If it is the wrong size, the target in `PropArtGenerator.Props` is wrong, not the
+   prefab.
+5. Barricade a door and look at the three stages.
+6. Regenerate a few times and confirm the new decals turn up without crowding the floor —
+   `decalChance` was tuned when there were four variants and there are now eight.
+
+---
+
+---
+
+## 27 — Inked art: item icons, HUD bars, three floor decals
+
+### A second art pipeline, and why there had to be one
+
+Everything generated up to here is 32-pixel art decided one pixel at a time: a chain of hard
+tests, point filtering, crisp on a grid. That is right for tiles. It is wrong for an
+inventory icon, which is 128 pixels, never tiled, and shown over a near-black panel where a
+stair-stepped edge is the first thing the eye finds.
+
+`ProceduralArt` is the second pipeline. Shapes are **signed distance fields** — every
+primitive answers "how far is this point from my edge, negative inside" — which gives three
+things a per-pixel switch cannot: an anti-aliased edge (coverage is a smoothstep over the
+last pixel and a half), an ink line (the band just inside the edge), and a sense of how deep
+inside a form a point is, so a wash can pool towards a contour with no lighting model at all.
+
+### The style was wrong on the first pass, and the fix was not "more detail"
+
+The first set came out smooth, rounded, specular-lit — small 3D renders. Technically clean
+and completely foreign to the barrel standing next to them.
+
+The project's own furniture (`FURNITURE_pngy_beczka`, `_stol`, `_maszyna`) is hand-inked
+illustration, and four things carry that:
+
+| | |
+|---|---|
+| **Thick ink round every silhouette** | and *uneven along its length*, the way a brush pen is pressed harder in places. A border of constant width reads as a stroke applied by a program however dark it is |
+| **Flat desaturated fills** | with a blotchy wash — no gradients anywhere |
+| **Detail drawn as strokes** | plank seams, cracks, wrap lines. A change of material is a drawn line, never a fade |
+| **Contours that wander** | nothing in the reference is a true circle or a straight edge |
+
+So the shading model was thrown out. There is no specular highlight and no rounded shading
+anywhere in `ItemIconGenerator` now: `Wobble` perturbs every contour off its ideal,
+`InkWidth` makes the line breathe, and `Wash` is two octaves of blotch plus dirt gathering at
+the edge. That is the whole of it.
+
+### What was drawn
+
+**Seven item icons** (`Tools ▸ Art ▸ Regenerate Item Icons`), 128 px at 100 PPU — the same
+size and PPU as the GDS icons they replace, so a dropped item keeps its world size. Ink,
+bandage, scrap, musket cartridge, shotgun shell, firewood, axe.
+
+Three of them took a second pass because they compiled fine and did not read:
+
+- The **axe** was a sliver. The classic silhouette comes entirely from *where the bites are
+  taken*: carving circles out above and below **near the eye** pinches the blade at the back
+  and leaves the front edge bulging. Biting the front instead produces a knife.
+- The **cartridge** read as a flask with a handle until the ball went to the nose. A musket
+  is loaded with paper, powder and ball, and nose-up is the only arrangement that reads as
+  ammunition. The cord is drawn wider than the tube on purpose — a tie that stops at the
+  edges of what it is tying reads as a painted stripe.
+- The **bandage** was a blank oval. Shadowed bands were too soft to survive; three ink
+  strokes across the roll do the job.
+
+**Four HUD bar sprites** (`Tools ▸ Art ▸ Regenerate Bar Art`), nine-sliced. The bars were
+three flat rectangles with no sprite on any of them — a white panel at 39% alpha, a grey
+track, a coloured fill — which is the only UI on screen for the whole game. Now a wrought
+iron frame, a groove sunk into it, and a fill sitting in the groove: dried blood for health,
+tarnished brass for stamina.
+
+The frame is a band with the middle cut out, which is what makes it work nine-sliced — the
+stretched centre is transparent, so no amount of stretching touches the drawn border. Each
+image's tint also goes to white, because they carried their colour as a flat tint and leaving
+it would multiply the art by it; a red fill tinted red comes out nearly black.
+
+**Three floor decals** (`InkedTileGenerator`, folded into the existing scatter): a smashed
+pot, a length of chain, a dead rat. Drawn at **128 px, not 32** — the floor they lie on is
+the hand-drawn art at that resolution, and a 32-pixel decal on it is four times chunkier than
+the stone it is lying on. They flow into `decalTiles` through `CombineDecals`, so the painter
+scatters them with everything else and nothing else had to change.
+
+The chain needed its links overlapping rather than merely spaced; as separate rings it read
+as scattered washers. The rat's feet had to be tucked in — splayed, it read as a spider.
+
+### Nothing was deleted
+
+The GDS icons stay on disk untouched; only the `icon` field on seven `ItemData` assets moves.
+The bar images keep their objects and their layout. Reverting any of it is dragging the old
+sprite back.
+
+### Rubble and the exit floor, measured against the floor they lie on
+
+Seen in game, the collapse in a room came out as a pale blue-grey rectangle of static
+dropped onto the ground. The cause was a number nobody had ever checked: the hand-drawn
+floor art averages **`#3E3B33`**, a dark warm brown, and the generated tiles sitting on it
+were
+
+| Tile | Was | Against a `#3E3B33` floor |
+|------|-----|---------------------------|
+| `RubbleTile` | `#39413F` / `#4E5855` speckle on a 4 px lattice | cool grey, up to twice as light |
+| `ExitFloorTile` | `#6A746F` flagstones | *deliberately* lighter, per the §25 reasoning — and against the real art that reads as a pale patch, not a change of surface |
+
+Both are redrawn in `InkedTileGenerator` at 128 px, keyed to the measured floor colour:
+
+- **Rubble** is nine broken blocks on a jittered three-by-three grid, each rotated, with the
+  floor showing between them — which the 32-pixel version could not do at all. The painter
+  floors rubble cells like any other non-wall cell, so the gaps have real ground under them.
+  Free scatter was tried first and rejected: it leaves some tiles half empty, and a rubble
+  tile that is half empty stops reading as rubble.
+- **The exit floor** is one laid flagstone per cell in mortar, inset so the drawing never
+  touches the cell border. A course of slabs running *across* cells cannot work here — the
+  painter picks the variant per cell from the seed, so neighbours are not the same tile and
+  could never be made to line up. One slab per cell is the only pattern that tiles under a
+  random pick. It says "different room" by being **worked**, not by being brighter.
+
+`InkedDecalGenerator` was renamed `InkedTileGenerator`, since it now draws floor tiles as
+well as decals. The 32-pixel `EnsureExitFloorTiles` went with the change; its two
+`TileStyle` cases stay, the way `TileStyle.Doorway` did when the painter stopped using it.
+The old PNG and `.asset` files are left on disk untouched, simply unreferenced.
+
+### The corpse was a third the size of the thing it was the corpse of
+
+Same class of mistake, found the same way — by measuring instead of eyeballing. The opaque
+bounding box of each sprite, in world units:
+
+| | visible size |
+|---|---|
+| skull guy, standing | **1.66 × 2.38** |
+| barrel | 0.91 × 0.91 |
+| enemy corpse | **0.78 × 0.84** |
+
+`EnemyCorpse`'s stand-in sheet happened to be one world unit, and §25's rule was "keep every
+prop at the size of the sprite it replaces" — so the rule faithfully preserved a size that
+was wrong to begin with. Its `WorldUnits` is now 2.6, putting the drawn body at about 2.2
+units: a shade shorter than the enemy stood up, which is right for something lying spread
+out. It is the one prop in that table deliberately *not* kept at its old size, and the spec's
+doc comment now says so.
+
+### In-editor checklist for this stage
+
+1. **Tools ▸ Art ▸ Regenerate Item Icons** and **Tools ▸ Art ▸ Regenerate Bar Art**.
+2. **Tools ▸ Dungeon ▸ Setup Scene Tilemaps** — picks up the three new decals and rewires
+   the rubble and exit-floor slots onto the new 128-pixel tiles.
+3. Generate a dungeon and find a collapse. It should read as broken blocks lying on the
+   floor, with ground visible between them — not as a filled rectangle of any colour.
+3. Open the inventory and look at the seven icons **against the slot backgrounds**, which is
+   the only place they are ever seen. They were drawn over that colour but never shown on it.
+4. Look at the bars at their real size. The nine-slice borders were checked by emulating the
+   slicing outside Unity, not by Unity doing it — if the corners look stretched, the border
+   values in `BarArtGenerator` are wrong, not the art.
+5. Take damage and spend stamina, and check the fills read at low values, where only the
+   left-hand slice of the sprite is visible.
+6. Regenerate a dungeon and find the new decals. There are now eleven variants in the
+   scatter; `decalChance` was tuned when there were four.
 
 ---
 

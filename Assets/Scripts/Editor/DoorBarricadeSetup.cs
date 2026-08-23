@@ -92,17 +92,12 @@ public static class DoorBarricadeSetup
         return AssetDatabase.LoadAssetAtPath<ItemData>(PlankItemPath);
     }
 
-    /// <summary>Plain white square — a stand-in icon until real plank art replaces it.</summary>
+    /// <summary>Loads the plank sprite, drawing it the first time it is asked for.</summary>
     private static Sprite EnsurePlankIcon()
     {
         Directory.CreateDirectory(PlankIconFolder);
 
-        if (!File.Exists(PlankIconPath))
-        {
-            File.WriteAllBytes(PlankIconPath, BuildWhiteSquareTexture(PlankIconPixels));
-            AssetDatabase.ImportAsset(PlankIconPath, ImportAssetOptions.ForceSynchronousImport);
-            ConfigureIconImporter(PlankIconPath, PlankIconPixels);
-        }
+        if (!File.Exists(PlankIconPath)) WritePlankIcon();
 
         var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(PlankIconPath);
         if (sprite == null)
@@ -110,14 +105,55 @@ public static class DoorBarricadeSetup
         return sprite;
     }
 
-    private static byte[] BuildWhiteSquareTexture(int size)
+    /// <summary>
+    /// Redraws the plank over whatever is on disk, for when the drawing changes.
+    /// <see cref="EnsurePlankIcon"/> deliberately leaves an existing file alone so real art
+    /// survives a re-run, which also means it can never update its own placeholder.
+    ///
+    /// One sprite does two jobs: the Plank item's inventory icon and all three barricade
+    /// stage visuals on the door prefab, which is why redrawing it here re-boards every
+    /// barricade in the game without touching a prefab.
+    /// </summary>
+    public static void RegeneratePlankIcon()
     {
+        Directory.CreateDirectory(PlankIconFolder);
+        WritePlankIcon();
+    }
+
+    private static void WritePlankIcon()
+    {
+        File.WriteAllBytes(PlankIconPath, BuildPlankTexture(PlankIconPixels));
+        AssetDatabase.ImportAsset(PlankIconPath, ImportAssetOptions.ForceSynchronousImport);
+        ConfigureIconImporter(PlankIconPath, PlankIconPixels);
+    }
+
+    /// <summary>
+    /// Draws a sawn board: grain along its length, a darker end grain at each end and two
+    /// nail heads driven through it. It replaces a plain white square, which said nothing
+    /// about what it was in the inventory and turned every barricade stage into a white
+    /// block laid across the door.
+    ///
+    /// Deliberately square rather than long and thin. The board is used at three different
+    /// scales on the door prefab and its parent applies a non-uniform scale of its own, so a
+    /// sprite with a strong aspect ratio of its own would come out stretched differently at
+    /// every stage; a square one is scaled the same way whichever axis it lands on.
+    ///
+    /// The grain is seeded from a fixed string, so re-running produces byte-identical files
+    /// and does not churn the repository.
+    /// </summary>
+    private static byte[] BuildPlankTexture(int size)
+    {
+        var random = new DeterministicRandom("plank");
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+
         try
         {
-            var pixels = new Color[size * size];
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
-            texture.SetPixels(pixels);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                    texture.SetPixel(x, y, PlankPixel(x, y, size, random));
+            }
+
             texture.Apply();
             return texture.EncodeToPNG();
         }
@@ -125,6 +161,61 @@ public static class DoorBarricadeSetup
         {
             Object.DestroyImmediate(texture);
         }
+    }
+
+    /// <summary>One pixel of the plank sprite. Pure, so the drawing can be judged on its own.</summary>
+    private static Color PlankPixel(int x, int y, int size, DeterministicRandom random)
+    {
+        var edge = new Color32(0x24, 0x1B, 0x11, 0xFF);
+        var endGrain = new Color32(0x3B, 0x2C, 0x1C, 0xFF);
+        var wood = new Color32(0x6B, 0x51, 0x33, 0xFF);
+        var woodDark = new Color32(0x50, 0x3C, 0x25, 0xFF);
+        var nail = new Color32(0x3A, 0x40, 0x3D, 0xFF);
+        var nailLit = new Color32(0x77, 0x80, 0x7C, 0xFF);
+
+        // A margin all round, so two boards crossing on a barricade read as two boards.
+        int margin = size / 16;
+        int endDepth = size / 8;
+
+        if (x < margin || x >= size - margin || y < margin || y >= size - margin) return Color.clear;
+
+        Color color;
+        if (x == margin || x == size - margin - 1 || y == margin || y == size - margin - 1)
+        {
+            color = edge;
+        }
+        else if (x < margin + endDepth || x >= size - margin - endDepth)
+        {
+            // Sawn ends, darker than the face: end grain always is, and it is what stops the
+            // board reading as a painted rectangle.
+            color = endGrain;
+        }
+        else
+        {
+            // Grain running the length of the board, wandering a pixel so the lines do not
+            // read as ruling.
+            int band = (y + x / 7) % 5;
+            color = band == 0 ? woodDark : wood;
+        }
+
+        // Two nails, driven at the quarter points where a board would be fixed.
+        int nailX = size / 4;
+        bool onNail = (Mathf.Abs(x - nailX) <= 1 || Mathf.Abs(x - (size - nailX)) <= 1) &&
+                      Mathf.Abs(y - size / 2) <= 1;
+        if (onNail) color = x % 2 == 0 && y == size / 2 ? nailLit : nail;
+
+        return Jitter(color, 0.03f, random);
+    }
+
+    /// <summary>Nudges a colour by a symmetric random amount, keeping it in range and its alpha.</summary>
+    private static Color Jitter(Color color, float amount, DeterministicRandom random)
+    {
+        float delta = (random.NextFloat() * 2f - 1f) * amount;
+        return new Color(
+            Mathf.Clamp01(color.r + delta),
+            Mathf.Clamp01(color.g + delta),
+            Mathf.Clamp01(color.b + delta),
+            color.a);
     }
 
     private static void ConfigureIconImporter(string path, int pixels)

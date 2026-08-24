@@ -1,9 +1,10 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Handles player health status
-/// Respects game state and does not update during pause.
+/// Handles player health status.
+/// Respects game state and triggers death screen handling upon fatal damage.
 /// </summary>
 public class PlayerHealthSystem : MonoBehaviour
 {
@@ -13,7 +14,13 @@ public class PlayerHealthSystem : MonoBehaviour
     private int maxHealth = 100;
     [SerializeField]
     private HealthBar healthBar;
-    
+
+    [Header("Death Screen Settings")]
+    [Tooltip("Delay in seconds before showing the death UI so the death sound can play.")]
+    [SerializeField] private float deathScreenDelay = 0.5f;
+
+    private bool _isDead = false;
+
     void Start()
     {
         if (healthBar == null)
@@ -27,48 +34,76 @@ public class PlayerHealthSystem : MonoBehaviour
     /// <summary>
     /// Method responsible for taking damage by the player.
     /// </summary>
-    /// <param name="damage"> Value of the damage depending of the attack type</param>
+    /// <param name="damage">Value of the damage depending on the attack type</param>
     public void TakeDamage(int damage)
     {
+        if (_isDead) return;
+
         bool wasAlive = currentHealth > 0;
 
         currentHealth -= damage;
         if (healthBar != null) healthBar.SetHealth(currentHealth);
 
-        // Non-positional: this happens to the player, so a direction would be meaningless.
-        // The death sound replaces the hurt one on the killing blow rather than stacking
-        // on top of it, and only on the transition — further damage to an already-dead
-        // player is silent.
         if (currentHealth <= 0)
         {
-            if (wasAlive) AudioService.Play(SoundId.PlayerDeath);
+            if (wasAlive)
+            {
+                _isDead = true;
+                AudioService.Play(SoundId.PlayerDeath);
+                StartCoroutine(HandleDeathSequence());
+            }
         }
         else
         {
             AudioService.Play(SoundId.PlayerHurt);
         }
     }
-    
+
+    /// <summary>
+    /// Waits for the death sound and activates the death screen UI.
+    /// </summary>
+    private IEnumerator HandleDeathSequence()
+    {
+        var movement = GetComponent<MonoBehaviour>(); 
+        yield return new WaitForSecondsRealtime(deathScreenDelay);
+
+        if (DeathScreenUI.Instance != null)
+        {
+            DeathScreenUI.Instance.ShowDeathScreen();
+        }
+        else
+        {
+            var deathUI = FindFirstObjectByType<DeathScreenUI>(FindObjectsInactive.Include);
+            if (deathUI != null)
+            {
+                deathUI.ShowDeathScreen();
+            }
+            else
+            {
+                Debug.LogError("[PlayerHealthSystem] Nie znaleziono skryptu DeathScreenUI na scenie!");
+            }
+        }
+    }
     /// <summary>
     /// Method responsible for healing the player.
     /// </summary>
-    /// <param name="heal"> Value of the healing depending of the healing type</param>
+    /// <param name="heal">Value of the healing depending on the healing type</param>
     public void Heal(int heal)
     {
-        if (heal <= 0) return;
+        if (heal <= 0 || _isDead) return;
 
-        // Routed through SetHealth so healing cannot overshoot the maximum: a 50-point
-        // bandage used at 80 health tops the player up to 100, not to 130.
         SetHealth(currentHealth + heal);
     }
-    
+
     /// <summary>
     /// Overwrites current health, clamped to [0, maxHealth], and updates the bar.
-    /// Used by the save system on restore — runs after Start() reset health to max.
+    /// Used by the save system on restore.
     /// </summary>
     public void SetHealth(int health)
     {
         currentHealth = Mathf.Clamp(health, 0, maxHealth);
+        _isDead = currentHealth <= 0;
+        
         if (healthBar != null) healthBar.SetHealth(currentHealth);
     }
 
@@ -81,9 +116,7 @@ public class PlayerHealthSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// The health the player starts a run with, and the ceiling <see cref="SetHealth"/> clamps to.
-    /// Exposed so effects that scale with how hurt the player is (see HorrorPostProcessing) can
-    /// work out a fraction rather than hard-coding the 100.
+    /// The health the player starts a run with, and the ceiling SetHealth clamps to.
     /// </summary>
     public int GetMaxHealth()
     {
@@ -91,8 +124,7 @@ public class PlayerHealthSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// True when there is nothing left to heal. Consumables check this before they are spent,
-    /// so a bandage is never burned for zero effect.
+    /// True when there is nothing left to heal.
     /// </summary>
     public bool IsFull => currentHealth >= maxHealth;
 }

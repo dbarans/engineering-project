@@ -2,41 +2,37 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Manages player interaction for dragging a barrel with obstacle collision checks.
-/// Restricts dragging to the closest barrel, synchronizes movement using Rigidbody2D casting
-/// to prevent clipping through walls, and caps the player's dragging speed.
+/// Manages player interaction for pulling/dragging a barrel.
+/// The barrel only follows when the player moves away from it (pull-only),
+/// cannot be pushed forward, and detects obstacle collisions via Rigidbody2D casting.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class DraggableBarrel : MonoBehaviour
 {
     [Header("Drag Settings")]
-    [Tooltip("Maximum interaction distance from the player to initiate dragging.")]
+    [Tooltip("Maximum interaction distance to start dragging.")]
     [SerializeField] private float grabDistance = 1.6f;
 
-    [Tooltip("Key required to be held down to drag the barrel.")]
+    [Tooltip("Key held down to drag.")]
     [SerializeField] private Key dragKey = Key.F;
 
-    [Tooltip("Movement speed cap applied to both the barrel and the player during dragging.")]
-    [SerializeField] private float dragSpeed = 2.2f;
+    [Tooltip("Movement speed during dragging.")]
+    [SerializeField] private float dragSpeed = 2.0f;
 
-    [Tooltip("Layers considered solid obstacles that block the barrel from moving (e.g. Walls, Environment).")]
+    [Tooltip("Layers considered solid obstacles that block the barrel.")]
     [SerializeField] private LayerMask obstacleLayerMask;
 
     private Rigidbody2D _barrelRb;
     private Collider2D _barrelCol;
     private Transform _playerTransform;
-    private Rigidbody2D _playerRb;
+    private PlayerMovement _playerMovement;
 
     private bool _isDragging = false;
-    private Vector2 _grabOffset;
+    private float _initialHoldDistance;
     private readonly RaycastHit2D[] _castHits = new RaycastHit2D[8];
     private ContactFilter2D _castFilter;
 
     private static DraggableBarrel _currentlyDraggedBarrel;
-
-    /// <summary>
-    /// Currently dragged barrel instance across the scene.
-    /// </summary>
     public static DraggableBarrel CurrentlyDraggedBarrel => _currentlyDraggedBarrel;
 
     private void Awake()
@@ -58,17 +54,26 @@ public class DraggableBarrel : MonoBehaviour
 
     private void Start()
     {
+        EnsurePlayerReference();
+    }
+
+    private void EnsurePlayerReference()
+    {
+        if (_playerTransform != null && _playerMovement != null) return;
+
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
             _playerTransform = player.transform;
-            _playerRb = player.GetComponent<Rigidbody2D>();
+            _playerMovement = player.GetComponent<PlayerMovement>();
         }
     }
 
     private void Update()
     {
-        if (_playerTransform == null || Keyboard.current == null) return;
+        if (Keyboard.current == null) return;
+        if (_playerTransform == null) EnsurePlayerReference();
+        if (_playerTransform == null) return;
 
         if (_barrelRb.bodyType == RigidbodyType2D.Static)
         {
@@ -76,30 +81,25 @@ public class DraggableBarrel : MonoBehaviour
             return;
         }
 
-        float distance = Vector2.Distance(transform.position, _playerTransform.position);
+        float currentDist = Vector2.Distance(transform.position, _playerTransform.position);
         bool isKeyPressed = Keyboard.current[dragKey].isPressed;
 
         if (_isDragging)
         {
-            // Release drag if key is released or if the barrel was blocked by a wall and player walked away
-            if (!isKeyPressed || distance > grabDistance + 0.8f)
+            if (!isKeyPressed || currentDist > grabDistance + 1.2f)
             {
                 StopDragging();
             }
         }
-        else if (isKeyPressed && distance <= grabDistance && _currentlyDraggedBarrel == null)
+        else if (isKeyPressed && currentDist <= grabDistance && _currentlyDraggedBarrel == null)
         {
             if (IsClosestBarrelToPlayer())
             {
-                StartDragging();
+                StartDragging(currentDist);
             }
         }
     }
 
-    /// <summary>
-    /// Checks if this barrel instance is the closest one to the player among all active draggable barrels.
-    /// </summary>
-    /// <returns>True if closest, false otherwise.</returns>
     private bool IsClosestBarrelToPlayer()
     {
         var allBarrels = FindObjectsByType<DraggableBarrel>(FindObjectsSortMode.None);
@@ -123,62 +123,56 @@ public class DraggableBarrel : MonoBehaviour
     {
         if (!_isDragging || _playerTransform == null) return;
 
-        // Cap player movement velocity so they cannot outrun the dragging speed
-        if (_playerRb != null && _playerRb.linearVelocity.magnitude > dragSpeed)
+        Vector2 currentBarrelPos = _barrelRb.position;
+        Vector2 playerPos = _playerTransform.position;
+        Vector2 toPlayer = playerPos - currentBarrelPos;
+        float currentDist = toPlayer.magnitude;
+
+        if (currentDist > _initialHoldDistance)
         {
-            _playerRb.linearVelocity = _playerRb.linearVelocity.normalized * dragSpeed;
-        }
+            Vector2 pullDir = toPlayer.normalized;
+            float excessDistance = currentDist - _initialHoldDistance;
 
-        Vector2 currentPosition = _barrelRb.position;
-        Vector2 targetPosition = (Vector2)_playerTransform.position + _grabOffset;
-        Vector2 movementDelta = targetPosition - currentPosition;
-        float distanceToTarget = movementDelta.magnitude;
-
-        if (distanceToTarget > 0.001f)
-        {
-            Vector2 moveDirection = movementDelta / distanceToTarget;
-            float maxStep = dragSpeed * Time.fixedDeltaTime;
-            float stepDistance = Mathf.Min(distanceToTarget, maxStep);
-
-            // Cast the collider forward to detect solid walls before moving
             _castFilter.layerMask = obstacleLayerMask;
-            int hitCount = _barrelRb.Cast(moveDirection, _castFilter, _castHits, stepDistance + 0.02f);
+            int hitCount = _barrelRb.Cast(pullDir, _castFilter, _castHits, excessDistance + 0.02f);
 
             if (hitCount > 0)
             {
-                // Wall hit: adjust travel distance so the barrel stops right at the surface
                 float allowedDistance = Mathf.Max(0f, _castHits[0].distance - 0.02f);
-                Vector2 newPosition = currentPosition + moveDirection * allowedDistance;
-                _barrelRb.MovePosition(newPosition);
+                _barrelRb.MovePosition(currentBarrelPos + pullDir * allowedDistance);
             }
             else
             {
-                // Free path: move towards the target
-                Vector2 newPosition = currentPosition + moveDirection * stepDistance;
-                _barrelRb.MovePosition(newPosition);
+                Vector2 targetPos = playerPos - (pullDir * _initialHoldDistance);
+                _barrelRb.MovePosition(targetPos);
             }
         }
     }
 
-    /// <summary>
-    /// Locks the barrel into dragging mode and calculates initial grab offset.
-    /// </summary>
-    private void StartDragging()
+    private void StartDragging(float initialDistance)
     {
+        EnsurePlayerReference();
         _isDragging = true;
         _currentlyDraggedBarrel = this;
-        _grabOffset = (Vector2)transform.position - (Vector2)_playerTransform.position;
+        _initialHoldDistance = Mathf.Max(initialDistance, 0.8f);
+
+        if (_playerMovement != null)
+        {
+            _playerMovement.SetDragging(true, dragSpeed);
+        }
     }
 
-    /// <summary>
-    /// Releases the barrel from dragging mode and resets velocity.
-    /// </summary>
     private void StopDragging()
     {
         _isDragging = false;
         if (_currentlyDraggedBarrel == this)
         {
             _currentlyDraggedBarrel = null;
+        }
+
+        if (_playerMovement != null)
+        {
+            _playerMovement.SetDragging(false);
         }
 
         _barrelRb.linearVelocity = Vector2.zero;

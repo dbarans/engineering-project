@@ -94,9 +94,9 @@ public class SaveLoadUI : MonoBehaviour
         if (IsOpen || panelRoot == null) return;
         if (gameManager == null || !gameManager.IsPlaying()) return;
 
-        gameManager.PauseGame();
+        panelRoot.SetActive(true);    // set first, so IsOpen is true before PauseGame's event fires
         SetMode(mode);
-        panelRoot.SetActive(true);
+        gameManager.PauseGame();
     }
 
     /// <summary>Hides the screen and resumes the game.</summary>

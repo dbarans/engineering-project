@@ -111,6 +111,7 @@ public class HotbarUI : MonoBehaviour
 
     private void Update()
     {
+        if (PauseMenuController.IsPaused) return;
         if (Mouse.current == null || _slots.Count == 0) return;
         float scroll = Mouse.current.scroll.ReadValue().y;
         if (scroll > 0f) ChangeSelection(-1);

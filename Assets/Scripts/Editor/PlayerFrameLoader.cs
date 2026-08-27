@@ -9,8 +9,9 @@ using UnityEngine;
 /// to be assigned by hand. The counterpart of <see cref="SkullGuyFrameLoader"/>.
 ///
 /// Folder names are Polish: NOGI = legs, TLOW = torso ("tułów"), CHODZENIE = walking,
-/// BIEG = running, BRON = weapon, CELOWANIE = aiming, STRZAL = shot. CHEDZENIE_TLOW is a
-/// typo for CHODZENIE_TLOW and is mapped to the clean clip name here rather than renamed on
+/// BIEG = running, BRON = weapon (the pistol), STRZELBA = shotgun, CELOWANIE = aiming,
+/// NAPIECIE = wind-up (the axe's equivalent of aiming), STRZAL = shot/swing. CHEDZENIE_TLOW is
+/// a typo for CHODZENIE_TLOW and is mapped to the clean clip name here rather than renamed on
 /// disk, so the art folder stays exactly as the artist exported it.
 ///
 /// Usage: Tools > Player > Setup Animations with the Player root selected.
@@ -44,13 +45,25 @@ public static class PlayerFrameLoader
         new ClipDef("BIEG_NOGI",      "BIEG_NOGI",      50f, true),
     };
 
+    // One carry / aim / attack triple per weapon, plus the two unarmed cycles. Everything runs
+    // at the torso's 25 fps so an armed walk keeps step with the legs; the attack clips are
+    // shorter (13 and 10 frames against the pistol's 25), which is what makes the axe swing and
+    // the shotgun blast snappier than the pistol shot rather than any fps difference.
     private static readonly ClipDef[] TorsoDefs =
     {
-        new ClipDef("CHEDZENIE_TLOW",                "CHODZENIE_TLOW",                25f, true),
-        new ClipDef("BIEG_TLOW",                     "BIEG_TLOW",                     50f, true),
-        new ClipDef("CHODZENIE_TLOW_BRON",           "CHODZENIE_TLOW_BRON",           25f, true),
-        new ClipDef("CHODZENIE_TLOW_BRON_CELOWANIE", "CHODZENIE_TLOW_BRON_CELOWANIE", 25f, true),
-        new ClipDef("CHODZENIE_TLOW_STRZAL",         "CHODZENIE_TLOW_STRZAL",         25f, false),
+        new ClipDef("CHEDZENIE_TLOW",                    "CHODZENIE_TLOW",                    25f, true),
+        new ClipDef("BIEG_TLOW",                         "BIEG_TLOW",                         50f, true),
+        new ClipDef("CHODZENIE_TLOW_BRON",               "CHODZENIE_TLOW_BRON",               25f, true),
+        new ClipDef("CHODZENIE_TLOW_BRON_CELOWANIE",     "CHODZENIE_TLOW_BRON_CELOWANIE",     25f, true),
+        new ClipDef("CHODZENIE_TLOW_STRZAL",             "CHODZENIE_TLOW_STRZAL",             25f, false),
+        new ClipDef("CHODZENIE_TLOW_STRZELBA",           "CHODZENIE_TLOW_STRZELBA",           25f, true),
+        new ClipDef("CHODZENIE_TLOW_STRZELBA_CELOWANIE", "CHODZENIE_TLOW_STRZELBA_CELOWANIE", 25f, true),
+        new ClipDef("CHODZENIE_TLOW_STRZELBA_STRZAL",    "CHODZENIE_TLOW_STRZELBA_STRZAL",    25f, false),
+        new ClipDef("CHODZENIE_TLOW_AXE",                "CHODZENIE_TLOW_AXE",                25f, true),
+        // The wind-up is a single pull-back, not a cycle. PlayerAnimationDriver scrubs it by
+        // charge progress rather than playing it, so its fps only matters as a fallback.
+        new ClipDef("CHODZENIE_TLOW_AXE_NAPIECIE",       "CHODZENIE_TLOW_AXE_NAPIECIE",       25f, false),
+        new ClipDef("CHODZENIE_TLOW_AXE_STRZAL",         "CHODZENIE_TLOW_AXE_STRZAL",         25f, false),
     };
 
     [MenuItem("Tools/Player/Reimport Frames")]
@@ -144,9 +157,15 @@ public static class PlayerFrameLoader
         if (!AssetDatabase.IsValidFolder(folder))
             return new Sprite[0];
 
+        // Frames of this clip only, never a neighbour's: several clip folders are prefixes of
+        // others (CHODZENIE_TLOW_AXE of CHODZENIE_TLOW_AXE_NAPIECIE, CHODZENIE_TLOW_STRZELBA of
+        // both its aim and shot folders), so anything that reached in from a sibling would
+        // silently double a walk cycle's length.
         // Sort by path so zero-padded frame names come out in order.
         return AssetDatabase.FindAssets("t:Sprite", new[] { folder })
             .Select(AssetDatabase.GUIDToAssetPath)
+            .Where(p => p.StartsWith(folder + "/", System.StringComparison.Ordinal) &&
+                        p.IndexOf('/', folder.Length + 1) < 0)
             .OrderBy(p => p, System.StringComparer.Ordinal)
             .Select(AssetDatabase.LoadAssetAtPath<Sprite>)
             .Where(s => s != null)

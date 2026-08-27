@@ -120,6 +120,29 @@ public class SpriteFrameAnimator : MonoBehaviour
     }
 
     /// <summary>
+    /// Holds the current clip on the frame at <paramref name="normalized"/> — 0 the first frame,
+    /// 1 the last — and stops it advancing on its own (it leaves the animator
+    /// <see cref="Paused"/>; playing another clip or clearing Paused resumes normal playback).
+    ///
+    /// For a clip that is the readout of a gameplay value rather than something happening over
+    /// time: the axe's wind-up follows how far the swing is charged, so it reaches its last
+    /// frame exactly when the attack is fully charged and sits there until the player swings or
+    /// lets go, instead of cycling.
+    /// </summary>
+    public void Scrub(float normalized)
+    {
+        if (current == null || current.frames == null || current.frames.Length == 0)
+            return;
+
+        Paused = true;
+        completed = false;
+        timer = 0f;
+        frameIndex = Mathf.Clamp(Mathf.RoundToInt(normalized * (current.frames.Length - 1)),
+                                 0, current.frames.Length - 1);
+        ShowCurrentFrame();
+    }
+
+    /// <summary>
     /// Pushes the current frame to the renderer. Does nothing while <see cref="Hidden"/>, so a
     /// hidden part stays blank even if its clip keeps advancing underneath.
     /// </summary>

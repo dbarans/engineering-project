@@ -9,10 +9,13 @@ using UnityEngine.InputSystem;
 ///    Called by <see cref="HeldItemController"/> when the player clicks the world while
 ///    carrying an item on the cursor.
 ///
-/// 2. Pick-up — every frame it collects the <see cref="WorldItem"/>s under the cursor,
-///    reveals the name of the currently selected one, lets the player cycle the
-///    selection with <see cref="cycleKey"/> (E) when several are stacked, and picks the
-///    selected one up into the <see cref="SlotInventory.Backpack"/> on left-click.
+/// 2. Pick-up — every frame it collects the <see cref="WorldItem"/>s under the cursor
+///    that lie within <see cref="pickupRange"/> of the player, reveals the name of the
+///    currently selected one, lets the player cycle the selection with
+///    <see cref="cycleKey"/> (E) when several are stacked, and picks the selected one up
+///    into the <see cref="SlotInventory.Backpack"/> on left-click. Drops out of reach are
+///    ignored entirely — no name on the cursor either, so the label never offers a
+///    pick-up the click wouldn't perform (the same rule <see cref="SaveStation"/> uses).
 ///
 /// The selection is cycled with E (read directly off the keyboard rather than the
 /// Interact action, so ordinary world interaction is unaffected) and only consumes the
@@ -47,6 +50,9 @@ public class WorldItemPickup : MonoBehaviour
     [SerializeField] private float hoverRadius = 0.3f;
     [Tooltip("Layers searched for world items under the cursor. Non-item colliders are ignored anyway.")]
     [SerializeField] private LayerMask itemLayerMask = ~0;
+    [Tooltip("How far from the player an item may lie and still be picked up. Drops " +
+             "beyond this reach show no name and ignore clicks.")]
+    [SerializeField] private float pickupRange = 2.5f;
     // Items under the cursor this frame, sorted for a stable cycling order.
     private readonly List<WorldItem> _underCursor = new List<WorldItem>();
     private readonly List<Collider2D> _hits = new List<Collider2D>();
@@ -119,9 +125,26 @@ public class WorldItemPickup : MonoBehaviour
         return drop;
     }
 
+    /// <summary>
+    /// The player transform, re-resolved whenever it goes missing: the dungeon generator
+    /// respawns the player, which leaves a reference wired once in the editor dangling.
+    /// </summary>
+    private Transform ResolvePlayer()
+    {
+        if (player != null) return player;
+
+        if (gameManager == null) gameManager = FindFirstObjectByType<GameManager>();
+        GameObject found = gameManager != null ? gameManager.GetPlayer() : null;
+        if (found == null) found = GameObject.FindWithTag("Player");
+
+        player = found != null ? found.transform : null;
+        return player;
+    }
+
     private Vector3 ComputeDropPosition()
     {
-        Transform origin = player != null ? player : transform;
+        Transform resolved = ResolvePlayer();
+        Transform origin = resolved != null ? resolved : transform;
         Transform rot = facingSource != null ? facingSource : origin;
 
         Vector3 dir = rot.right; // +X is "front" per PlayerAim's aiming convention
@@ -155,7 +178,10 @@ public class WorldItemPickup : MonoBehaviour
         return item.Count > 1 ? $"{item.Item.itemName} ×{item.Count}" : item.Item.itemName;
     }
 
-    /// <summary>Rebuilds <see cref="_underCursor"/> from the colliders around the cursor.</summary>
+    /// <summary>
+    /// Rebuilds <see cref="_underCursor"/> from the colliders around the cursor, keeping
+    /// only the drops the player can actually reach.
+    /// </summary>
     private void RefreshUnderCursor()
     {
         _underCursor.Clear();
@@ -165,14 +191,21 @@ public class WorldItemPickup : MonoBehaviour
         Vector3 world = worldCamera.ScreenToWorldPoint(Mouse.current.position.ReadValue());
         Vector2 point = world; // z ignored by 2D physics
 
+        // Measuring from the cursor instead when there is no player (not spawned yet)
+        // keeps everything under it in reach, rather than locking pick-up out entirely.
+        Transform origin = ResolvePlayer();
+        Vector2 playerPoint = origin != null ? (Vector2)origin.position : point;
+        float rangeSqr = pickupRange * pickupRange;
+
         int count = Physics2D.OverlapCircle(point, hoverRadius, _filter, _hits);
         for (int i = 0; i < count; i++)
         {
             var col = _hits[i];
             if (col == null) continue;
             var item = col.GetComponentInParent<WorldItem>();
-            if (item != null && !_underCursor.Contains(item))
-                _underCursor.Add(item);
+            if (item == null || _underCursor.Contains(item)) continue;
+            if (((Vector2)item.transform.position - playerPoint).sqrMagnitude > rangeSqr) continue;
+            _underCursor.Add(item);
         }
 
         // Stable order so E cycles predictably regardless of physics query ordering.

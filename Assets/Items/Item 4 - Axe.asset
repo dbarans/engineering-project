@@ -15,7 +15,12 @@ MonoBehaviour:
   id: fc85e15cdd84420aa8743d7a1c88c87d
   icon: {fileID: 21300000, guid: 16c9fbea882b0e940b3bbcbaa6e2762d, type: 3}
   itemName: Axe
+  description: A heavy cutting tool. Efficient for brutal in close-quarters melee
+    combat.
   value: 150
   maxStack: 1
   weaponType: 1
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 9

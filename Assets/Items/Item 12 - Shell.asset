@@ -15,7 +15,11 @@ MonoBehaviour:
   id: 1e94b7c25a084d3fae6bd0921c73f8ea
   icon: {fileID: 21300000, guid: 878b7c2c18c9adf428617a8afef65a26, type: 3}
   itemName: Shell
+  description: Heavy shotgun ammunition packed with scrap metal pellets and gunpowder.
   value: 6
   maxStack: 3
   weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 0

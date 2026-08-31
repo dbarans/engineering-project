@@ -2,14 +2,13 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// Handles player movement and movement mode (walk / sprint / sneak).
+/// Handles player movement and movement mode (walk / sprint / sneak / dragging).
 /// Sneak is intentionally silent for enemies with hearing-based detection; see <see cref="SoundPlayerDetector"/>.
 /// Sneak doubles as crouching: it is what lets the player fit under a table (see <see cref="PlayerHiding"/>).
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerMovement : MonoBehaviour, IPlayerMovement
 {
-
     [Header("Movement Speed")]
     [SerializeField] private float sneakSpeed = 2f;
     [SerializeField] private float walkSpeed = 5f;
@@ -18,32 +17,29 @@ public class PlayerMovement : MonoBehaviour, IPlayerMovement
     [Tooltip("Minimum speed to be considered actually moving (vs. standing still while in Walk/Sprint mode).")]
     [SerializeField] private float movingSpeedThreshold = 0.05f;
 
-    public enum MovementMode {Walk, Sprint, Sneak}
+    public enum MovementMode { Walk, Sprint, Sneak }
     private float currentSpeed;
     private MovementMode currentMode = MovementMode.Walk;
     private Rigidbody2D rb;
 
-    /// <summary>
-    /// Current movement mode. Used by hearing-based enemy detection to decide whether
-    /// the player is currently making noise (Sneak is silent).
-    /// </summary>
-    public MovementMode CurrentMode => currentMode;
+    private bool isDragging = false;
+    private float customDragSpeed = 2.0f;
 
-    /// <summary>
-    /// Raised whenever the mode actually changes. Lets components react to crouching
-    /// (entering/leaving Sneak) without polling every frame; see <see cref="PlayerHiding"/>.
-    /// </summary>
+    public MovementMode CurrentMode => currentMode;
     public event Action<MovementMode> MovementModeChanged;
 
-    /// <summary>
-    /// True while the player is actually moving (not just standing still in Walk/Sprint mode).
-    /// Standing still makes no noise even outside Sneak mode.
-    /// </summary>
     public bool IsMoving => rb.linearVelocity.sqrMagnitude > movingSpeedThreshold * movingSpeedThreshold;
-    public bool IsSprinting => currentMode == MovementMode.Sprint && IsMoving;
+    public bool IsSprinting => currentMode == MovementMode.Sprint && IsMoving && !isDragging;
+
     private void ApplyModeSettings()
     {
-        switch(currentMode)
+        if (isDragging)
+        {
+            currentSpeed = customDragSpeed;
+            return;
+        }
+
+        switch (currentMode)
         {
             case MovementMode.Sneak:
                 currentSpeed = sneakSpeed;
@@ -63,7 +59,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerMovement
         ApplyModeSettings();
     }
 
-    public void SetMovementMode (MovementMode newMode)
+    public void SetMovementMode(MovementMode newMode)
     {
         bool changed = currentMode != newMode;
         currentMode = newMode;
@@ -71,6 +67,16 @@ public class PlayerMovement : MonoBehaviour, IPlayerMovement
         rb.constraints = RigidbodyConstraints2D.FreezeRotation;
 
         if (changed) MovementModeChanged?.Invoke(currentMode);
+    }
+
+    /// <summary>
+    /// Locks/unlocks player speed to the dragging speed while pulling objects.
+    /// </summary>
+    public void SetDragging(bool dragging, float speed = 2.0f)
+    {
+        isDragging = dragging;
+        customDragSpeed = speed;
+        ApplyModeSettings();
     }
 
     public void Move(Vector2 direction)

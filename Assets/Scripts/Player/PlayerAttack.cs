@@ -1,12 +1,37 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// Which set of torso frames the player is drawn with while holding a weapon. One entry per
+/// weapon that has its own art under Assets/Art/PLAYER — <see cref="WeaponType"/> is too coarse
+/// for this, since the pistol and the shotgun are both Ranged but hold and fire differently.
+/// <see cref="PlayerAnimationDriver"/> maps each entry to its carry/aim/attack clips.
+///
+/// Pistol is first so that a weapon component that predates this field (deserialized as 0)
+/// keeps the animations it had.
+/// </summary>
+public enum WeaponAnimationSet
+{
+    Pistol,
+    Shotgun,
+    Axe
+}
+
 public abstract class PlayerAttack : MonoBehaviour
 {
     [Header("Settings")]
     [SerializeField] protected float chargeTimeRequired = 1.5f;
     [SerializeField] protected LayerMask enemyLayer;
-    
+    [Tooltip("Torso frames the player is drawn with while this weapon is equipped. Set per " +
+             "weapon object, not per WeaponType: the pistol and the shotgun are both Ranged " +
+             "but have their own carry, aim and fire art.")]
+    [SerializeField] private WeaponAnimationSet animationSet = WeaponAnimationSet.Pistol;
+
+    /// <summary>
+    /// Torso clip set this weapon is animated with. Read by <see cref="PlayerAnimationDriver"/>.
+    /// </summary>
+    public WeaponAnimationSet AnimationSet => animationSet;
+
     protected float chargeStartTime;
     protected bool isCharging = false;
     protected bool isReady = false;

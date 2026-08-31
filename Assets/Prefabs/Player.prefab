@@ -923,6 +923,159 @@ MonoBehaviour:
     fps: 25
     loop: 0
     nextClip: 
+  - name: CHODZENIE_TLOW_STRZELBA
+    frames:
+    - {fileID: 21300000, guid: 8afae9dfe684a614bb54216922abec56, type: 3}
+    - {fileID: 21300000, guid: 8c6d7e3e46bed4b4581f52bec6742f77, type: 3}
+    - {fileID: 21300000, guid: c4d2aab74149906458373925dbd11837, type: 3}
+    - {fileID: 21300000, guid: 1fe03c1e6c4945e4bae99f0eb266e6e0, type: 3}
+    - {fileID: 21300000, guid: 1cf9756bb185a344faf4bc41bd7f41b2, type: 3}
+    - {fileID: 21300000, guid: 0da3fb94d80179246a40f764a29bbdea, type: 3}
+    - {fileID: 21300000, guid: 41b1d726ec4278c4db010e2ae8b81f6c, type: 3}
+    - {fileID: 21300000, guid: a739f0dcdc61f0b4d9fadc194c3933d5, type: 3}
+    - {fileID: 21300000, guid: 73ceaca52a0be5c4a8af2d0064b05301, type: 3}
+    - {fileID: 21300000, guid: 4900d44d376d9b74198a16ee77afc2d0, type: 3}
+    - {fileID: 21300000, guid: c280d59292898ea4f9da482b90dbb7c8, type: 3}
+    - {fileID: 21300000, guid: 835172130246ae241b32d35935dfff20, type: 3}
+    - {fileID: 21300000, guid: e9d05be6668998e4eaf8f859713af35a, type: 3}
+    - {fileID: 21300000, guid: aa5728264806fcc4aa42d515a08b568d, type: 3}
+    - {fileID: 21300000, guid: d1dd5b03b28b28248abdd6ff14f3ca7e, type: 3}
+    - {fileID: 21300000, guid: 134db7b135884df4093b57aed8e102c8, type: 3}
+    - {fileID: 21300000, guid: 07ce583c5b3075d4ea49ac9910a5f6c3, type: 3}
+    - {fileID: 21300000, guid: 08be5841b81b7874ba6191e721cf59c8, type: 3}
+    - {fileID: 21300000, guid: 170d1cbc9c7de4140a2d2814fae092db, type: 3}
+    - {fileID: 21300000, guid: f6969156af3544945b3f9b5bed2aa055, type: 3}
+    - {fileID: 21300000, guid: e58c4c4854002fb40b2e77c45828799e, type: 3}
+    - {fileID: 21300000, guid: c169e9577c4a8f846aab06ad034dc981, type: 3}
+    - {fileID: 21300000, guid: 3f6ba7e4c908f9048bfeb17213413c6b, type: 3}
+    - {fileID: 21300000, guid: 2f935046b94d2c24fb34172718d7cdef, type: 3}
+    - {fileID: 21300000, guid: 565f27de19e4af643897e8d4e706639c, type: 3}
+    fps: 25
+    loop: 1
+    nextClip: 
+  - name: CHODZENIE_TLOW_STRZELBA_CELOWANIE
+    frames:
+    - {fileID: 21300000, guid: 1aedaa419601781458bf84b81a73120c, type: 3}
+    - {fileID: 21300000, guid: 51bd1bb84acf20a4e810f49a671208c5, type: 3}
+    - {fileID: 21300000, guid: efebaf06c22fb1a4aab1a3a7e00de516, type: 3}
+    - {fileID: 21300000, guid: 73eefc4575c1cbd49aedfc3ff96fc1a9, type: 3}
+    - {fileID: 21300000, guid: eecd7e15c89d3754bb5605f3ae83f421, type: 3}
+    - {fileID: 21300000, guid: f8ead0b455aad7c4e8d409aefe193ee9, type: 3}
+    - {fileID: 21300000, guid: afb89c3c4b8dc7a4dba4e1094147a228, type: 3}
+    - {fileID: 21300000, guid: d15d5810c849ced4d83fdd65c176ae3f, type: 3}
+    - {fileID: 21300000, guid: 1e1256aa4bf1e77429e95c1326be7406, type: 3}
+    - {fileID: 21300000, guid: 254c1e6fb941c754aa96aa178020bde8, type: 3}
+    - {fileID: 21300000, guid: a5fff3e7e7fa2ed43b0c28ddf32a2821, type: 3}
+    - {fileID: 21300000, guid: e38d317dbcbed824d843e428a6905a6a, type: 3}
+    - {fileID: 21300000, guid: aebf206b655d0e24eaf825a02108ebe6, type: 3}
+    - {fileID: 21300000, guid: 4526920aa0e11b6468f357533f3f1d93, type: 3}
+    - {fileID: 21300000, guid: faed23995243e8a4ab774876fcd045fd, type: 3}
+    - {fileID: 21300000, guid: 58b3099a077d235498dbcfe23ab3adaf, type: 3}
+    - {fileID: 21300000, guid: ac6303f298452874798462d59e084208, type: 3}
+    - {fileID: 21300000, guid: 386dbe4a418e7f748825c6eae14966f8, type: 3}
+    - {fileID: 21300000, guid: c3e5b9cc47514aa4e9a0d8109166163c, type: 3}
+    - {fileID: 21300000, guid: a8f7723e3ac5ad346bb46a18302991a8, type: 3}
+    - {fileID: 21300000, guid: 4c7216201377def478c6f08144366662, type: 3}
+    - {fileID: 21300000, guid: f7c28d53d99e18949acdf7bb980f7824, type: 3}
+    - {fileID: 21300000, guid: 7546af69ac4f83742bb0550f14e13429, type: 3}
+    - {fileID: 21300000, guid: 6f5a3d069e1b347458254ff4da69d932, type: 3}
+    - {fileID: 21300000, guid: 475dda315201bfb42ad1b54e7764bfa1, type: 3}
+    fps: 25
+    loop: 1
+    nextClip: 
+  - name: CHODZENIE_TLOW_STRZELBA_STRZAL
+    frames:
+    - {fileID: 21300000, guid: 0cfba56f939f2e545bc6168e1fbc9a02, type: 3}
+    - {fileID: 21300000, guid: d695e008307d6384fac665be099bd983, type: 3}
+    - {fileID: 21300000, guid: 91a89324d1269ba499ea275a96823b02, type: 3}
+    - {fileID: 21300000, guid: def1e4b0997ec534288c13157ce13c6e, type: 3}
+    - {fileID: 21300000, guid: 51ab4569a2a09a84d9fe70c16d94ccbe, type: 3}
+    - {fileID: 21300000, guid: 616a76c040589a745aca9680e73c5a0e, type: 3}
+    - {fileID: 21300000, guid: a0fe2539819d73b45b88ce8ff15c778e, type: 3}
+    - {fileID: 21300000, guid: 5ee3006a985b43243bb6e8e3775124be, type: 3}
+    - {fileID: 21300000, guid: 8c24ab028bc030940b1dd1ac40ebaf8c, type: 3}
+    - {fileID: 21300000, guid: 952ac516b76f8bd438c23a8bef844a30, type: 3}
+    fps: 25
+    loop: 0
+    nextClip: 
+  - name: CHODZENIE_TLOW_AXE
+    frames:
+    - {fileID: 21300000, guid: 0e9a528892ac173429b4c78cec6acbde, type: 3}
+    - {fileID: 21300000, guid: 2dcb3a7b55e352941a7d456eabfe82a2, type: 3}
+    - {fileID: 21300000, guid: ae188c2aad31c6b49ba06930f4f12921, type: 3}
+    - {fileID: 21300000, guid: d3b5d79ea99edfa4a9f4d1287c928bf7, type: 3}
+    - {fileID: 21300000, guid: bfc4584d8fa494644909f7b1ab36d9bc, type: 3}
+    - {fileID: 21300000, guid: 9d5da495c7fd5fe4085754bc9b445a04, type: 3}
+    - {fileID: 21300000, guid: 34f109ce3b647b346887809906034953, type: 3}
+    - {fileID: 21300000, guid: 690f3543492ebd040873ea009392a16a, type: 3}
+    - {fileID: 21300000, guid: 7e469e49cc4e8874c9e8c0fafc8fef6f, type: 3}
+    - {fileID: 21300000, guid: 6e781dcef4eb0174ebba440d9715921d, type: 3}
+    - {fileID: 21300000, guid: 7b957f2406bd3b540bd68f066523c845, type: 3}
+    - {fileID: 21300000, guid: 66beec0ba73de884ea31d912b02f66b3, type: 3}
+    - {fileID: 21300000, guid: 2a4f12b419331db47a97138a25dbcc71, type: 3}
+    - {fileID: 21300000, guid: 5ff6571e344655d419fd87f1cc70a0d5, type: 3}
+    - {fileID: 21300000, guid: f81a657f8aa6a1344ab26a366b52a261, type: 3}
+    - {fileID: 21300000, guid: ac3dfb22447356744b181800448beec1, type: 3}
+    - {fileID: 21300000, guid: 3995cbbab5d51a44d92c1c7aa4bb73c7, type: 3}
+    - {fileID: 21300000, guid: c8a0e4a8a0e32cf4eb93e09023732850, type: 3}
+    - {fileID: 21300000, guid: 83e1732a00cc81b449c2c92db1b21ed3, type: 3}
+    - {fileID: 21300000, guid: b2abb55c40f0ac240a80196deed7ffbc, type: 3}
+    - {fileID: 21300000, guid: 30a2f83103eae9849adb2da161950d36, type: 3}
+    - {fileID: 21300000, guid: 8d747232317f1264983cf9a3951e4cbf, type: 3}
+    - {fileID: 21300000, guid: 73620b50693014f49bfa77d32c54c896, type: 3}
+    - {fileID: 21300000, guid: 6120291108c9a18408fcc86946fa804b, type: 3}
+    - {fileID: 21300000, guid: c9b5e72c9ec5fe44380c098385fa1c58, type: 3}
+    fps: 25
+    loop: 1
+    nextClip: 
+  - name: CHODZENIE_TLOW_AXE_NAPIECIE
+    frames:
+    - {fileID: 21300000, guid: d6bf2ef366100a84bada5d1c8c87ba4a, type: 3}
+    - {fileID: 21300000, guid: 20f5ede4ec77545448f921ac69cdf427, type: 3}
+    - {fileID: 21300000, guid: 37020bc5c7cc32f4c912018dd58177bc, type: 3}
+    - {fileID: 21300000, guid: 1b24be915016b3f4f88f409cac4aedb3, type: 3}
+    - {fileID: 21300000, guid: b0ba5feec5c006b41bfd3f8fe3032044, type: 3}
+    - {fileID: 21300000, guid: d6c8903a9b565a54bbb46ab1c9196a27, type: 3}
+    - {fileID: 21300000, guid: 69457f2d586652143841bfdf9b076d4d, type: 3}
+    - {fileID: 21300000, guid: c7bd6f4773ecde8449aaca1de88e91ce, type: 3}
+    - {fileID: 21300000, guid: f867e134cefb9064999485aaea24e514, type: 3}
+    - {fileID: 21300000, guid: 02d49c639685c8e41a66aab29e75e3fb, type: 3}
+    - {fileID: 21300000, guid: dd47a61ac981a98448fc0cb9d337fa82, type: 3}
+    - {fileID: 21300000, guid: 2ca01c7009f0aa440bb16d1c8d18da35, type: 3}
+    - {fileID: 21300000, guid: a890d10310dae2f47ae4cb7bf1bc84c3, type: 3}
+    - {fileID: 21300000, guid: d0708599fb0fbd14e93e2a8af5ba24a1, type: 3}
+    - {fileID: 21300000, guid: 2312ad02633d3ab459fcf9502961aa09, type: 3}
+    - {fileID: 21300000, guid: 474cff13a935da545a26fe1d618ca803, type: 3}
+    - {fileID: 21300000, guid: 06b2d047b31a1654d860d8ca747b6ecf, type: 3}
+    - {fileID: 21300000, guid: d5f6c20799e78fb4ca0816f1080d2502, type: 3}
+    - {fileID: 21300000, guid: 8c88464735e68654fab2a79dd9de2508, type: 3}
+    - {fileID: 21300000, guid: fb7d81a12a0807745afeaea51235476d, type: 3}
+    - {fileID: 21300000, guid: 6bfeb6182518791428909d400395aa0b, type: 3}
+    - {fileID: 21300000, guid: e6f7a89e4bfba7d4b8d8c14dbd31533b, type: 3}
+    - {fileID: 21300000, guid: b5788fb1edb28e8459fa5c43cc0d0be8, type: 3}
+    - {fileID: 21300000, guid: 49ac26ec7d82fbe4d9511936eef99457, type: 3}
+    - {fileID: 21300000, guid: b232cf6cc6eec4448ae56e6d157e7f16, type: 3}
+    fps: 25
+    loop: 0
+    nextClip: 
+  - name: CHODZENIE_TLOW_AXE_STRZAL
+    frames:
+    - {fileID: 21300000, guid: 1cb9dc55aa6cf5748ab6db0d02ab944d, type: 3}
+    - {fileID: 21300000, guid: ec5cec3e6a6ab7a459db589725d9c205, type: 3}
+    - {fileID: 21300000, guid: 1747a30087693cf4d83e81b381a96858, type: 3}
+    - {fileID: 21300000, guid: 16f35ae1e318e6a47b72e2b12f2dde53, type: 3}
+    - {fileID: 21300000, guid: c4b32cc9b8e897b4699c926e79e06fa1, type: 3}
+    - {fileID: 21300000, guid: 773dbe93e081afc4d94557e3bd87eed0, type: 3}
+    - {fileID: 21300000, guid: 611a5b5b28beb7c40b8dc656c6b6da6f, type: 3}
+    - {fileID: 21300000, guid: babc6f720eb23494abc1d17000c1d557, type: 3}
+    - {fileID: 21300000, guid: 8332296f4dba7af47ada6549bd7de580, type: 3}
+    - {fileID: 21300000, guid: 156c93d13b3099d4ba7a071a725e4f7e, type: 3}
+    - {fileID: 21300000, guid: 7ae5a41f052daf84b896d2f1dce34c49, type: 3}
+    - {fileID: 21300000, guid: aa0f43ae3bd97c548b4a6638796ff4c7, type: 3}
+    - {fileID: 21300000, guid: 312289830de98a841ad99c3c1401b6bd, type: 3}
+    fps: 25
+    loop: 0
+    nextClip: 
 --- !u!1 &5163295886725150518
 GameObject:
   m_ObjectHideFlags: 0
@@ -1004,6 +1157,7 @@ MonoBehaviour:
   enemyLayer:
     serializedVersion: 2
     m_Bits: 0
+  animationSet: 0
   projectilePrefab: {fileID: 1754720517791319931, guid: 49e66544740696242a264e565071e604, type: 3}
   shootPoint: {fileID: 5194058292031987262}
   projectilesPerShot: 1
@@ -1066,6 +1220,7 @@ MonoBehaviour:
   enemyLayer:
     serializedVersion: 2
     m_Bits: 0
+  animationSet: 1
   projectilePrefab: {fileID: 1754720517791319931, guid: 9a4d17e6f38b4c52ae60d3915b8c27f4, type: 3}
   shootPoint: {fileID: 5194058292031987300}
   projectilesPerShot: 5
@@ -1156,6 +1311,8 @@ GameObject:
   - component: {fileID: 3908612447025518360}
   - component: {fileID: 6410944586657843330}
   - component: {fileID: 4763037826514429400}
+  - component: {fileID: 6900123456789012346}
+  - component: {fileID: 6900123456789012347}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -1422,11 +1579,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 09997e91dc8c9ce41bde8dfdb3428a39, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfView
-  viewRadius: 16.7
+  viewRadius: 15
   viewAngle: 100
   nearVisionRadius: 1
-  lanternEnabled: 0
-  lanternRadius: 2
+  heldLightEnabled: 0
+  heldViewAngle: 130
+  heldViewRadius: 20
+  heldLightRadius: 4.5
+  heldLightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   raysPerDegree: 1
   nearCircleRaysPerDegree: 0.25
   obstacleMask:
@@ -1436,6 +1596,7 @@ MonoBehaviour:
   edgeResolveIterations: 4
   directionSource: {fileID: 2038790236695264251}
   visionMaskMaterial: {fileID: 0}
+  viewTint: {r: 0, g: 0, b: 0, a: 1}
   sortingLayerName: Default
   sortingOrder: 5
   aimTransitionSpeed: 40
@@ -1575,22 +1736,6 @@ MonoBehaviour:
   crouchPassableLayers:
     serializedVersion: 2
     m_Bits: 8192
---- !u!114 &4763037826514429400
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6548805452745224477}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 39834312afa643d8ac43c83b75378358, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerItemUse
-  health: {fileID: 8207531894350391586}
-  slotInventory: {fileID: 157545601758896288}
-  hotbar: {fileID: 0}
-  holdSeconds: 1
 --- !u!114 &6410944586657843330
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1613,6 +1758,50 @@ MonoBehaviour:
   maxSpeedMultiplier: 3
   hideLegsWhenStanding: 1
   animateShotWhileStanding: 1
+--- !u!114 &4763037826514429400
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 39834312afa643d8ac43c83b75378358, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerItemUse
+  health: {fileID: 8207531894350391586}
+  slotInventory: {fileID: 157545601758896288}
+  hotbar: {fileID: 0}
+  holdSeconds: 1
+--- !u!114 &6900123456789012346
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c7f4a92e6b84d5cb0f3a71d84e2c609, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HeldTorch
+  fieldOfView: {fileID: 1438528037279594877}
+  hotbar: {fileID: 0}
+--- !u!114 &6900123456789012347
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548805452745224477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7785cdcc85952b04cbe0cb742d528a02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FlameFlicker
+  strength: 0.18
+  speed: 3.5
 --- !u!1 &6661940005107315833
 GameObject:
   m_ObjectHideFlags: 0
@@ -1945,6 +2134,7 @@ MonoBehaviour:
   enemyLayer:
     serializedVersion: 2
     m_Bits: 6272
+  animationSet: 2
   attackPoint: {fileID: 7231161171343297202}
   minAttackRadius: 0.3
   maxAttackRadius: 0.9
@@ -1952,10 +2142,6 @@ MonoBehaviour:
   maxDamage: 40
   knockbackForce: 1
   forwardOffset: 0.3
-  flashDuration: 0.15
-  flashColor: {r: 1, g: 0.4, b: 0.2, a: 0.8}
-  circleSegments: 40
-  lineWidth: 0.05
   inventory: {fileID: 0}
   hotbar: {fileID: 0}
   brokenDamageMultiplier: 0.2
@@ -2042,15 +2228,15 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 21300000, guid: 347c11e4222dbc347906204d558ce26f, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 6.333333, y: 6.333333}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 0
+  m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
 --- !u!114 &3214693079691589210
 MonoBehaviour:

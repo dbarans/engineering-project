@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3497196572215333321}
   - component: {fileID: 2361880278441234255}
+  - component: {fileID: 827796772995996162}
   - component: {fileID: 166579077013066448}
   - component: {fileID: 2347487668072220466}
   m_Layer: 0
@@ -60,7 +61,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: 9c4e21f8b5a3407d9e1c6f2a8b3d5e70, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -83,16 +84,34 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: -1
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -7773951638589178532, guid: dd4a9cbbf0e5bef44bba5c57068ef04e, type: 3}
-  m_Color: {r: 0.72, g: 0.86, b: 0.9, a: 0.65}
+  m_Sprite: {fileID: 21300000, guid: 0b8d70874853e8b48be7f3d81ec0a493, type: 3}
+  m_Color: {r: 0.8415094, g: 0.8415094, b: 0.8415094, a: 0.20392157}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 2.56, y: 2.56}
+  m_Size: {x: 1.2, y: 1.2}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!114 &827796772995996162
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 205151291423162924}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b7d19a4c8f24e1e9a5c06b2df84713a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SpriteVariant
+  variants:
+  - {fileID: 21300000, guid: 0b8d70874853e8b48be7f3d81ec0a493, type: 3}
+  - {fileID: 21300000, guid: b103fef9c76ce1243bbce0283048ac3d, type: 3}
+  - {fileID: 21300000, guid: ed1e448aea7d1f74d9cf6aeb489b78e7, type: 3}
+  - {fileID: 21300000, guid: b00be98bd7fb52f43a0ccc5e027fe795, type: 3}
+  randomRotation: 1
 --- !u!61 &166579077013066448
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -127,17 +146,17 @@ BoxCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0}
+  m_Offset: {x: -0.1260033, y: 0.032976806}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 2.56, y: 2.56}
-    newSize: {x: 2.56, y: 2.56}
+    oldSize: {x: 1.2, y: 1.2}
+    newSize: {x: 1.2, y: 1.2}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 1.2, y: 1.2}
+  m_Size: {x: 0.81535834, y: 0.8493711}
   m_EdgeRadius: 0
 --- !u!114 &2347487668072220466
 MonoBehaviour:

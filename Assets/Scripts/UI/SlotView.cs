@@ -10,7 +10,7 @@ using UnityEngine.EventSystems;
 /// entities are only spawned here when items arrive in the data from elsewhere.
 /// Routes clicks to <see cref="HeldItemController"/>.
 /// </summary>
-public class SlotView : MonoBehaviour, IPointerClickHandler
+public class SlotView : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
 {
     [SerializeField] private InventoryItem itemPrefab;
     [Tooltip("Parent for the item entity. Defaults to this slot's transform.")]
@@ -99,6 +99,8 @@ public class SlotView : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        ItemTooltip.Instance?.Hide();
+
         bool isCorpseOpen = EnemyCorpse.OpenCorpse != null;
         bool isTargetSlotInCorpse = isCorpseOpen && _container == EnemyCorpse.OpenCorpse.Container;
 
@@ -112,6 +114,31 @@ public class SlotView : MonoBehaviour, IPointerClickHandler
 
         if (_held != null)
             _held.HandleSlotClick(this);
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        ItemData data = _item != null ? _item.Item : null;
+        if (data == null && _container != null && _index >= 0)
+        {
+            var stack = _container.Get(_index);
+            if (stack != null && !stack.IsEmpty) data = stack.item;
+        }
+
+        if (data != null)
+        {
+            ItemTooltip.Instance?.Show(data, eventData.position);
+        }
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        ItemTooltip.Instance?.Hide();
+    }
+
+    private void OnDisable()
+    {
+        ItemTooltip.Instance?.Hide();
     }
 
     /// <summary>Makes a freshly parented item entity fill its holder.</summary>

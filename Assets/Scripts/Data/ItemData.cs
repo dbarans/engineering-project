@@ -16,6 +16,10 @@ public class ItemData : ScriptableObject
     public Sprite icon;
     public string itemName;
 
+    [Tooltip("Item description displayed in the tooltip on mouse hover.")]
+    [TextArea(2, 5)]
+    public string description;
+
     public int value;
 
     /// <summary>
@@ -35,6 +39,16 @@ public class ItemData : ScriptableObject
              "button, see PlayerItemUse). 0 = not a healing item and holding the button does nothing.")]
     [Min(0)]
     public int healAmount = 0;
+
+    [Tooltip("How far this item lights the ground around the player while it is the selected " +
+             "hotbar item, in world units. 0 = not a light source. This is what marks an item as " +
+             "a torch; HeldTorch reads it and feeds the player's field of view.")]
+    [Min(0f)]
+    public float lightRadius = 0f;
+
+    [Tooltip("Colour the light cast by this item burns with. Only used when Light Radius is " +
+             "above 0.")]
+    public Color lightColor = new Color(1f, 0.72f, 0.36f, 1f);
 
     [Tooltip("Durability ceiling for a wearable item such as a melee weapon: how many hits it lasts " +
              "before it is depleted. 0 = no durability (the item never wears out). Each connecting melee " +

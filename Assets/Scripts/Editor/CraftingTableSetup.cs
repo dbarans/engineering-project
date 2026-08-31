@@ -42,6 +42,7 @@ public static class CraftingTableSetup
         "Assets/Items/Recipes/Recipe 2 - Shell.asset",
         "Assets/Items/Recipes/Recipe 4 - Ink.asset",   // Ink is what saving costs
         "Assets/Items/Recipes/Recipe 3 - Plank.asset",
+        "Assets/Items/Recipes/Recipe 7 - Torch.asset", // built by TorchSetup
     };
 
     [MenuItem("Tools/Slot Inventory/Build Crafting Table")]

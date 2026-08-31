@@ -11,11 +11,20 @@ using UnityEngine;
 ///   sprinting -> BIEG_NOGI, otherwise CHODZENIE_NOGI
 ///
 /// Torso (sprinting first, then what the hotbar has selected and what the weapon is doing):
-///   firing                    -> CHODZENIE_TLOW_STRZAL (one-shot, plays to the end)
+///   attacking                 -> the weapon's attack clip (one-shot, plays to the end)
 ///   sprinting                 -> BIEG_TLOW, weapon or not
-///   ranged selected, aiming   -> CHODZENIE_TLOW_BRON_CELOWANIE
-///   ranged selected, carrying -> CHODZENIE_TLOW_BRON
+///   weapon selected, charging -> the weapon's aim clip
+///   weapon selected, carrying -> the weapon's carry clip
 ///   otherwise                 -> CHODZENIE_TLOW
+///
+/// Each weapon brings its own carry/aim/attack triple (see <see cref="WeaponAnimationSet"/>),
+/// because how the player holds a pistol, a shotgun and an axe are three different poses.
+/// The weapon component itself says which triple it wants, so two weapons of the same
+/// <see cref="WeaponType"/> — pistol and shotgun — still animate apart.
+///
+/// The axe's aim clip is a wind-up rather than a cycle, so it is scrubbed by charge progress
+/// instead of played: it advances only while the prepare button is held, holds its last frame
+/// once the swing is fully charged, and is dropped the moment the player swings or lets go.
 ///
 /// The art is all locomotion — there is no idle/stand clip — so standing still freezes the clip
 /// on its first frame rather than cycling a walk loop on the spot. The legs go further and clear
@@ -29,9 +38,47 @@ public class PlayerAnimationDriver : MonoBehaviour
     private const string LegsRun = "BIEG_NOGI";
     private const string TorsoWalk = "CHODZENIE_TLOW";
     private const string TorsoRun = "BIEG_TLOW";
-    private const string TorsoWeapon = "CHODZENIE_TLOW_BRON";
-    private const string TorsoAim = "CHODZENIE_TLOW_BRON_CELOWANIE";
-    private const string TorsoShoot = "CHODZENIE_TLOW_STRZAL";
+
+    /// <summary>The three torso clips one weapon needs: carried, brought up to aim, and used.</summary>
+    private readonly struct WeaponClips
+    {
+        public readonly string carry;
+        public readonly string aim;
+        public readonly string attack;
+
+        /// <summary>
+        /// Whether the aim clip is a wind-up that tracks the charge instead of a walk cycle.
+        /// The guns' CELOWANIE clips are walk cycles with the weapon raised, so they loop with
+        /// the stride; the axe's NAPIECIE is a single pull-back, scrubbed by charge progress so
+        /// it lands on its last frame exactly when the swing is fully charged and holds there.
+        /// </summary>
+        public readonly bool aimFollowsCharge;
+
+        public WeaponClips(string carry, string aim, string attack, bool aimFollowsCharge = false)
+        {
+            this.carry = carry;
+            this.aim = aim;
+            this.attack = attack;
+            this.aimFollowsCharge = aimFollowsCharge;
+        }
+    }
+
+    /// <summary>
+    /// Clips per <see cref="WeaponAnimationSet"/>, indexed by the enum value. The pistol's
+    /// folders were exported before the other two and do not follow their
+    /// CHODZENIE_TLOW_&lt;weapon&gt;_&lt;state&gt; naming — its shot clip is CHODZENIE_TLOW_STRZAL
+    /// with no BRON in the middle — so the names are listed rather than built from a prefix.
+    /// </summary>
+    private static readonly WeaponClips[] ClipSets =
+    {
+        // Pistol
+        new WeaponClips("CHODZENIE_TLOW_BRON", "CHODZENIE_TLOW_BRON_CELOWANIE", "CHODZENIE_TLOW_STRZAL"),
+        // Shotgun
+        new WeaponClips("CHODZENIE_TLOW_STRZELBA", "CHODZENIE_TLOW_STRZELBA_CELOWANIE", "CHODZENIE_TLOW_STRZELBA_STRZAL"),
+        // Axe — NAPIECIE (wind-up) stands in for the aim pose, STRZAL for the swing.
+        new WeaponClips("CHODZENIE_TLOW_AXE", "CHODZENIE_TLOW_AXE_NAPIECIE", "CHODZENIE_TLOW_AXE_STRZAL",
+                        aimFollowsCharge: true),
+    };
 
     [Header("References")]
     [Tooltip("Animator on the TorsoVisual child. Torso itself carries no art — it stays on the " +
@@ -62,6 +109,13 @@ public class PlayerAnimationDriver : MonoBehaviour
     private Rigidbody2D body;
     private float smoothedSpeed;
 
+    /// <summary>
+    /// Attack clip currently owning the torso, or null. Remembered rather than re-derived from
+    /// the equipped weapon so a swap mid-swing lets the swing finish instead of cutting to the
+    /// new weapon's carry pose halfway through.
+    /// </summary>
+    private string playingAttackClip;
+
     private void Awake()
     {
         if (movement == null) movement = GetComponent<PlayerMovement>();
@@ -82,15 +136,16 @@ public class PlayerAnimationDriver : MonoBehaviour
     }
 
     /// <summary>
-    /// Plays the firing animation on the torso. Subscribed to
-    /// <see cref="PlayerWeaponManager.WeaponFired"/>; only the ranged weapon has firing art.
+    /// Plays the attack animation of whatever is equipped — a shot for the guns, a swing for
+    /// the axe. Subscribed to <see cref="PlayerWeaponManager.WeaponFired"/>.
     /// </summary>
     public void TriggerShot()
     {
-        if (torso == null) return;
-        if (weapons == null || weapons.ActiveWeaponType != WeaponType.Ranged) return;
+        PlayerAttack weapon = weapons != null ? weapons.ActiveWeapon : null;
+        if (torso == null || weapon == null) return;
 
-        torso.Play(TorsoShoot, true);
+        playingAttackClip = ClipsFor(weapon).attack;
+        torso.Play(playingAttackClip, true);
         if (animateShotWhileStanding)
             torso.Paused = false;
     }
@@ -121,12 +176,24 @@ public class PlayerAnimationDriver : MonoBehaviour
     {
         if (torso == null) return;
 
-        // A shot in progress owns the torso until it reaches its last frame.
-        if (torso.IsPlaying(TorsoShoot) && !torso.IsFinished)
+        // An attack in progress owns the torso until it reaches its last frame.
+        if (playingAttackClip != null && torso.IsPlaying(playingAttackClip) && !torso.IsFinished)
         {
             torso.SpeedMultiplier = 1f;
             if (animateShotWhileStanding)
                 torso.Paused = false;
+            return;
+        }
+        playingAttackClip = null;
+
+        // A wind-up is a readout of the charge, not something playing on its own clock: it runs
+        // while the prepare button is held whether or not the player is walking, and stops dead
+        // the moment they let go or swing.
+        PlayerAttack winding = sprinting ? null : ChargingWeaponWithWindUp();
+        if (winding != null)
+        {
+            torso.Play(ClipsFor(winding).aim);
+            torso.Scrub(winding.GetChargeProgress());
             return;
         }
 
@@ -136,24 +203,47 @@ public class PlayerAnimationDriver : MonoBehaviour
     }
 
     /// <summary>
+    /// The equipped weapon if it is mid-charge and its aim clip is a wind-up, otherwise null.
+    /// </summary>
+    private PlayerAttack ChargingWeaponWithWindUp()
+    {
+        PlayerAttack weapon = weapons != null ? weapons.ActiveWeapon : null;
+        if (weapon == null || !weapon.IsCharging) return null;
+        return ClipsFor(weapon).aimFollowsCharge ? weapon : null;
+    }
+
+    /// <summary>
     /// Which torso clip the current state calls for.
     ///
     /// Sprinting outranks the loadout: the run cycle plays whether or not a weapon is selected.
     /// There is no armed run art, so the player is drawn empty-handed while sprinting — the two
     /// never overlap in practice anyway, since <see cref="PlayerInputHandler"/> refuses to start
     /// a charge while sprinting and refuses to start a sprint while aiming.
+    ///
+    /// Anything that is not a weapon (a torch, a bandage) equips no attack component and so
+    /// falls through to the empty-handed walk.
     /// </summary>
     private string TorsoClip(bool sprinting)
     {
         if (sprinting)
             return TorsoRun;
 
-        bool ranged = weapons != null && weapons.ActiveWeaponType == WeaponType.Ranged;
-        if (!ranged)
+        PlayerAttack weapon = weapons != null ? weapons.ActiveWeapon : null;
+        if (weapon == null)
             return TorsoWalk;
 
-        bool aiming = weapons.ActiveWeapon != null && weapons.ActiveWeapon.IsCharging;
-        return aiming ? TorsoAim : TorsoWeapon;
+        WeaponClips clips = ClipsFor(weapon);
+        return weapon.IsCharging ? clips.aim : clips.carry;
+    }
+
+    /// <summary>
+    /// Clips for a weapon's animation set. Falls back to the pistol's set for an out-of-range
+    /// value, so a set added to the enum without art here still animates instead of freezing.
+    /// </summary>
+    private static WeaponClips ClipsFor(PlayerAttack weapon)
+    {
+        int index = (int)weapon.AnimationSet;
+        return index >= 0 && index < ClipSets.Length ? ClipSets[index] : ClipSets[0];
     }
 
     /// <summary>

@@ -1,10 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// Drives a light like a healthy flame: a constant, gentle wobble with no hard cuts. The
-/// counterpart to <see cref="BrokenLightFlicker"/> — put one or the other next to a
-/// <see cref="StationaryLightSource"/>, never both, since the light reads a single
-/// <see cref="ILightIntensity"/>.
+/// Drives a light like a flame: a constant, gentle wobble with no hard cuts. Put one next to a
+/// <see cref="StationaryLightSource"/> (an oil lamp) or a <see cref="HeldTorch"/> (the player's
+/// torch), never two, since the light reads a single <see cref="ILightIntensity"/>.
+///
+/// This is the only way a light in this game wavers: nothing here runs on electricity, so every
+/// light on screen is something burning, and every one of them wobbles rather than flickers or
+/// cuts out. A torch takes a stronger, faster wobble than a lamp sheltered behind glass — that
+/// difference is all in <see cref="strength"/> and <see cref="speed"/>, not in the code.
 ///
 /// Uses Perlin noise rather than a sine so the wobble wanders instead of pulsing on a beat.
 /// </summary>

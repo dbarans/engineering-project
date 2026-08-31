@@ -15,7 +15,12 @@ MonoBehaviour:
   id: 5c8a7f2e1b9d4c3a8e6f0d1c2b3a4e5f
   icon: {fileID: 21300000, guid: 03a3d9861648d624f8d808a901b8798c, type: 3}
   itemName: Scrap
+  description: Pieces of discarded metal. A versatile resource used to forge keys,
+    make ink, and pack ammunition.
   value: 2
   maxStack: 6
   weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 0

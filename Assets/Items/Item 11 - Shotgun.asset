@@ -12,9 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: Item 11 - Shotgun
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: b5e83a17c94d4f60a2d71e6c85f30924, type: 3}
   id: c3f7a1d84b6e42a9bd05e17c9f42db63
+  icon: {fileID: 21300000, guid: b5e83a17c94d4f60a2d71e6c85f30924, type: 3}
   itemName: Shotgun
+  description: A devastating break-action firearm. Unleashes high spread damage at
+    point-blank range.
   value: 220
   maxStack: 1
   weaponType: 2
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
+  maxDurability: 0

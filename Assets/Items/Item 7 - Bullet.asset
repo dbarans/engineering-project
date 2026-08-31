@@ -15,7 +15,11 @@ MonoBehaviour:
   id: 5050d2d519e64e13be6c3dacaac66b8a
   icon: {fileID: 21300000, guid: af89710996f7c7549bef9d7d5a4bf331, type: 3}
   itemName: Bullet
+  description: Standard pistol ammunition hand-crafted from scrap metal and gunpowder.
   value: 3
   maxStack: 8
   weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 0

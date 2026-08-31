@@ -12,10 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: Item 15 - Gunpowder
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: 1d84c39ef25b47a0b8e51c76d0a3f95b, type: 3}
   id: 4c9f1a86d3e74b52a81c60f95d2b7e38
+  icon: {fileID: 21300000, guid: 1d84c39ef25b47a0b8e51c76d0a3f95b, type: 3}
   itemName: Gunpowder
+  description: Volatile explosive powder. Combine with metal scrap to craft bullets
+    and shotgun shells.
   value: 6
   maxStack: 5
   weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 0

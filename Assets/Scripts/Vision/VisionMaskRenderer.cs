@@ -9,6 +9,10 @@ using UnityEngine;
 /// Shaders/VisionMaskWriter.shader, which combines them with BlendOp Max. Consumers — the darkness
 /// overlay and sprites using Custom/SpriteFovMasked — then sample that single mask in screen space.
 ///
+/// The mask is a colour texture: its alpha is how lit a pixel is and its RGB the colour of the
+/// brightest light reaching it, so the darkness overlay can wash a lamp's surroundings amber
+/// without a second lighting pass.
+///
 /// This replaces the earlier stencil-based approach, where visibility was a single bit. A bit can
 /// only say "seen / not seen", which made sprites pop at the light boundary while the ground faded,
 /// and made every light paint its own dark rim on top of whatever another light had already lit.
@@ -151,7 +155,10 @@ public class VisionMaskRenderer : MonoBehaviour
 
         ReleaseMaskTexture();
 
-        maskTexture = new RenderTexture(width, height, 0, RenderTextureFormat.R8)
+        // ARGB rather than a single channel: alpha carries how lit a pixel is (what every
+        // consumer sampled before), RGB the colour of the light that reached it, which is what
+        // lets a lamp burn amber while the player's own vision stays neutral.
+        maskTexture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32)
         {
             name = "Vision Mask",
             filterMode = FilterMode.Bilinear,

@@ -12,10 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: Item 17 - Golden Key
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: 4a71e8c3506d4f92b1c07ea3d8256f10, type: 3}
   id: 9f3d5c81a04e47b2b8e607fa2d59c134
+  icon: {fileID: 21300000, guid: 4a71e8c3506d4f92b1c07ea3d8256f10, type: 3}
   itemName: Golden Key
+  description: An ornate, pristine key forged from solid gold. Unlocks special chests
+    and sealed chambers.
   value: 0
   maxStack: 1
   weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 0

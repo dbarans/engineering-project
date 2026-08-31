@@ -16,6 +16,10 @@ public class ItemData : ScriptableObject
     public Sprite icon;
     public string itemName;
 
+    [Tooltip("Item description displayed in the tooltip on mouse hover.")]
+    [TextArea(2, 5)]
+    public string description;
+
     public int value;
 
     /// <summary>

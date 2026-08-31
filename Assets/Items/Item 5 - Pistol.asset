@@ -12,9 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
   m_Name: Item 5 - Pistol
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  icon: {fileID: 21300000, guid: e7d4a1b2c3f5069788a9b0c1d2e3f4a5, type: 3}
   id: 9d6341d9f24e4b99ad45358fe96e16ff
+  icon: {fileID: 21300000, guid: e7d4a1b2c3f5069788a9b0c1d2e3f4a5, type: 3}
   itemName: Pistol
+  description: A reliable semi-automatic handgun. Offers fast, precise fire at medium
+    range.
   value: 120
   maxStack: 1
   weaponType: 2
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
+  maxDurability: 0

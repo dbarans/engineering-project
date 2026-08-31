@@ -15,7 +15,12 @@ MonoBehaviour:
   id: b1782e4c0d9a4f63ae52c8710f6d3b95
   icon: {fileID: 21300000, guid: 1ac35a6bc6e3d534390874b823fab1f4, type: 3}
   itemName: Bandage
+  description: A sterile dressing crafted from rags and alcohol. Stops bleeding and
+    restores lost health.
   value: 20
   maxStack: 2
   weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 0

@@ -15,7 +15,12 @@ MonoBehaviour:
   id: 32507b240e6840fdbadf0fc93fe42f29
   icon: {fileID: 21300000, guid: c77a8a687ebdf0f418b20db861238f65, type: 3}
   itemName: Plank
+  description: Processed timber made from wood. Useful for barricading and building
+    basic structures.
   value: 1
   maxStack: 2
   weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 0

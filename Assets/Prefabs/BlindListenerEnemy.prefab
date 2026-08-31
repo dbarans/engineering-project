@@ -404,6 +404,7 @@ GameObject:
   - component: {fileID: 8613185589414859183}
   - component: {fileID: 8613185589414859184}
   - component: {fileID: 8297037061503491443}
+  - component: {fileID: -220872817626310720}
   m_Layer: 7
   m_Name: BlindListenerEnemy
   m_TagString: Enemy
@@ -479,6 +480,8 @@ MonoBehaviour:
   repathInterval: 0.25
   waypointReachDistance: 0.1
   targetRepathDistance: 0.5
+  maxExploredNodes: 4000
+  failedPathRetryInterval: 0.75
   drawPathGizmos: 1
   pathColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!50 &2017720869098448843
@@ -600,6 +603,8 @@ MonoBehaviour:
   skipInvestigateWhenLostPlayer: 0
   postInvestigateBehavior: 1
   wanderRadius: 5.7
+  fullUpdateMargin: 8
+  throttledTickInterval: 0.35
   corpsePrefab: {fileID: 7566011447024258560, guid: 2a4fe617542b3ed4ab6fd77ba156f5bb, type: 3}
   possibleDrops: []
   possibleRandomDrops:
@@ -639,5 +644,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bf25e300f3de3043925f805def92c09, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDoorAttacker
+  damagePerHit: 25
+  attackInterval: 1.2
+  toggleCooldown: 1
+--- !u!114 &-220872817626310720
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6831290240910429170}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b1d05230889e4654d8143e50cd443836, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyBarrelAttacker
   damagePerHit: 25
   attackInterval: 1.2

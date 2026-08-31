@@ -88,4 +88,9 @@ public class CraftingSlotView : MonoBehaviour, IPointerClickHandler, IPointerEnt
     {
         ItemStatsPanel.Instance?.Hide();
     }
+
+    private void OnDisable()
+    {
+        ItemStatsPanel.Instance?.Hide();
+    }
 }

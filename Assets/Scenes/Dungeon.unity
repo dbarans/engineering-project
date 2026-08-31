@@ -144150,7 +144150,7 @@ GameObject:
   - component: {fileID: 615108124}
   m_Layer: 8
   m_Name: Walls
-  m_TagString: Untagged
+  m_TagString: Obstacle
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -225741,6 +225741,7 @@ MonoBehaviour:
   itemLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  pickupRange: 2.5
 --- !u!4 &1463664718
 Transform:
   m_ObjectHideFlags: 0

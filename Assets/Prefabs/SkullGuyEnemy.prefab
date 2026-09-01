@@ -404,6 +404,7 @@ GameObject:
   - component: {fileID: 7423423773025333003}
   - component: {fileID: 7423423773025333004}
   - component: {fileID: 1314641274194213762}
+  - component: {fileID: -4437207530829870633}
   m_Layer: 7
   m_Name: SkullGuyEnemy
   m_TagString: Enemy
@@ -648,5 +649,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bf25e300f3de3043925f805def92c09, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDoorAttacker
+  damagePerHit: 25
+  attackInterval: 1.2
+  toggleCooldown: 1
+--- !u!114 &-4437207530829870633
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7423423773025333378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b1d05230889e4654d8143e50cd443836, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyBarrelAttacker
   damagePerHit: 25
   attackInterval: 1.2

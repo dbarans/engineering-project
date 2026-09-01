@@ -1,12 +1,16 @@
 ﻿using UnityEngine;
+using Newtonsoft.Json;
 
 /// <summary>
 /// Controls interactive door mechanics: entities push doors away from themselves, with support for key locks, manual locking, and two-way sprint breaching.
 /// </summary>
-public class SimpleDoor : MonoBehaviour
+[RequireComponent(typeof(SaveableEntity))]
+public class SimpleDoor : MonoBehaviour, ISaveableComponent
 {
-    [Header("Rotation Settings")]
+    [Header("Hierarchy References")]
     [SerializeField] private Transform doorSystemTransform;
+
+    [Header("Rotation Settings")]
     [SerializeField] private float openAngle = 90f;
     [SerializeField] private float openSpeed = 5f;
 
@@ -390,11 +394,27 @@ public class SimpleDoor : MonoBehaviour
     private void DestroyDoor()
     {
         isDestroyed = true;
+        currentHealth = 0f;
         AudioService.PlayAt(SoundId.DoorDestroy, transform.position);
         Debug.Log("[Door] Fully destroyed!");
 
+        ApplyDestroyedState();
+    }
+
+    private void ApplyDestroyedState()
+    {
         if (doorCollider != null) doorCollider.enabled = false;
         if (doorSpriteRenderer != null) doorSpriteRenderer.enabled = false;
+
+        foreach (var col in GetComponentsInChildren<Collider2D>(true))
+            col.enabled = false;
+
+        foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (destroyedDoorVisual != null && sr.transform.IsChildOf(destroyedDoorVisual.transform))
+                continue;
+            sr.enabled = false;
+        }
 
         if (destroyedDoorVisual != null)
         {
@@ -496,4 +516,65 @@ public class SimpleDoor : MonoBehaviour
         barricade.AbsorbDamage(ramDamage);
         Debug.Log("[Door] Slammed into the barricade!");
     }
+
+    #region ISaveableComponent Implementation
+
+    public string TypeTag => "door";
+
+    [System.Serializable]
+    private class DoorSaveData
+    {
+        public bool isDestroyed;
+        public bool isOpen;
+        public bool isLocked;
+        public bool requiresKey;
+        public float health;
+    }
+
+    public string CapturePayload()
+    {
+        var data = new DoorSaveData
+        {
+            isDestroyed = isDestroyed,
+            isOpen = isOpen,
+            isLocked = isLocked,
+            requiresKey = requiresKeyToOpen,
+            health = currentHealth
+        };
+        return JsonConvert.SerializeObject(data);
+    }
+
+    public void RestorePayload(string payload)
+    {
+        if (string.IsNullOrEmpty(payload)) return;
+
+        var data = JsonConvert.DeserializeObject<DoorSaveData>(payload);
+        if (data == null) return;
+
+        isDestroyed = data.isDestroyed;
+        isOpen = data.isOpen;
+        isLocked = data.isLocked;
+        requiresKeyToOpen = data.requiresKey;
+        currentHealth = data.health;
+
+        if (isDestroyed)
+        {
+            ApplyDestroyedState();
+        }
+        else
+        {
+            if (isOpen)
+            {
+                targetRotation = closedRotation * Quaternion.Euler(0, 0, openAngle * -1f);
+                doorSystemTransform.localRotation = targetRotation;
+            }
+            else
+            {
+                targetRotation = closedRotation;
+                doorSystemTransform.localRotation = closedRotation;
+            }
+        }
+    }
+
+    #endregion
 }

@@ -219,12 +219,18 @@ public class DungeonPopulator : MonoBehaviour
         // who would rather not craft the key.
         if (_treasureKey != null && _treasureDoorCells.Contains(cell))
         {
-            var door = doorInstance.GetComponent<SimpleDoor>();
+            // In children, and including inactive ones, for the same reason SpawnExit does
+            // it: the door prefab's root is a rig — Door_System, carrying the barricade and
+            // the collision forwarder — while SimpleDoor lives on the Door_Visual child that
+            // actually swings. A plain GetComponent here returned null on every seed, so the
+            // treasure rooms shipped unlocked and the only sign was the warning below.
+            var door = doorInstance.GetComponentInChildren<SimpleDoor>(true);
             if (door != null) door.RequireKey(_treasureKey);
             else
                 Debug.LogWarning(
-                    $"[DungeonPopulator] Door prefab '{content.doorPrefabId}' has no SimpleDoor, " +
-                    "so the treasure doorway it was spawned on is not locked.", doorInstance);
+                    $"[DungeonPopulator] Door prefab '{content.doorPrefabId}' has no SimpleDoor " +
+                    "on it or any of its children, so the treasure doorway it was spawned on " +
+                    "is not locked.", doorInstance);
         }
 
         doorInstance.transform.rotation = jambsEastWest

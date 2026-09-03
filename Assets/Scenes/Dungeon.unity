@@ -138650,6 +138650,10 @@ PrefabInstance:
       propertyPath: prefabId
       value: world.door
       objectReference: {fileID: 0}
+    - target: {fileID: 4877937611362007113, guid: dee86fb83c75ca94484d61edaab4f876, type: 3}
+      propertyPath: requiresKeyToOpen
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5290797314067682422, guid: dee86fb83c75ca94484d61edaab4f876, type: 3}
       propertyPath: m_LocalPosition.x
       value: 180.25096
@@ -222443,6 +222447,10 @@ PrefabInstance:
     - target: {fileID: 4401521415802048849, guid: dee86fb83c75ca94484d61edaab4f876, type: 3}
       propertyPath: prefabId
       value: world.door
+      objectReference: {fileID: 0}
+    - target: {fileID: 4877937611362007113, guid: dee86fb83c75ca94484d61edaab4f876, type: 3}
+      propertyPath: requiresKeyToOpen
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5290797314067682422, guid: dee86fb83c75ca94484d61edaab4f876, type: 3}
       propertyPath: m_LocalPosition.x

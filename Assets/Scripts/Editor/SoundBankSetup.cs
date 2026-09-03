@@ -31,8 +31,21 @@ public static class SoundBankSetup
     };
 
     /// <summary>
-    /// Ids that fire on a tight cadence and need a retrigger guard. Footsteps run every
-    /// ~0.2 s from PlayerNoiseEmitter; the rest is protection against a hook site
+    /// Ids that belong to the interface rather than the world, so they route to the UI
+    /// mixer group and are never positional — a click has no place in the dungeon to come
+    /// from. Listed explicitly rather than matched on the <c>"ui."</c> prefix, to keep the
+    /// id strings free of meaning the rest of the system would have to agree on.
+    /// </summary>
+    private static readonly HashSet<string> UiIds = new HashSet<string>
+    {
+        SoundId.UiClick,
+    };
+
+    /// <summary>
+    /// Ids that fire on a tight cadence and need a retrigger guard. These are a floor, not
+    /// a rhythm — the footstep rhythm is <c>PlayerNoiseEmitter</c>'s per-mode step
+    /// intervals, and each of these sits well under the matching one so the guard never
+    /// becomes the thing setting the pace. The rest is protection against a hook site
     /// accidentally firing per-frame.
     /// </summary>
     private static readonly Dictionary<string, float> Cooldowns = new Dictionary<string, float>
@@ -42,6 +55,11 @@ public static class SoundBankSetup
         { SoundId.PlayerFootstepSneak, 0.2f },
         { SoundId.DoorHit, 0.1f },
         { SoundId.EnemyHurt, 0.1f },
+
+        // A pointer can only press once per frame, but mouse and touchscreen are polled
+        // separately and a rapid double-click should still sound twice — short enough to
+        // be inaudible as a limit, long enough to swallow a doubled press.
+        { SoundId.UiClick, 0.05f },
     };
 
     [MenuItem("Tools/Audio/Build Sound Bank")]
@@ -62,10 +80,27 @@ public static class SoundBankSetup
         SerializedProperty entries = serialized.FindProperty("entries");
 
         var existing = new HashSet<string>();
+        int rerouted = 0;
+
         for (int i = 0; i < entries.arraySize; i++)
         {
-            string id = entries.GetArrayElementAtIndex(i).FindPropertyRelative("id").stringValue;
-            if (!string.IsNullOrEmpty(id)) existing.Add(id);
+            SerializedProperty entry = entries.GetArrayElementAtIndex(i);
+            string id = entry.FindPropertyRelative("id").stringValue;
+            if (string.IsNullOrEmpty(id)) continue;
+
+            existing.Add(id);
+
+            // Back-fills the channel on entries that predate the field. Sfx is 0, which is
+            // also what a missing field deserializes to, so a UI id sitting on Sfx is
+            // indistinguishable from one that was never assigned — and there is no reason
+            // anyone would deliberately route a UI sound into the world bus. Anything
+            // already pointing somewhere else is left alone.
+            SerializedProperty channel = entry.FindPropertyRelative("channel");
+            if (UiIds.Contains(id) && channel.intValue == (int)AudioChannel.Sfx)
+            {
+                channel.intValue = (int)AudioChannel.Ui;
+                rerouted++;
+            }
         }
 
         int added = 0;
@@ -77,15 +112,25 @@ public static class SoundBankSetup
             entries.InsertArrayElementAtIndex(index);
             SerializedProperty entry = entries.GetArrayElementAtIndex(index);
 
+            bool isUi = UiIds.Contains(id);
+
             entry.FindPropertyRelative("id").stringValue = id;
             // InsertArrayElementAtIndex copies the previous element, so every field has to
             // be written explicitly — an inherited clips array would silently alias the
             // neighbour's clips.
             entry.FindPropertyRelative("clips").arraySize = 0;
+            // intValue rather than enumValueIndex: the index is the position in the enum's
+            // declaration, and AudioChannel's numbers are assigned explicitly precisely
+            // because they have to stay stable. The value is what is serialized.
+            entry.FindPropertyRelative("channel").intValue =
+                (int)(isUi ? AudioChannel.Ui : AudioChannel.Sfx);
             entry.FindPropertyRelative("volume").floatValue = 1f;
             entry.FindPropertyRelative("pitchMin").floatValue = 0.95f;
             entry.FindPropertyRelative("pitchMax").floatValue = 1.05f;
-            entry.FindPropertyRelative("spatialBlend").floatValue = NonPositionalIds.Contains(id) ? 0f : 1f;
+            // UI sound never comes from a place, so it is folded in here rather than
+            // repeated in NonPositionalIds.
+            entry.FindPropertyRelative("spatialBlend").floatValue =
+                isUi || NonPositionalIds.Contains(id) ? 0f : 1f;
             entry.FindPropertyRelative("minDistance").floatValue = 3f;
             entry.FindPropertyRelative("maxDistance").floatValue = 25f;
             entry.FindPropertyRelative("cooldown").floatValue =
@@ -102,6 +147,9 @@ public static class SoundBankSetup
             ? $"Created '{AssetPath}' with {added} sound entries."
             : $"Refreshed '{AssetPath}': {added} new entr{(added == 1 ? "y" : "ies")} added, " +
               $"{existing.Count} left untouched.";
+
+        if (rerouted > 0)
+            summary += $"\n{rerouted} entr{(rerouted == 1 ? "y" : "ies")} moved onto the UI mixer group.";
 
         Debug.Log($"[Sound Bank] {summary}");
         EditorUtility.DisplayDialog("Sound Bank",

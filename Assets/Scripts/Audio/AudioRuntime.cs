@@ -79,6 +79,10 @@ public class AudioRuntime : MonoBehaviour
         }
 
         source.clip = clip;
+        // Reassigned per play rather than once when the source is created: a pooled source
+        // is reused across channels, so the group it carried last time is not the one this
+        // sound belongs to. Null (no mixer asset) plays straight to the listener.
+        source.outputAudioMixerGroup = AudioMixerService.GroupFor(entry.channel);
         source.volume = entry.volume;
         source.pitch = Random.Range(entry.pitchMin, entry.pitchMax);
         source.spatialBlend = entry.spatialBlend;

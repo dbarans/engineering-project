@@ -66,6 +66,14 @@ public static class SoundId
     public const string ItemPickup = "item.pickup";
     public const string ItemDrop = "item.drop";
 
+    // ---------------------------------------------------------------- ui
+    /// <summary>
+    /// A press landing on anything clickable — menu buttons, the pause and death screens,
+    /// inventory slots in the HUD. Raised centrally by <see cref="UiClickAudio"/>, not by
+    /// the individual screens, so there is one id here rather than one per button.
+    /// </summary>
+    public const string UiClick = "ui.click";
+
     // ---------------------------------------------------------------- enemies
     /// <summary>Fired once on the transition into chasing, not repeatedly while chasing.</summary>
     public const string EnemyAlert = "enemy.alert";

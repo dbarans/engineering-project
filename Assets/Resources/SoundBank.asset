@@ -110,7 +110,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0
   - id: surface.glass.step
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: d75f6142a7c04b439540104b0dc5ae43, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95

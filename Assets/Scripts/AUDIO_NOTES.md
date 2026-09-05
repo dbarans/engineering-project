@@ -14,7 +14,7 @@ the project's documentation (see `ENEMY_NOTES.md`, `GENERATION_NOTES.md`).
 | 4 — Real clips | in progress — the menu and dungeon music, `ui.click`, the walk/sprint footsteps, the player hurt, death, exhaustion, swing and gunshot, both door swings, the unlock, the save station, the chest, the backpack, every enemy voice |
 | 5 — Mixer groups (Master / Music / SFX / UI) + per-channel volume | done |
 
-**Most of this is still verified by console output rather than by ear.** Twenty-two entries
+**Most of this is still verified by console output rather than by ear.** Twenty-three entries
 have clips: `music.menu` (`Assets/Audio/Music/AMBIENTe.mp3`) and `music.dungeon`
 (`Assets/Audio/Music/dark_cavern_ambient_001.ogg`), `ui.click`
 (`Assets/Audio/UI/UIClick.wav`), `player.footstep.walk` and `player.footstep.sprint`, which
@@ -23,7 +23,8 @@ have clips: `music.menu` (`Assets/Audio/Music/AMBIENTe.mp3`) and `music.dungeon`
 (`Assets/Audio/Player/Death/die1.ogg`), `player.exhausted`
 (`Assets/Audio/Player/Exhausted/breathing tirede.wav`), `player.attack.melee`
 (`Assets/Audio/Player/Attack/swosh-01.flac`), `player.attack.ranged`
-(`Assets/Audio/Player/Attack/M_26Pe.wav`), `door.open` and `door.close`, which likewise
+(`Assets/Audio/Player/Attack/M_26Pe.wav`), `surface.glass.step`
+(`Assets/Audio/Surfaces/gravel.ogg`), `door.open` and `door.close`, which likewise
 **share** `Assets/Audio/Doors/doorOpen_2.ogg`, `door.unlock`
 (`Assets/Audio/Doors/doorClose_1.ogg`), `chest.open`
 (`Assets/Audio/Chest/doorClose_4.ogg` — `chest.close` is still silent), `backpack.open`

@@ -75,7 +75,20 @@ public static class SoundId
     public const string UiClick = "ui.click";
 
     // ---------------------------------------------------------------- enemies
-    /// <summary>Fired once on the transition into chasing, not repeatedly while chasing.</summary>
+    /// <summary>
+    /// The moan an enemy makes while it has <em>not</em> noticed the player — the ambience
+    /// that says something is in the next room before anything is visible. Fired by
+    /// <see cref="EnemyBase"/> on a random per-enemy cadence, and only while the player is
+    /// close enough for it to carry information.
+    /// </summary>
+    public const string EnemyIdle = "enemy.idle";
+
+    /// <summary>
+    /// Fired once per hunt, when the enemy first finds the player — not on every transition
+    /// into the chase. Re-acquiring the player after briefly losing them is the same hunt
+    /// and stays silent; the latch clears only once the enemy gives up and the trail goes
+    /// cold (<c>EnemyBase.UpdateAlertAudio</c>).
+    /// </summary>
     public const string EnemyAlert = "enemy.alert";
 
     public const string EnemyAttack = "enemy.attack";

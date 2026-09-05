@@ -56,6 +56,13 @@ public static class SoundBankSetup
         { SoundId.DoorHit, 0.1f },
         { SoundId.EnemyHurt, 0.1f },
 
+        // Each enemy paces its own moan (EnemyBase.idleSoundInterval*), but the guard here is
+        // global — AudioService keys cooldowns on the id, not on the emitter. That is the
+        // useful shape for once: it stops two enemies whose independent timers happen to
+        // coincide from firing as one doubled voice, while sitting far enough under the 4-6 s
+        // interval that it never becomes the thing setting the pace.
+        { SoundId.EnemyIdle, 0.5f },
+
         // A pointer can only press once per frame, but mouse and touchscreen are polled
         // separately and a rapid double-click should still sound twice — short enough to
         // be inaudible as a limit, long enough to swallow a doubled press.

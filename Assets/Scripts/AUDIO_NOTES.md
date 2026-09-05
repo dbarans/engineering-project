@@ -11,15 +11,22 @@ the project's documentation (see `ENEMY_NOTES.md`, `GENERATION_NOTES.md`).
 | 1 — Core (SoundId, SoundBank, AudioService, runtime pool) | done |
 | 2 — Hook sites (footsteps, combat, doors, barricade, chest, pickup, enemy, player hurt) | done |
 | 3 — Editor tool (build/refresh the bank asset) | done |
-| 4 — Real clips | in progress — `ui.click` and the walk/sprint footsteps only |
+| 4 — Real clips | in progress — `ui.click`, the walk/sprint footsteps, every enemy voice |
 | 5 — Mixer groups (Master / Music / SFX / UI) + per-channel volume | done |
 
-**Almost everything here is still verified by console output rather than by ear.** Three
-entries have clips: `ui.click` (`Assets/Audio/UI/UIClick.wav`), plus
-`player.footstep.walk` and `player.footstep.sprint`, which **share**
-`Assets/Audio/Player/Footsteps/wood01.ogg` and are told apart by cadence alone (3b). Every
-other id still has an empty `clips` array and proves itself by logging — the deliberate
-deliverable of stage 2, see D2.
+**Most of this is still verified by console output rather than by ear.** Eight entries have
+clips: `ui.click` (`Assets/Audio/UI/UIClick.wav`), `player.footstep.walk` and
+`player.footstep.sprint`, which **share** `Assets/Audio/Player/Footsteps/wood01.ogg` and are
+told apart by cadence alone (3b), and all five enemy voices — `enemy.idle` (four moans in
+`Assets/Audio/Enemy/Idle/`, the only entry with real clip variation, 2a), plus `enemy.alert`,
+`enemy.attack`, `enemy.hurt` and `enemy.death` (2b). Every other id still has an empty
+`clips` array and proves itself by logging — the deliberate deliverable of stage 2, see D2.
+
+**The enemy is the one thing in the dungeon with a complete voice**, and it carries the
+whole stealth loop in five sounds: it moans while it has not seen you, barks the moment it
+does, growls as it swings, grunts when you land a hit, and dies audibly. Everything the
+*player* does past their own footsteps — swinging, shooting, getting hurt, dying — still
+logs. That asymmetry is now the loudest gap in the game, and it is the wrong way round.
 
 **Sneaking is still silent** — it plays its own id, has no clip, and therefore logs. It is
 the one gait that should not borrow the walk clip: a creep across floorboards is a
@@ -122,9 +129,129 @@ dropped in without touching the mixer or the routing code.
 | `barricade.build`, `barricade.stagebreak`, `barricade.destroy` | `DoorBarricade` | already emits gameplay noise at the same points |
 | `chest.open`, `chest.close` | `ChestInteractable` | |
 | `item.pickup`, `item.drop` | `WorldItemPickup` | |
-| `enemy.alert`, `enemy.attack`, `enemy.hurt`, `enemy.death` | `EnemyBase`, `EnemyMeleeAttack` | alert fires on the transition *into* chase, not every frame of it |
+| `enemy.idle` | `EnemyBase` | ambient moan while the enemy has **not** noticed the player — random 4-6 s cadence per enemy, gated on distance (2a) |
+| `enemy.alert`, `enemy.attack`, `enemy.hurt`, `enemy.death` | `EnemyBase`, `EnemyMeleeAttack` | alert fires once per hunt, not per re-sighting (2c); attack fires on the wind-up, not on the hit (2b) |
 | `surface.glass.step` | `PlayerNoiseEmitter` via `PlayerSurfaceTracker` | replaces the footstep while the player stands on a `NoisySurface` |
 | `ui.click` | `UiClickAudio` | one listener for every screen — main menu, pause, death screen, save/load, HUD inventory slots (D10) |
+
+## 2a. Idle enemy ambience (`enemy.idle`)
+
+The first sound in the game that exists to be *atmosphere* rather than feedback: an enemy
+that has not noticed the player moans every 4-6 s, so a room announces its occupant before
+anything is in sight. Clips are four ghost moans by **qubodup** (`Ghost Moans`) in
+`Assets/Audio/Enemy/Idle/`, 3.0-5.7 s each — the only bank entry with real clip variation
+so far, which is exactly the case D6 exists for.
+
+It lives on `EnemyBase` rather than in a component of its own, for the same reason
+`AudioRuntime` and `UiClickAudio` bootstrap themselves: enemies are spawned procedurally by
+`DungeonPopulator` and restored from saves by `SaveManager`, so anything that has to be
+dragged onto a prefab is a thing the next enemy type will be missing. Every `EnemyBase`
+subclass gets it, and `idleSoundRadius = 0` opts one out.
+
+Three decisions worth not re-deriving:
+
+- **Everything except `FollowPlayer` counts as idle**, investigating included. `FollowPlayer`
+  is the state that already has a voice — `enemy.alert` on entry, `enemy.attack` while it
+  lands blows — and those two are what tell the player they have been seen. A moan over them
+  blurs the one cue that has to stay unambiguous. Investigating is still idle on purpose:
+  the enemy is looking, not looking *at you*, and hearing it search nearby is the point.
+- **`idleSoundRadius` (26) is a gate, not a volume curve.** The entry's 3D falloff already
+  decides loudness. Without the gate every enemy in the dungeon would still be *playing* —
+  burning the 24-source pool (D5) on sounds attenuated to inaudibility and stealing voices
+  from the ones the player can actually hear. Drawn as a gizmo (`GizmoRanges.EnemyIdleSound`);
+  it is not a detection range and nothing about the AI changes at that boundary.
+- **The reach is two numbers, and the smaller one wins.** The gate decides whether the
+  sound plays; the entry's `maxDistance` (30) decides where the linear rolloff hits silence.
+  Raising one without the other does nothing — a gate past `maxDistance` gates in sounds
+  that are already inaudible, and a `maxDistance` past the gate is falloff nobody reaches.
+  They are set deliberately wider than the player's own `FieldOfView.viewRadius` (15):
+  hearing a thing you cannot see is the entire reason this sound exists. Cost of widening
+  is quadratic — the 14 → 26 change put ~3.4× as many enemies in earshot at once, so past
+  this point watch the pool before the volume.
+- **The timer is pushed forward while the gate is shut**, not left running down. A free
+  timer would fire the instant the player crossed the line, and a room of enemies that all
+  idled through the same long silence would greet them in unison.
+
+**The interval is measured start-to-start, and the clips are long.** At the 4 s end of the
+range a 5.7 s moan overlaps the next one from the same enemy. That is the asked-for cadence
+and it reads as intended for a haunted cellar, but it is the knob to turn first if the
+moaning feels constant: raise `idleSoundIntervalMin` past the longest clip.
+
+`AudioService.PlayAt`, never `PlayOn`: these clips outlive the enemy that started one (they
+run seconds and an enemy can be killed mid-moan), and a pooled source parented to a
+destroyed object goes down with it. The cost is that the moan does not travel with a
+patrolling enemy — acceptable for a sound that is meant to be *somewhere over there*.
+
+## 2b. The enemy's combat voice (`enemy.alert`, `enemy.attack`, `enemy.hurt`, `enemy.death`)
+
+Four clips from the *monster_sfx_pack* set, one each, so the variation is pitch jitter
+alone; the pack has six more files if the repetition starts to show.
+
+- `Assets/Audio/Enemy/Alert/MonsterAlert01.wav` — 0.65 s bark on spotting the player.
+- `Assets/Audio/Enemy/Attack/MonsterAttack01.wav` — 0.64 s growl on the swing.
+- `Assets/Audio/Enemy/Hurt/MonsterHurt01.wav` — 0.34 s grunt on taking a hit.
+- `Assets/Audio/Enemy/Death/MonsterDeath01.wav` — 1.0 s, the longest of the four.
+
+Three of the four hooks were already firing at the right moment and merely logging; the
+alert needed a latch once it became audible (2c). Worth knowing why these moments are
+right, because they are the kind of thing a later refactor "tidies" into the wrong place:
+
+- `EnemyBase.UpdateAlertAudio()` plays the bark **once per hunt**, latched, not once per
+  transition into `FollowPlayer`. See 2c — this is the one hook that did have to change.
+- `EnemyMeleeAttack.Attack()` plays the swing **on the wind-up, not on the hit landing**.
+  `attackHitDelay` (0.4 s) exists to give the player a window to dodge, and a swing you
+  cannot hear until it connects removes that window. The clip is 0.64 s against a 1.5 s
+  `attackCooldown`, so consecutive swings from one enemy never overlap.
+- `EnemyBase.TakeDamage()` picks between `enemy.death` and `enemy.hurt` on the health that
+  is *already* deducted, so the grunt fires only on a hit the enemy survives — a killing
+  blow gets the death sound instead, never both. It is also the **only** way an enemy dies:
+  every subclass reaches `OnDeath()` through here, so nothing can die silently.
+- The death sound is **the case D5 was written for, now real.** `OnDeath()` ends in
+  `Destroy(gameObject)` a frame later, and the clip runs a full second — a component-owned
+  `AudioSource` would cut itself off mid-death-rattle. `PlayAt` hands the sound to a pooled
+  source parented to `AudioRuntime`, which outlives the corpse. Do not "improve" this to
+  `PlayOn`.
+
+Cooldowns here split on one question — *would a suppressed repeat cost the player something
+they could not learn elsewhere?* — and that is the clearest illustration of what the field
+is for:
+
+- **`enemy.alert` and `enemy.attack` have none.** `AudioService` keys cooldowns on the id,
+  so a guard would silence the *second* enemy of a pair spotting you, or swinging at you,
+  together. Both of those are the highest-information sounds in the game — where a threat
+  is, and that there is more than one of it — and a pack alerting in unison reading as one
+  thick bark is the cheaper problem.
+- **`enemy.hurt` keeps its 0.1 s.** `RangedAttack.projectilesPerShot` above 1 is a shotgun
+  pattern, and at close range those pellets land on the same enemy within milliseconds;
+  without the guard one trigger pull stacks several grunts into one distorted noise. The
+  cost — two *different* enemies hit within 0.1 s producing a single grunt between them — is
+  the cheaper trade here, because unlike the other two it costs the player no information
+  they did not already have from their own shot.
+
+## 2c. The alert barks once per hunt, not once per sighting
+
+`enemy.alert` used to fire on every transition into `FollowPlayer`. That was defensible
+while it only logged, and wrong the moment it had a clip.
+
+Losing the player drops the chase into an investigate state; re-finding them from there is a
+*second* transition in. So a player ducking in and out of cover — the core stealth loop, and
+exactly what `PlayerHiding` and the table exist to encourage — got barked at every
+`detectionMemoryDuration` (1.5 s). **An alert that fires that often stops meaning "it has
+found you" and becomes texture.**
+
+`EnemyBase.UpdateAlertAudio()` now latches `hasAlertedThisHunt` on the bark and clears it
+only in `Idle`, `ReturnToPatrol` or `WanderNearLastPosition` — the three states that mean
+the enemy gave up and the trail went cold. Investigating deliberately does **not** clear it:
+the enemy is still hunting, and picking the trail back up is the same hunt continuing. The
+next real sighting after it gives up barks again.
+
+Side effect worth knowing: `stateBefore` in `UpdateStateMachine()` existed only to catch
+that transition and is gone. Anything that needs a "state changed this tick" signal has to
+reintroduce it rather than assume it is there.
+
+A save loaded while an enemy is mid-chase barks once on the first tick, because the latch is
+not serialized. That reads as intended — you are being hunted, and it says so — but it is a
+consequence of the flag being runtime-only, not a decision anyone made per-enemy.
 
 ## 3. Editor tool
 

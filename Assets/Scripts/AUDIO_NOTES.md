@@ -11,22 +11,50 @@ the project's documentation (see `ENEMY_NOTES.md`, `GENERATION_NOTES.md`).
 | 1 — Core (SoundId, SoundBank, AudioService, runtime pool) | done |
 | 2 — Hook sites (footsteps, combat, doors, barricade, chest, pickup, enemy, player hurt) | done |
 | 3 — Editor tool (build/refresh the bank asset) | done |
-| 4 — Real clips | in progress — `ui.click`, the walk/sprint footsteps, every enemy voice |
+| 4 — Real clips | in progress — the menu and dungeon music, `ui.click`, the walk/sprint footsteps, the player hurt, death, exhaustion, swing and gunshot, both door swings, the unlock, the save station, the chest, the backpack, every enemy voice |
 | 5 — Mixer groups (Master / Music / SFX / UI) + per-channel volume | done |
 
-**Most of this is still verified by console output rather than by ear.** Eight entries have
-clips: `ui.click` (`Assets/Audio/UI/UIClick.wav`), `player.footstep.walk` and
-`player.footstep.sprint`, which **share** `Assets/Audio/Player/Footsteps/wood01.ogg` and are
-told apart by cadence alone (3b), and all five enemy voices — `enemy.idle` (four moans in
-`Assets/Audio/Enemy/Idle/`, the only entry with real clip variation, 2a), plus `enemy.alert`,
-`enemy.attack`, `enemy.hurt` and `enemy.death` (2b). Every other id still has an empty
-`clips` array and proves itself by logging — the deliberate deliverable of stage 2, see D2.
+**Most of this is still verified by console output rather than by ear.** Twenty-two entries
+have clips: `music.menu` (`Assets/Audio/Music/AMBIENTe.mp3`) and `music.dungeon`
+(`Assets/Audio/Music/dark_cavern_ambient_001.ogg`), `ui.click`
+(`Assets/Audio/UI/UIClick.wav`), `player.footstep.walk` and `player.footstep.sprint`, which
+**share** `Assets/Audio/Player/Footsteps/footstep03.ogg` and are told apart by cadence alone
+(3b), `player.hurt` (`Assets/Audio/Player/Hurt/hit2.ogg`), `player.death`
+(`Assets/Audio/Player/Death/die1.ogg`), `player.exhausted`
+(`Assets/Audio/Player/Exhausted/breathing tirede.wav`), `player.attack.melee`
+(`Assets/Audio/Player/Attack/swosh-01.flac`), `player.attack.ranged`
+(`Assets/Audio/Player/Attack/M_26Pe.wav`), `door.open` and `door.close`, which likewise
+**share** `Assets/Audio/Doors/doorOpen_2.ogg`, `door.unlock`
+(`Assets/Audio/Doors/doorClose_1.ogg`), `chest.open`
+(`Assets/Audio/Chest/doorClose_4.ogg` — `chest.close` is still silent), `backpack.open`
+and `backpack.close`, which share `Assets/Audio/UI/clothBelt.ogg`, `savestation.open`
+(`Assets/Audio/World/bookFlip1.ogg`), and all five enemy voices — `enemy.idle` (four moans
+in `Assets/Audio/Enemy/Idle/`, the only entry with real clip variation, 2a), plus
+`enemy.alert`, `enemy.attack`, `enemy.hurt` and `enemy.death` (2b). Every other id still
+has an empty `clips` array and proves itself by logging — the deliberate deliverable of
+stage 2, see D2.
 
-**The enemy is the one thing in the dungeon with a complete voice**, and it carries the
-whole stealth loop in five sounds: it moans while it has not seen you, barks the moment it
-does, growls as it swings, grunts when you land a hit, and dies audibly. Everything the
-*player* does past their own footsteps — swinging, shooting, getting hurt, dying — still
-logs. That asymmetry is now the loudest gap in the game, and it is the wrong way round.
+**Music is the one sound that is not a one-shot**, and it is why `AudioRuntime` grew a
+second, unpooled `AudioSource`. A looping track never reports `!isPlaying`, so `Rent`
+would hold its pooled source forever and — once 24 voices were live — steal it back
+mid-track on the round-robin. Music also needs the one thing no one-shot does: an owner
+that can be *stopped*, which is what `AudioService.PlayMusic` / `StopMusic` and the id kept
+alongside the source are for.
+
+Both tracks follow the same shape: start in `Start`, stop in `OnDestroy`, on a component
+that exists only in its own scene (`MainMenuController`, `GameManager`). `OnDestroy` rather
+than the button handler, because the menu can also be left through `SaveManager.Load`, which
+loads the saved scene itself. There is one source, so a scene change swaps tracks rather
+than layering them, and `StopMusic` reads `AudioRuntime.Current` rather than `Instance` so a
+scene being torn down cannot resurrect the runtime on its way out.
+
+**The player is no longer only acted upon**: it grunts when hit, dies audibly, swings and
+fires audibly, and runs out of breath audibly — the last being the first sound in the game
+that reports a *resource* rather than an event, and the only one the HUD was previously
+alone in showing. What is left silent on the player's side is the throw and the dry click
+of an empty magazine — and the dry click is the one that costs most, since it is the only
+feedback distinguishing "out of ammo" from "the game ignored the trigger"
+(`RangedAttack.OnFireBlocked`).
 
 **Sneaking is still silent** — it plays its own id, has no clip, and therefore logs. It is
 the one gait that should not borrow the walk clip: a creep across floorboards is a
@@ -123,16 +151,22 @@ dropped in without touching the mixer or the routing code.
 |---|---|---|
 | `player.footstep.walk` / `.sprint` / `.sneak` | `PlayerNoiseEmitter` | Cadence already exists there for gameplay noise; sneak deliberately still *plays* audio while emitting **zero** gameplay noise — D1 in practice |
 | `player.hurt`, `player.death` | `PlayerHealthSystem` | |
+| `player.exhausted` | `PlayerStaminaSystem` | raised in `Drain` on the crossing to zero, so every way of spending stamina covers it and an empty bar does not re-gasp per frame |
 | `player.attack.melee`, `player.attack.ranged`, `player.attack.dryfire` | `MeleeAttack`, `RangedAttack` | dry-fire is the existing "no ammo" path |
 | `player.throw` | `PlayerThrow` | |
 | `door.open`, `door.close`, `door.hit`, `door.destroy` | `SimpleDoor` | |
+| `door.unlock` | `SimpleDoor` | both deliberate unlocks — the key being spent, and the player-set bolt coming off. Not the sprint ram, which clears `isLocked` by force and already sounds as a hit plus an opening |
 | `barricade.build`, `barricade.stagebreak`, `barricade.destroy` | `DoorBarricade` | already emits gameplay noise at the same points |
 | `chest.open`, `chest.close` | `ChestInteractable` | |
 | `item.pickup`, `item.drop` | `WorldItemPickup` | |
 | `enemy.idle` | `EnemyBase` | ambient moan while the enemy has **not** noticed the player — random 4-6 s cadence per enemy, gated on distance (2a) |
 | `enemy.alert`, `enemy.attack`, `enemy.hurt`, `enemy.death` | `EnemyBase`, `EnemyMeleeAttack` | alert fires once per hunt, not per re-sighting (2c); attack fires on the wind-up, not on the hit (2b) |
 | `surface.glass.step` | `PlayerNoiseEmitter` via `PlayerSurfaceTracker` | replaces the footstep while the player stands on a `NoisySurface` |
+| `music.menu` | `MainMenuController` | started in `Start`, stopped in `OnDestroy` so every exit from the menu scene is covered — including the Load button, which leaves through `SaveManager.Load` |
+| `music.dungeon` | `GameManager` | same shape, on the one component that lives only in the dungeon scene — so Play, a loaded save and the death screen's restart all start it |
 | `ui.click` | `UiClickAudio` | one listener for every screen — main menu, pause, death screen, save/load, HUD inventory slots (D10) |
+| `savestation.open` | `SaveStation` | fires only when the save screen actually opens — `SaveLoadUI.Open` is a silent no-op outside Playing |
+| `backpack.open`, `backpack.close` | `BackpackUI` | raised in `SetOpen`, below its no-change guard, so every route into the panel (Tab, and the chest and crafting screens closing it) sounds once and re-showing an open panel is silent |
 
 ## 2a. Idle enemy ambience (`enemy.idle`)
 
@@ -293,10 +327,10 @@ The footstep *sound* is paced by the gait instead, per mode on `PlayerNoiseEmitt
 | Mode | Interval | Why |
 |---|---|---|
 | Walk | 0.5 s | asked for — steps land with an audible pause between them |
-| Sprint | 0.25 s | asked for — the clip's own length, so steps run back to back with no silence at all. The gaplessness is what separates a run from a fast walk, and it is why sprint reuses the walk clip without sounding like one |
+| Sprint | 0.27 s | asked for — the clip's own length, so steps run back to back with no silence at all. The gaplessness is what separates a run from a fast walk, and it is why sprint reuses the walk clip without sounding like one |
 | Sneak | 0.7 s | the only feedback that sneaking is working, since it emits no gameplay noise |
 
-Sprint's interval is therefore **tied to the clip**, not to a gait: replacing `wood01.ogg`
+Sprint's interval is therefore **tied to the clip**, not to a gait: replacing `footstep03.ogg`
 with a recording of a different length reopens (or overlaps) the gap, and the interval has
 to move with it.
 

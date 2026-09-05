@@ -102,6 +102,12 @@ public class BackpackUI : MonoBehaviour
     {
         if (panelRoot == null || panelRoot.activeSelf == open) return;
         panelRoot.SetActive(open);
+
+        // Below the activeSelf guard above, so this only ever fires on a real state change:
+        // Show() on an already-open panel — which the chest and crafting screens do — is
+        // silent, as it should be.
+        AudioService.Play(open ? SoundId.BackpackOpen : SoundId.BackpackClose);
+
         OpenStateChanged?.Invoke(open);
     }
 }

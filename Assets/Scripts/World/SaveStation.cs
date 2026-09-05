@@ -67,7 +67,14 @@ public class SaveStation : MonoBehaviour
         SetHovered(cursorOver && PlayerInRange());
 
         if (_hovered && !overUI && LeftClickPressedThisFrame())
+        {
             ui.Open(SaveLoadUI.Mode.Save); // no-op unless the game is Playing
+
+            // Gated on the screen having actually opened, not on the click: Open bails out
+            // silently when the game is not Playing, and a station that answers a click with
+            // a sound and nothing else reads as a broken interaction.
+            if (ui.IsOpen) AudioService.PlayAt(SoundId.SaveStationOpen, transform.position);
+        }
     }
 
     /// <summary>

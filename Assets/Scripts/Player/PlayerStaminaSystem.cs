@@ -80,9 +80,17 @@ public class PlayerStaminaSystem : MonoBehaviour
 
     private void Drain(float amount)
     {
+        bool hadStamina = currentStamina > 0f;
         currentStamina = Mathf.Max(0f, currentStamina - amount);
         lastUseTime = Time.time;
         staminaBar?.SetStamina(currentStamina);
+
+        // On the crossing, not on the state: a sprint calls Drain every frame, so testing
+        // currentStamina alone would restart the gasp each frame the bar sits empty. Every
+        // path that spends stamina funnels through here, so ramming a door dry sounds the
+        // same as running out of sprint.
+        if (hadStamina && currentStamina <= 0f)
+            AudioService.Play(SoundId.PlayerExhausted);
     }
     public void UseRamStamina(float amount)
     {

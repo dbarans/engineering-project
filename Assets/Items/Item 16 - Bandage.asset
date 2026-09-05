@@ -20,7 +20,7 @@ MonoBehaviour:
   value: 20
   maxStack: 2
   weaponType: 0
-  healAmount: 0
+  healAmount: 50
   lightRadius: 0
   lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
   maxDurability: 0

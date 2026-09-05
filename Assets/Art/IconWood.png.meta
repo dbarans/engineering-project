@@ -1,46 +1,13 @@
 fileFormatVersion: 2
-guid: fcc6a92b05bdb5144ba87d0bb92a2ed6
+guid: 5f8173b3535e7b64d818d81107050100
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -5675319087615947422
-    second: beczka_des_0
+      213: -956995649741607074
+    second: IconWood_0
   - first:
-      213: 8180408036796624251
-    second: beczka_des_1
-  - first:
-      213: 6757330666221454865
-    second: beczka_des_2
-  - first:
-      213: -6866871003732518517
-    second: beczka_des_3
-  - first:
-      213: 9175388619310617322
-    second: beczka_des_4
-  - first:
-      213: 7916328142391895670
-    second: beczka_des_5
-  - first:
-      213: 3623479617596624958
-    second: beczka_des_6
-  - first:
-      213: -2742587593987827231
-    second: beczka_des_7
-  - first:
-      213: 594798325313076460
-    second: beczka_des_8
-  - first:
-      213: 1922617429281546496
-    second: beczka_des_9
-  - first:
-      213: 2077436563776224567
-    second: beczka_des_10
-  - first:
-      213: -3038531074719194803
-    second: beczka_des_11
-  - first:
-      213: -6079492321573217957
-    second: beczka_des_12
+      213: -8225830436113827118
+    second: IconWood_1
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -82,7 +49,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 2
+  spriteMode: 1
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -111,7 +78,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 1
+    textureCompression: 0
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -132,27 +99,62 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: beczka_des_1
+      name: IconWood_0
       rect:
         serializedVersion: 2
-        x: 14
-        y: 31
-        width: 1259
-        height: 1180
+        x: 11
+        y: 69
+        width: 103
+        height: 46
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: b7d630f84c5a68170800000000000000
-      internalID: 8180408036796624251
+      spriteID: e5fae85e68118b2f0800000000000000
+      internalID: -956995649741607074
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: IconWood_1
+      rect:
+        serializedVersion: 2
+        x: 4
+        y: 16
+        width: 118
+        height: 48
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2dab6d8fccaf7dd80800000000000000
+      internalID: -8225830436113827118
       vertices: []
       indices: 
       edges: []
@@ -161,7 +163,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: ac4c67e7242b5db408359afd5694a448
+    spriteID: 5e97eb03825dee720800000000000000
     internalID: 0
     vertices: []
     indices: 
@@ -171,19 +173,8 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      beczka_des_0: -5675319087615947422
-      beczka_des_1: 8180408036796624251
-      beczka_des_10: 2077436563776224567
-      beczka_des_11: -3038531074719194803
-      beczka_des_12: -6079492321573217957
-      beczka_des_2: 6757330666221454865
-      beczka_des_3: -6866871003732518517
-      beczka_des_4: 9175388619310617322
-      beczka_des_5: 7916328142391895670
-      beczka_des_6: 3623479617596624958
-      beczka_des_7: -2742587593987827231
-      beczka_des_8: 594798325313076460
-      beczka_des_9: 1922617429281546496
+      IconWood_0: -956995649741607074
+      IconWood_1: -8225830436113827118
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

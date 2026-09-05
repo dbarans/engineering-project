@@ -225,8 +225,23 @@ MonoBehaviour:
     minDistance: 3
     maxDistance: 25
     cooldown: 0
+  - id: enemy.idle
+    clips:
+    - {fileID: 8300000, guid: e6a3bc9d27f5648ab3e1f4051627381c, type: 3}
+    - {fileID: 8300000, guid: e6a3bc9d27f5648ab3e1f4051627382c, type: 3}
+    - {fileID: 8300000, guid: e6a3bc9d27f5648ab3e1f4051627383c, type: 3}
+    - {fileID: 8300000, guid: e6a3bc9d27f5648ab3e1f4051627384c, type: 3}
+    channel: 0
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 30
+    cooldown: 0.5
   - id: enemy.alert
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: ed29b25d8df1c0ea19475061728394f7, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -236,7 +251,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0
   - id: enemy.attack
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: a8c5de1f49b786acd503162738495ba3, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -246,7 +262,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0
   - id: enemy.hurt
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: ca07f03b6bd9a8cef7253849506172d5, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -256,7 +273,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0.1
   - id: enemy.death
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 0f4bd47fa013e20c2b697283940516d9, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95

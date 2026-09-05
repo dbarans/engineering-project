@@ -27,6 +27,13 @@ public enum GizmoRanges
     /// as <see cref="None"/> and therefore never drawn at all.
     /// </summary>
     OtherNoise = 1 << 8,
+
+    /// <summary>
+    /// How close the player has to be before an idle enemy is heard moaning
+    /// (<c>EnemyBase.idleSoundRadius</c>). Not a detection range — nothing about the AI
+    /// changes at this boundary, it only decides what the player hears.
+    /// </summary>
+    EnemyIdleSound = 1 << 9,
 }
 
 [CreateAssetMenu(fileName = "GizmoDebugSettings", menuName = "Debug/Gizmo Debug Settings")]

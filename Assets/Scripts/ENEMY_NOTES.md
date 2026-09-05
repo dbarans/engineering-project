@@ -2,6 +2,43 @@
 
 Working reference for the Enemy system, maintained across branches (`GU-0032-enemy-sound-tracking`, `GU-0033-enemy-investigate-linger`, ...) and kept up to date whenever Enemy-related code changes are committed.
 
+## Idle enemies moan — `enemy.idle`
+
+`EnemyBase` now plays an ambient moan every 4-6 s while it has **not** noticed the player,
+gated on `idleSoundRadius` (26 units, gizmo `GizmoRanges.EnemyIdleSound`) — deliberately
+wider than the player's own `FieldOfView.viewRadius` (15), because hearing what you cannot
+see is the point. Four clips in `Assets/Audio/Enemy/Idle/`, picked at random per play.
+
+The audible reach is **two** numbers and the smaller wins: this gate, and the `enemy.idle`
+entry's `maxDistance` (30) where the rolloff hits silence. Move them together or neither
+moves.
+
+It sits on `EnemyBase` rather than on a component of its own **on purpose** — enemies are
+spawned by `DungeonPopulator` and restored by `SaveManager`, so a component that has to be
+dragged onto a prefab is one the next enemy type will silently be missing (the same trap
+GU-0051 documents for `player`). Set `idleSoundRadius = 0` to opt an enemy out.
+
+Everything except `FollowPlayer` counts as idle, investigating included: that state already
+has `enemy.alert` and `enemy.attack`, which are the cues that say *you have been seen*, and
+a moan over them blurs them. Full reasoning, and the tuning knob for how dense the moaning
+feels, in `AUDIO_NOTES.md` 2a.
+
+The radius does **not** touch detection — no AI behaviour changes at that boundary, it only
+decides whether the sound is worth playing at all.
+
+## The alert bark is latched per hunt
+
+`EnemyBase.UpdateAlertAudio()` replaced the old `stateBefore != FollowPlayer` transition
+check. `hasAlertedThisHunt` latches when the enemy barks and clears only in `Idle`,
+`ReturnToPatrol` or `WanderNearLastPosition` — the states that mean it gave up. Investigating
+does **not** clear it, because picking a trail back up is the same hunt.
+
+Without the latch, a player using cover the way `PlayerHiding` intends re-entered
+`FollowPlayer` every `detectionMemoryDuration` (1.5 s) and got barked at each time.
+
+**`stateBefore` is gone from `UpdateStateMachine()`** — it existed only for that check.
+Anything needing a "state changed this tick" signal has to reintroduce it.
+
 ## GU-0051: runtime-spawned enemies get their player injected
 
 The procedural dungeon generator (`Generation/`, see `GENERATION_NOTES.md`) spawns enemies that exist in no authored scene. `EnemyBase.player` is a serialized `Transform`, and **a prefab asset cannot hold a reference to a scene object** — so a spawned enemy started with `player == null`, and `IsPlayerDetected()` returns `false` immediately on null. The enemy would patrol forever and never react to anything, with no error anywhere.

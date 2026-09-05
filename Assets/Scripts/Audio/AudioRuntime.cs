@@ -41,6 +41,15 @@ public class AudioRuntime : MonoBehaviour
         }
     }
 
+
+    /// <summary>
+    /// The runtime if one exists, without creating it. <see cref="Instance"/> bootstraps on
+    /// access, which is right for playing a sound and wrong for stopping one: a scene being
+    /// torn down calls StopMusic from OnDestroy, and resurrecting the runtime there would
+    /// build a GameObject Unity is in the middle of cleaning up.
+    /// </summary>
+    public static AudioRuntime Current => _instance;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
     {
@@ -91,6 +100,57 @@ public class AudioRuntime : MonoBehaviour
         source.rolloffMode = AudioRolloffMode.Linear;
         source.loop = false;
         source.Play();
+    }
+
+    /// <summary>
+    /// The one source music plays through, deliberately outside <see cref="_pool"/>. A
+    /// looping track never reports <c>!isPlaying</c>, so a pooled source would be rented
+    /// forever and — once the pool filled — eventually stolen mid-track by Rent's
+    /// round-robin steal. Its own source also gives music the thing one-shots never need:
+    /// something that can be stopped.
+    /// </summary>
+    private AudioSource _musicSource;
+
+    /// <summary>Id of the track currently playing, so a repeat request does not restart it.</summary>
+    private string _musicId;
+
+    /// <summary>
+    /// Starts a looping track, or does nothing when that same track is already playing —
+    /// re-entering the menu scene should not restart a track that never stopped.
+    /// </summary>
+    public void PlayMusic(string id, AudioClip clip, SoundBank.SoundEntry entry)
+    {
+        if (clip == null || entry == null) return;
+        if (_musicId == id && _musicSource != null && _musicSource.isPlaying) return;
+
+        if (_musicSource == null)
+        {
+            var go = new GameObject("MusicAudio");
+            go.transform.SetParent(transform, worldPositionStays: false);
+            _musicSource = go.AddComponent<AudioSource>();
+            _musicSource.playOnAwake = false;
+        }
+
+        _musicId = id;
+        _musicSource.clip = clip;
+        _musicSource.outputAudioMixerGroup = AudioMixerService.GroupFor(entry.channel);
+        _musicSource.volume = entry.volume;
+        // No pitch jitter, unlike PlayClip: the entry's range exists to keep a repeated
+        // one-shot from fatiguing, and a music track that plays back a few percent fast
+        // is out of tune with itself, not varied.
+        _musicSource.pitch = 1f;
+        _musicSource.spatialBlend = entry.spatialBlend;
+        _musicSource.loop = true;
+        _musicSource.Play();
+    }
+
+    /// <summary>Stops whatever track is playing. Safe to call when there is none.</summary>
+    public void StopMusic()
+    {
+        _musicId = null;
+        if (_musicSource == null) return;
+        _musicSource.Stop();
+        _musicSource.clip = null;
     }
 
     /// <summary>

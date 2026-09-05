@@ -47,6 +47,46 @@ public static class AudioService
         PlayInternal(id, emitter.position, emitter, positional: true);
     }
 
+    /// <summary>
+    /// Starts a looping track and leaves it playing across scene loads until
+    /// <see cref="StopMusic"/> is called. Separate from <see cref="Play"/> because music is
+    /// the one sound that outlives the moment it started: it needs an owner that can be
+    /// stopped, and it must not sit in the one-shot pool where a busy scene would
+    /// eventually steal its source (AUDIO_NOTES.md D5).
+    ///
+    /// Calling it again with the id already playing is a no-op, so a menu scene loaded a
+    /// second time picks the track up where it was instead of restarting it.
+    /// </summary>
+    public static void PlayMusic(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+
+        SoundBank.SoundEntry entry = SoundBank.Instance != null ? SoundBank.Instance.Resolve(id) : null;
+        AudioClip clip = PickClip(entry);
+
+        if (clip == null)
+        {
+            // Same placeholder contract as the one-shots: an entry with no clips proves the
+            // hook by logging rather than by playing (D2).
+            Debug.Log($"[Audio] ♪ (music) {id}");
+            return;
+        }
+
+        AudioRuntime runtime = AudioRuntime.Instance;
+        if (runtime == null) return;
+
+        runtime.PlayMusic(id, clip, entry);
+    }
+
+    /// <summary>Stops the current track. Safe when nothing is playing.</summary>
+    public static void StopMusic()
+    {
+        // Current, not Instance: this is called from OnDestroy as a scene unloads, and
+        // Instance would build a runtime just to tell it there is nothing to stop.
+        AudioRuntime runtime = AudioRuntime.Current;
+        if (runtime != null) runtime.StopMusic();
+    }
+
     private static void PlayInternal(string id, Vector3 position, Transform follow, bool positional)
     {
         if (string.IsNullOrEmpty(id)) return;

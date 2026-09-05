@@ -15,7 +15,7 @@ MonoBehaviour:
   entries:
   - id: player.footstep.walk
     clips:
-    - {fileID: 8300000, guid: f3c8d6e5a01c938fcdb15a6f7e8d9c0a, type: 3}
+    - {fileID: 8300000, guid: 3b103567b2254d1ba55fd40a04f9c6a0, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -26,7 +26,7 @@ MonoBehaviour:
     cooldown: 0.15
   - id: player.footstep.sprint
     clips:
-    - {fileID: 8300000, guid: f3c8d6e5a01c938fcdb15a6f7e8d9c0a, type: 3}
+    - {fileID: 8300000, guid: 3b103567b2254d1ba55fd40a04f9c6a0, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -46,7 +46,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0.2
   - id: player.hurt
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 19050811d7e541c09a970ea8b6aa3741, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -54,9 +55,10 @@ MonoBehaviour:
     spatialBlend: 0
     minDistance: 3
     maxDistance: 25
-    cooldown: 0
+    cooldown: 0.1
   - id: player.death
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 05c804f94c834740b920dda406d29d3e, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -66,7 +68,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0
   - id: player.attack.melee
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 855a7162ea7f4f41bb7ff31ef6058a0a, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -76,7 +79,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0
   - id: player.attack.ranged
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 905f32637a9a483ca66bc6e1f45e9e36, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -116,7 +120,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0
   - id: door.open
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 10c9002ccd5645679762432c2f9e1925, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -126,7 +131,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0
   - id: door.close
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 10c9002ccd5645679762432c2f9e1925, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -186,7 +192,8 @@ MonoBehaviour:
     maxDistance: 25
     cooldown: 0
   - id: chest.open
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 59a0826ac874480e96111dcc8015c0a6, type: 3}
     channel: 0
     volume: 1
     pitchMin: 0.95
@@ -294,3 +301,80 @@ MonoBehaviour:
     minDistance: 3
     maxDistance: 25
     cooldown: 0.05
+  - id: savestation.open
+    clips:
+    - {fileID: 8300000, guid: fe4c2b37738643e9a9ea9ba410a2a176, type: 3}
+    channel: 0
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0.1
+  - id: backpack.open
+    clips:
+    - {fileID: 8300000, guid: 49fb164a86214165a4cae71c63f66eb1, type: 3}
+    channel: 2
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 0
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0.1
+  - id: backpack.close
+    clips:
+    - {fileID: 8300000, guid: 49fb164a86214165a4cae71c63f66eb1, type: 3}
+    channel: 2
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 0
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0.1
+  - id: door.unlock
+    clips:
+    - {fileID: 8300000, guid: e46ddc0a7596487eb5932bcf26735623, type: 3}
+    channel: 0
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 1
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: player.exhausted
+    clips:
+    - {fileID: 8300000, guid: 0ed716ac14284b958650dc03e94ca194, type: 3}
+    channel: 0
+    volume: 1
+    pitchMin: 0.95
+    pitchMax: 1.05
+    spatialBlend: 0
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: music.menu
+    clips:
+    - {fileID: 8300000, guid: 356ae2ada6264b1da55a28877e9ada39, type: 3}
+    channel: 1
+    volume: 1
+    pitchMin: 1
+    pitchMax: 1
+    spatialBlend: 0
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0
+  - id: music.dungeon
+    clips:
+    - {fileID: 8300000, guid: 59ab7f0ed1b74856a2606fc424661588, type: 3}
+    channel: 1
+    volume: 1
+    pitchMin: 1
+    pitchMax: 1
+    spatialBlend: 0
+    minDistance: 3
+    maxDistance: 25
+    cooldown: 0

@@ -256,6 +256,7 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
                     {
                         requiresKeyToOpen = false;
                         Notify($"Unlocked with the {requiredKeyItem.itemName}.");
+                        AudioService.PlayAt(SoundId.DoorUnlock, transform.position);
                     }
                     else
                     {
@@ -344,6 +345,11 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
 
         isLocked = !isLocked;
         Debug.Log(isLocked ? "[Door] Locked from the outside!" : "[Door] Unlocked!");
+
+        // Only the unlocking half sounds. Locking has no id of its own yet, and reusing the
+        // unlock clip for it would make the two states indistinguishable by ear — the one
+        // thing the sound is there to tell the player.
+        if (!isLocked) AudioService.PlayAt(SoundId.DoorUnlock, transform.position);
     }
 
     /// <summary>

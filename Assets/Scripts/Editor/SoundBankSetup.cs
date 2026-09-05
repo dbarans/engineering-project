@@ -28,6 +28,7 @@ public static class SoundBankSetup
     {
         SoundId.PlayerHurt,
         SoundId.PlayerDeath,
+        SoundId.PlayerExhausted,
     };
 
     /// <summary>
@@ -39,6 +40,20 @@ public static class SoundBankSetup
     private static readonly HashSet<string> UiIds = new HashSet<string>
     {
         SoundId.UiClick,
+        SoundId.BackpackOpen,
+        SoundId.BackpackClose,
+    };
+
+    /// <summary>
+    /// Ids that are music rather than sound effects: routed to the Music group and never
+    /// positional. Kept separate from <see cref="UiIds"/> because the two differ in more
+    /// than the group they land on — a UI sound is a one-shot, these loop and are started
+    /// and stopped by name (<c>AudioService.PlayMusic</c>).
+    /// </summary>
+    private static readonly HashSet<string> MusicIds = new HashSet<string>
+    {
+        SoundId.MusicMenu,
+        SoundId.MusicDungeon,
     };
 
     /// <summary>
@@ -56,6 +71,13 @@ public static class SoundBankSetup
         { SoundId.DoorHit, 0.1f },
         { SoundId.EnemyHurt, 0.1f },
 
+        // Same guard as EnemyHurt, for the opposite reason. There is only one player, but
+        // several enemies can land on them at once, and this id is non-positional — two
+        // simultaneous hits would be one clip doubled on itself rather than two voices from
+        // two places. Far under EnemyMeleeAttack's 1.5 s per-enemy cooldown, so genuine
+        // repeat hits still sound.
+        { SoundId.PlayerHurt, 0.1f },
+
         // Each enemy paces its own moan (EnemyBase.idleSoundInterval*), but the guard here is
         // global — AudioService keys cooldowns on the id, not on the emitter. That is the
         // useful shape for once: it stops two enemies whose independent timers happen to
@@ -67,6 +89,12 @@ public static class SoundBankSetup
         // separately and a rapid double-click should still sound twice — short enough to
         // be inaudible as a limit, long enough to swallow a doubled press.
         { SoundId.UiClick, 0.05f },
+
+        // Tab is a keyboard toggle with no animation to sit behind, so it can be flipped
+        // faster than the clip is long. Well under a deliberate open-close, long enough that
+        // holding the key down cannot stack the sound on itself.
+        { SoundId.BackpackOpen, 0.1f },
+        { SoundId.BackpackClose, 0.1f },
     };
 
     [MenuItem("Tools/Audio/Build Sound Bank")]
@@ -120,6 +148,7 @@ public static class SoundBankSetup
             SerializedProperty entry = entries.GetArrayElementAtIndex(index);
 
             bool isUi = UiIds.Contains(id);
+            bool isMusic = MusicIds.Contains(id);
 
             entry.FindPropertyRelative("id").stringValue = id;
             // InsertArrayElementAtIndex copies the previous element, so every field has to
@@ -130,14 +159,14 @@ public static class SoundBankSetup
             // declaration, and AudioChannel's numbers are assigned explicitly precisely
             // because they have to stay stable. The value is what is serialized.
             entry.FindPropertyRelative("channel").intValue =
-                (int)(isUi ? AudioChannel.Ui : AudioChannel.Sfx);
+                (int)(isMusic ? AudioChannel.Music : isUi ? AudioChannel.Ui : AudioChannel.Sfx);
             entry.FindPropertyRelative("volume").floatValue = 1f;
             entry.FindPropertyRelative("pitchMin").floatValue = 0.95f;
             entry.FindPropertyRelative("pitchMax").floatValue = 1.05f;
             // UI sound never comes from a place, so it is folded in here rather than
             // repeated in NonPositionalIds.
             entry.FindPropertyRelative("spatialBlend").floatValue =
-                isUi || NonPositionalIds.Contains(id) ? 0f : 1f;
+                isUi || isMusic || NonPositionalIds.Contains(id) ? 0f : 1f;
             entry.FindPropertyRelative("minDistance").floatValue = 3f;
             entry.FindPropertyRelative("maxDistance").floatValue = 25f;
             entry.FindPropertyRelative("cooldown").floatValue =

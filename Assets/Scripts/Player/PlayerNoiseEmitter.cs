@@ -33,10 +33,10 @@ public class PlayerNoiseEmitter : MonoBehaviour
     [Min(0.01f)] [SerializeField] private float walkStepInterval = 0.5f;
 
     [Tooltip("Seconds between footstep sounds while sprinting. Set to the length of the " +
-             "footstep clip (0.25 s for wood01) so sprinting steps run back to back with " +
+             "footstep clip (0.27 s for footstep03) so sprinting steps run back to back with " +
              "no silence between them — that gaplessness is what makes a run read as a " +
              "run. Retune it if the clip is replaced with one of a different length.")]
-    [Min(0.01f)] [SerializeField] private float sprintStepInterval = 0.25f;
+    [Min(0.01f)] [SerializeField] private float sprintStepInterval = 0.27f;
 
     [Tooltip("Seconds between footstep sounds while sneaking. Longer than walking: this is " +
              "the only feedback the player gets that they are moving carefully, since " +

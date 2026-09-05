@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -25,6 +26,9 @@ public class DungeonExit : MonoBehaviour
              "open. Assigned by the generator; a threshold with no door ends the run on " +
              "contact, which is only ever right for a dungeon generated without a key.")]
     [SerializeField] private SimpleDoor exitDoor;
+
+    [Tooltip("Delay in seconds before ending the run, allowing the player time to step past the doorway.")]
+    [SerializeField] private float winDelaySeconds = 1.5f;
 
     private bool triggered;
 
@@ -61,17 +65,18 @@ public class DungeonExit : MonoBehaviour
         if (exitDoor != null && !exitDoor.IsOpen) return;
 
         triggered = true;
+        StartCoroutine(CompleteRunRoutine());
+    }
+
+    private IEnumerator CompleteRunRoutine()
+    {
+        yield return new WaitForSeconds(winDelaySeconds);
 
         var state = FindFirstObjectByType<GameManager>();
         if (state == null)
         {
-            Debug.LogWarning(
-                "[DungeonExit] The player reached the way out but there is no GameManager in " +
-                "the scene, so the run cannot be ended.", this);
-            return;
+            yield break;
         }
-
-        Debug.Log("[DungeonExit] The player left the dungeon — run complete.");
         state.WinGame();
     }
 }

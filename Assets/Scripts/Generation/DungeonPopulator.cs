@@ -654,9 +654,11 @@ public class DungeonPopulator : MonoBehaviour
                 "be finished as soon as the exit room is found.", this);
         }
 
+        Vector2Int exitDirection = doorCell - thresholdCell;
+        Vector2Int outsideCell = doorCell + exitDirection;
         var exit = new GameObject("DungeonExit");
         exit.transform.SetParent(_contentRoot, false);
-        exit.transform.position = builder.CellCenter(thresholdCell);
+        exit.transform.position = builder.CellCenter(outsideCell);
 
         var box = exit.AddComponent<BoxCollider2D>();
         box.isTrigger = true;

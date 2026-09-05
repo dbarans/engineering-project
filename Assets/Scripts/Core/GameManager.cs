@@ -163,7 +163,12 @@ public class GameManager : MonoBehaviour, IGameStateManager
         if (CurrentState == GameState.Victory) return;
 
         CurrentState = GameState.Victory;
-        Time.timeScale = 1f;
+
+        var victoryUI = FindFirstObjectByType<VictoryScreenUI>(FindObjectsInactive.Include);
+        if (victoryUI != null)
+        {
+            victoryUI.Show();
+        }
     }
 
     /// <summary>

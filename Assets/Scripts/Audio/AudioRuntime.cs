@@ -72,10 +72,13 @@ public class AudioRuntime : MonoBehaviour
         if (source == null) return;
 
         Transform sourceTransform = source.transform;
+        float planeZ = ListenerPlaneZ(entry);
+
         if (follow != null)
         {
             sourceTransform.SetParent(follow, worldPositionStays: false);
-            sourceTransform.localPosition = Vector3.zero;
+            // Only z is offset, so the sound still tracks the emitter in the plane it moves in.
+            sourceTransform.localPosition = new Vector3(0f, 0f, planeZ - follow.position.z);
         }
         else
         {
@@ -84,7 +87,7 @@ public class AudioRuntime : MonoBehaviour
             // scene load, which would quietly fill the pool with dead entries that are
             // never reused and never replaced.
             sourceTransform.SetParent(transform, worldPositionStays: false);
-            sourceTransform.position = position;
+            sourceTransform.position = new Vector3(position.x, position.y, planeZ);
         }
 
         source.clip = clip;
@@ -98,9 +101,46 @@ public class AudioRuntime : MonoBehaviour
         source.minDistance = entry.minDistance;
         source.maxDistance = entry.maxDistance;
         source.rolloffMode = AudioRolloffMode.Linear;
+        // Pooled sources teleport across the map between plays. Unity derives doppler from how
+        // far a source moved since the last frame, so without this a reused source can open with
+        // a pitch swoop that has nothing to do with anything in the scene. A top-down 2D game has
+        // no use for doppler anyway.
+        source.dopplerLevel = 0f;
         source.loop = false;
         source.Play();
     }
+
+    /// <summary>
+    /// The z the sound should sit at to be heard in the plane the game is played in: the
+    /// listener's own.
+    ///
+    /// The <see cref="AudioListener"/> lives on the Main Camera, which is 10 units back on z.
+    /// Every sound in this game happens at z ~ 0, so the listener hears all of them from 10 units
+    /// away and slightly in front - which wrecks both halves of positional audio at once. Volume:
+    /// an enemy standing next to the player is 10.05 units away, not 1, so with the usual
+    /// minDistance 2 / maxDistance 18 it plays at half volume. Direction: a sound 5 units to the
+    /// left sits at (-5, 0, 10) in listener space, barely 26 degrees off centre, so it pans
+    /// almost not at all and everything sounds like it is straight ahead.
+    ///
+    /// Flattening the source onto the listener's plane fixes both: distances become the XY
+    /// distances the game is actually about, and something to the left is fully to the left.
+    /// Non-positional sounds (spatialBlend 0 - UI, music) are unaffected either way, so they keep
+    /// the position they were given.
+    /// </summary>
+    private float ListenerPlaneZ(SoundBank.SoundEntry entry)
+    {
+        if (entry.spatialBlend <= 0f) return 0f;
+
+        if (_listener == null) _listener = FindFirstObjectByType<AudioListener>();
+
+        return _listener != null ? _listener.transform.position.z : 0f;
+    }
+
+    /// <summary>
+    /// Cached listener. Re-resolved whenever it goes null, which covers the player prefab it
+    /// lives on being respawned on a scene load.
+    /// </summary>
+    private AudioListener _listener;
 
     /// <summary>
     /// The one source music plays through, deliberately outside <see cref="_pool"/>. A

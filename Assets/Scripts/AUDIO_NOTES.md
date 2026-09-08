@@ -161,6 +161,7 @@ dropped in without touching the mixer or the routing code.
 | `chest.open`, `chest.close` | `ChestInteractable` | |
 | `item.pickup`, `item.drop` | `WorldItemPickup` | |
 | `enemy.idle` | `EnemyBase` | ambient moan while the enemy has **not** noticed the player — random 4-6 s cadence per enemy, gated on distance (2a) |
+| `enemy.footstep` | `EnemyFootstepAudio` | one stride of a walking enemy; cadence follows measured ground speed, so a chase is audibly faster than a patrol (2d) |
 | `enemy.alert`, `enemy.attack`, `enemy.hurt`, `enemy.death` | `EnemyBase`, `EnemyMeleeAttack` | alert fires once per hunt, not per re-sighting (2c); attack fires on the wind-up, not on the hit (2b) |
 | `surface.glass.step` | `PlayerNoiseEmitter` via `PlayerSurfaceTracker` | replaces the footstep while the player stands on a `NoisySurface` |
 | `music.menu` | `MainMenuController` | started in `Start`, stopped in `OnDestroy` so every exit from the menu scene is covered — including the Load button, which leaves through `SaveManager.Load` |
@@ -216,6 +217,61 @@ moaning feels constant: raise `idleSoundIntervalMin` past the longest clip.
 run seconds and an enemy can be killed mid-moan), and a pooled source parented to a
 destroyed object goes down with it. The cost is that the moan does not travel with a
 patrolling enemy — acceptable for a sound that is meant to be *somewhere over there*.
+
+## 2d. Enemy footsteps (`enemy.footstep`)
+
+`EnemyFootstepAudio`, on both enemy prefabs. The player can already hear an enemy moan and bark;
+what was missing was hearing one *walk* - the cue that something is coming down the corridor before
+it is visible.
+
+- **The player's own footstep clip**, reused rather than authored separately: same floor, same
+  boots. The bank entry does the separating - `volume 0.45`, `pitchMin/Max 0.8-0.92`, so it reads as
+  a heavier body than the player's without being a different sound.
+- **Distance is the whole point.** `spatialBlend 1`, `minDistance 1.5`, `maxDistance 14`, and
+  `AudioRuntime` uses `AudioRolloffMode.Linear`, so an enemy fades smoothly out to nothing over
+  those 12.5 units. The range is deliberately far shorter than `enemy.idle`'s 30: a moan carries
+  across a wing of the dungeon, a footfall does not. `volume 0.22` keeps it under the moan too - it
+  should be something the player notices, not something they listen to.
+- **Cadence follows measured speed**, not the AI state: `stepInterval * referenceSpeed / speed`,
+  clamped to 0.22-1.2 s. A chasing enemy (chase multiplier 2x) steps twice as fast, which is the
+  cue that it has seen you; an enemy grinding against a wall goes quiet rather than marching on the
+  spot. Speed is smoothed, because a throttled AI tick moves the transform in jumps and raw
+  per-frame speed would flip between sprinting and standing several times a second.
+- **No cooldown** on the entry, for the same reason `enemy.alert` has none: `AudioService` keys
+  cooldowns on the id, so any guard here would silence the second enemy of a pair walking together
+  - and two sets of footsteps is exactly the information the player wants.
+- Parked enemies (`EnemyBase.IsCulled`, cull distance 60) skip the component entirely. They are far
+  past `maxDistance` anyway, so this costs nothing audible and saves the work.
+
+## 2e. The listener plane (why nothing panned)
+
+Positional audio was in place from the start - `spatialBlend 1` on every world sound - and it still
+sounded like everything happened directly in front of the player. The `AudioListener` lives on the
+Main Camera, which sits at local **z = -10**, while every sound in the game happens at z ~ 0. So
+the listener heard all of them from 10 units away and slightly in front, which breaks both halves
+of positional audio at once:
+
+- **Volume.** An enemy standing right next to the player is `sqrt(1 + 100) = 10.05` units away, not
+  1. At `minDistance 2` / `maxDistance 18` that is half volume for something in arm's reach, and
+  the far end of the curve was unreachable in practice.
+- **Direction.** A sound 5 units to the left is at `(-5, 0, 10)` in listener space - 26 degrees off
+  centre. Unity pans that as very nearly straight ahead, so left and right were never audible as
+  left and right.
+
+`AudioRuntime.PlayClip` now flattens every positional source onto the listener's own z
+(`ListenerPlaneZ`), keeping x and y. Distances become the XY distances the game is actually about,
+and something to the left is fully to the left. Non-positional sounds (`spatialBlend 0` - UI,
+music) are untouched. The listener is re-resolved whenever it goes null, which covers the player
+prefab it lives on being rebuilt by a scene load.
+
+Two things this depends on, both already true and both worth not breaking: the project's speaker
+mode is Stereo (`AudioManager.asset`, `Default Speaker Mode: 2`), and the world sfx clips import
+with `forceToMono: 1` - Unity pans a mono clip cleanly, a stereo one keeps its own channels and
+smears the direction.
+
+Also set there: `dopplerLevel = 0`. Sources are pooled and teleport across the map between plays,
+and Unity derives doppler from how far a source moved since the last frame, so a reused source
+could open with a pitch swoop belonging to nothing in the scene.
 
 ## 2b. The enemy's combat voice (`enemy.alert`, `enemy.attack`, `enemy.hurt`, `enemy.death`)
 

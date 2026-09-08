@@ -13,7 +13,7 @@ using UnityEngine;
 ///   attack (triggered by combat code)  -> ATAK (one-shot, via TriggerAttack)
 /// </summary>
 [RequireComponent(typeof(EnemyBase))]
-public class SkullGuyAnimationDriver : MonoBehaviour
+public class SkullGuyAnimationDriver : MonoBehaviour, IFacingProvider
 {
     // Clip names — must match the clip names set on EnemySpriteAnimator (see the loader tool).
     private const string Idle = "SPOCZYNEK";
@@ -49,6 +49,8 @@ public class SkullGuyAnimationDriver : MonoBehaviour
     private Vector3 lastPosition;
     private Vector3 velocity;
     private float smoothedSpeed;
+    private float facingAngleDeg;
+    private bool wasCulled;
 
     private void Awake()
     {
@@ -75,8 +77,17 @@ public class SkullGuyAnimationDriver : MonoBehaviour
     {
         prevState = enemy.CurrentState;
         lastPosition = transform.position;
+        facingAngleDeg = visual != null ? visual.eulerAngles.z - spriteForwardOffsetDeg : 0f;
         animator?.Play(Idle);
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// This is the same angle the sprite is turned to, so anything reading it — the vision cone
+    /// above all — points exactly where the enemy is drawn looking, including while it stands
+    /// still. Tracked even when <c>rotateToFaceTarget</c> is off and the art never turns.
+    /// </remarks>
+    public float FacingAngleDeg => facingAngleDeg;
 
     /// <summary>Plays the attack animation. Subscribed to <see cref="EnemyMeleeAttack.AttackStarted"/>.</summary>
     public void TriggerAttack()
@@ -86,15 +97,37 @@ public class SkullGuyAnimationDriver : MonoBehaviour
 
     private void Update()
     {
-        if (animator == null)
+        // Parked enemies (EnemyBase culling) are far enough away that nobody is looking at them;
+        // stepping animation frames for them is the same wasted work as pathfinding for them.
+        if (enemy.IsCulled)
+        {
+            wasCulled = true;
             return;
+        }
+
+        if (wasCulled)
+        {
+            // Velocity is derived from how far the transform moved since the last frame this ran.
+            // Without this the first frame back compares against a position from before the park
+            // and reads as one enormous stride.
+            wasCulled = false;
+            lastPosition = transform.position;
+            smoothedSpeed = 0f;
+        }
 
         UpdateVelocity();
         bool moving = velocity.magnitude > moveThreshold;
         EnemyState state = enemy.CurrentState;
 
-        // Facing runs every frame — the enemy keeps facing its target even while roaring/attacking.
+        // Facing runs every frame — the enemy keeps facing its target even while roaring/attacking,
+        // and even without an animator, since the vision cone reads it.
         UpdateFacing(state, moving);
+
+        if (animator == null)
+        {
+            prevState = state;
+            return;
+        }
 
         // While a one-shot (roar/attack) is still in progress, don't change the animation.
         // Once it has finished (holding its last frame), release and pick the next state.
@@ -171,9 +204,6 @@ public class SkullGuyAnimationDriver : MonoBehaviour
 
     private void UpdateFacing(EnemyState state, bool moving)
     {
-        if (!rotateToFaceTarget || visual == null)
-            return;
-
         Vector2 dir;
         if (state == EnemyState.FollowPlayer
             || state == EnemyState.InvestigateLastKnown
@@ -182,13 +212,19 @@ public class SkullGuyAnimationDriver : MonoBehaviour
         else if (moving)
             dir = velocity;
         else
-            return; // idle — keep current facing
+            dir = Vector2.zero; // idle — keep current facing
 
-        if (dir.sqrMagnitude < 0.0001f)
+        // The facing angle is tracked even when the art is not directional, because the vision
+        // cone reads it through IFacingProvider.
+        if (dir.sqrMagnitude >= 0.0001f)
+        {
+            float targetAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+            facingAngleDeg = Mathf.MoveTowardsAngle(facingAngleDeg, targetAngle, turnSpeedDeg * Time.deltaTime);
+        }
+
+        if (!rotateToFaceTarget || visual == null)
             return;
 
-        float targetAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg + spriteForwardOffsetDeg;
-        Quaternion targetRot = Quaternion.Euler(0f, 0f, targetAngle);
-        visual.rotation = Quaternion.RotateTowards(visual.rotation, targetRot, turnSpeedDeg * Time.deltaTime);
+        visual.rotation = Quaternion.Euler(0f, 0f, facingAngleDeg + spriteForwardOffsetDeg);
     }
 }

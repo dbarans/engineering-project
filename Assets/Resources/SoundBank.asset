@@ -247,6 +247,17 @@ MonoBehaviour:
     minDistance: 3
     maxDistance: 30
     cooldown: 0.5
+  - id: enemy.footstep
+    clips:
+    - {fileID: 8300000, guid: 3b103567b2254d1ba55fd40a04f9c6a0, type: 3}
+    channel: 0
+    volume: 0.22
+    pitchMin: 0.8
+    pitchMax: 0.92
+    spatialBlend: 1
+    minDistance: 1.5
+    maxDistance: 14
+    cooldown: 0
   - id: enemy.alert
     clips:
     - {fileID: 8300000, guid: ed29b25d8df1c0ea19475061728394f7, type: 3}

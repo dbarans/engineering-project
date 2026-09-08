@@ -20,4 +20,12 @@ public class EnemySaveState
 
     /// <summary>Last seen player position as [x, y]; null when the enemy never saw the player.</summary>
     public float[] lastKnownPlayerPos;
+
+    /// <summary>
+    /// The post this enemy guards / roams around, as [x, y]. Runtime-spawned enemies get their
+    /// position from the save after Awake has already run, so without this a loaded guard would
+    /// treat wherever the prefab was instantiated as home. Null in saves written before this
+    /// field existed — the enemy then keeps the post it picked up on spawn.
+    /// </summary>
+    public float[] homePos;
 }

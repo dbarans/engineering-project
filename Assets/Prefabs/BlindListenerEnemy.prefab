@@ -405,6 +405,7 @@ GameObject:
   - component: {fileID: 8613185589414859184}
   - component: {fileID: 8297037061503491443}
   - component: {fileID: -220872817626310720}
+  - component: {fileID: 2017720869098449900}
   m_Layer: 7
   m_Name: BlindListenerEnemy
   m_TagString: Enemy
@@ -595,19 +596,29 @@ MonoBehaviour:
   gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
   detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
-  investigateArrivalThreshold: 0.35
+  investigateArrivalThreshold: 0.7
   waypoints: []
   waypointReachedThreshold: 1.05
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
   skipInvestigateWhenLostPlayer: 0
-  postInvestigateBehavior: 1
+  idleBehavior: 2
+  guardChance: 0.3
+  postInvestigateBehavior: 2
+  wanderAfterLosingChance: 0.6
+  searchDuration: 10
+  searchStepDistance: 1.5
+  searchProbeDistance: 1.6
+  maxSearchJunctions: 4
+  investigateTimeout: 8
+  wanderTargetTimeout: 6
   wanderRadius: 5.7
   idleSoundRadius: 26
   idleSoundIntervalMin: 4
   idleSoundIntervalMax: 6
   fullUpdateMargin: 8
   throttledTickInterval: 0.35
+  cullDistance: 60
   corpsePrefab: {fileID: 7566011447024258560, guid: 2a4fe617542b3ed4ab6fd77ba156f5bb, type: 3}
   possibleDrops: []
   possibleRandomDrops:
@@ -672,3 +683,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyBarrelAttacker
   damagePerHit: 25
   attackInterval: 1.2
+--- !u!114 &2017720869098449900
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6831290240910429170}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8af1652442c846489eda5a9301f5b915, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveThreshold: 0.15
+  stepInterval: 0.6
+  referenceSpeed: 1.8
+  minStepInterval: 0.22
+  maxStepInterval: 1.2

@@ -15,31 +15,51 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
     [Tooltip("Vision cone angle in degrees, centered on the enemy's current facing direction. 360 = full circle, sees in every direction regardless of facing (old behavior).")]
     [Range(1f, 360f)]
     [SerializeField] private float viewAngle = 360f;
-    [Tooltip("How fast the facing direction can turn to follow movement, in degrees/second. Keeps the cone from snapping instantly on a direction change.")]
+    [Tooltip("How fast the facing direction can turn to follow movement, in degrees/second. Keeps the cone from snapping instantly on a direction change. Ignored when the enemy has a facing-aware visual (e.g. SkullGuyAnimationDriver) — the cone then uses the sprite's own turn speed.")]
     [SerializeField] private float turnSpeedDeg = 360f;
     [SerializeField] private GizmoDebugSettings gizmoDebugSettings;
 
     private Vector3 lastPosition;
     private float facingAngleDeg;
+    private IFacingProvider facingProvider;
+    private EnemyBase enemy;
 
     private void Awake()
     {
         lastPosition = transform.position;
+        facingProvider = GetComponent<IFacingProvider>();
+        enemy = GetComponent<EnemyBase>();
     }
+
+    /// <summary>
+    /// Angle the cone is currently centered on. Follows the visual facing when the enemy has one
+    /// (<see cref="IFacingProvider"/>), so the cone always points where the enemy is drawn
+    /// looking — including while it stands still, chases, or attacks without moving.
+    /// </summary>
+    private float FacingAngleDeg => facingProvider != null ? facingProvider.FacingAngleDeg : facingAngleDeg;
 
     private void Update()
     {
-        if (viewAngle >= 360f) return;
+        if (viewAngle >= 360f || facingProvider != null) return;
 
+        // Fallback for enemies without a facing-aware visual: aim at whatever the AI is heading
+        // for, and fall back to travelled distance when there is no target (e.g. plain patrol).
         Vector3 position = transform.position;
         Vector3 delta = position - lastPosition;
         lastPosition = position;
+
+        if (enemy != null)
+        {
+            Vector3 toTarget = enemy.CurrentTargetPosition - position;
+            if (toTarget.sqrMagnitude >= 0.0001f) delta = toTarget;
+        }
 
         if (delta.sqrMagnitude < 0.0001f) return;
 
         float targetAngle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
         facingAngleDeg = Mathf.MoveTowardsAngle(facingAngleDeg, targetAngle, turnSpeedDeg * Time.deltaTime);
     }
+
     /// <inheritdoc />
     public float DetectionRange => range;
 
@@ -56,7 +76,7 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
         if (viewAngle < 360f)
         {
             float angleToPlayer = Mathf.Atan2(target.y - origin.y, target.x - origin.x) * Mathf.Rad2Deg;
-            if (Mathf.Abs(Mathf.DeltaAngle(facingAngleDeg, angleToPlayer)) > viewAngle * 0.5f)
+            if (Mathf.Abs(Mathf.DeltaAngle(FacingAngleDeg, angleToPlayer)) > viewAngle * 0.5f)
                 return false;
         }
 
@@ -79,9 +99,10 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
         }
 
         Vector3 origin = transform.position;
+        float facing = FacingAngleDeg;
         float halfAngle = viewAngle * 0.5f;
-        Vector3 leftEdge = DirectionForAngle(facingAngleDeg - halfAngle);
-        Vector3 rightEdge = DirectionForAngle(facingAngleDeg + halfAngle);
+        Vector3 leftEdge = DirectionForAngle(facing - halfAngle);
+        Vector3 rightEdge = DirectionForAngle(facing + halfAngle);
 
         Gizmos.DrawLine(origin, origin + leftEdge * range);
         Gizmos.DrawLine(origin, origin + rightEdge * range);
@@ -90,7 +111,7 @@ public class VisionPlayerDetector : MonoBehaviour, IPlayerDetector
         Vector3 previousPoint = origin + leftEdge * range;
         for (int i = 1; i <= arcSegments; i++)
         {
-            float angle = facingAngleDeg - halfAngle + viewAngle * i / arcSegments;
+            float angle = facing - halfAngle + viewAngle * i / arcSegments;
             Vector3 point = origin + DirectionForAngle(angle) * range;
             Gizmos.DrawLine(previousPoint, point);
             previousPoint = point;

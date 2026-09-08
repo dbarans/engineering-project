@@ -143,6 +143,17 @@ public static class SoundId
     /// </summary>
     public const string EnemyAlert = "enemy.alert";
 
+    /// <summary>
+    /// One stride of a walking enemy, played by <see cref="EnemyFootstepAudio"/> at a cadence
+    /// that follows its actual ground speed - a chase is audibly faster than a patrol.
+    ///
+    /// Shares the player's footstep clip on purpose (same floor, same boots), pitched and turned
+    /// down in the bank entry so the two are still tellable apart, and positional so an enemy
+    /// gets quieter the further away it is. That falloff is the point: it is how the player
+    /// locates something they cannot see.
+    /// </summary>
+    public const string EnemyFootstep = "enemy.footstep";
+
     public const string EnemyAttack = "enemy.attack";
     public const string EnemyHurt = "enemy.hurt";
     public const string EnemyDeath = "enemy.death";

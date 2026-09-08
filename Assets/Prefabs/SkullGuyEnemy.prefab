@@ -517,6 +517,9 @@ MonoBehaviour:
   skipInvestigateWhenLostPlayer: 0
   postInvestigateBehavior: 0
   wanderRadius: 4
+  idleSoundRadius: 26
+  idleSoundIntervalMin: 4
+  idleSoundIntervalMax: 6
   fullUpdateMargin: 8
   throttledTickInterval: 0.35
   corpsePrefab: {fileID: 7566011447024258560, guid: 2a4fe617542b3ed4ab6fd77ba156f5bb, type: 3}
@@ -685,7 +688,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9ff8be997c0d361448203e802d91e14c, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SoundPlayerDetector
   hearingRange: 12
   hearingBlockerMask:

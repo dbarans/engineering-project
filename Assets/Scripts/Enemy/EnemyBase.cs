@@ -567,27 +567,38 @@ public abstract class EnemyBase : MonoBehaviour
         return EnemyState.ReturnToPatrol;
     }
 
+    private static readonly float[] RadiusShrinkStages = { 1f, 0.5f, 0.25f };
+
     /// <summary>
     /// Picks a new random point within wanderRadius of wanderAnchor, preferring one the movement
     /// strategy can actually stand on. An unvetted point lands inside a wall often enough that it
     /// used to cost a failed full-map search every time.
+    ///
+    /// Tries the full radius first, then shrinks it in stages — a tight corridor or alcove can
+    /// fail every full-radius candidate while still having walkable space closer to the anchor,
+    /// and picking a nearer point beats standing still, which is what the old single-radius
+    /// attempt collapsed to.
     /// </summary>
     private void PickRandomWanderTarget()
     {
-        const int attempts = 6;
+        const int attemptsPerRadius = 6;
 
-        for (int i = 0; i < attempts; i++)
+        foreach (float scale in RadiusShrinkStages)
         {
-            Vector2 candidate = wanderAnchor + Random.insideUnitCircle * wanderRadius;
-            if (walkabilityProbe == null || walkabilityProbe.IsWalkable(candidate))
+            float radius = wanderRadius * scale;
+            for (int i = 0; i < attemptsPerRadius; i++)
             {
-                wanderTargetPosition = candidate;
-                return;
+                Vector2 candidate = wanderAnchor + Random.insideUnitCircle * radius;
+                if (walkabilityProbe == null || walkabilityProbe.IsWalkable(candidate))
+                {
+                    wanderTargetPosition = candidate;
+                    return;
+                }
             }
         }
 
-        // Every candidate was blocked (enemy boxed in): stay put rather than commit to a target
-        // that is known to be unreachable.
+        // Every candidate at every radius was blocked (enemy boxed in on all sides): stay put
+        // rather than commit to a target that is known to be unreachable.
         wanderTargetPosition = transform.position;
     }
 

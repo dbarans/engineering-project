@@ -191,14 +191,22 @@ MonoBehaviour:
   destroySound: {fileID: 0}
   brokenBarrelPrefab: {fileID: 7824652612784877508, guid: 278a6e04ce3f4aa48b0e804b51fb57ca, type: 3}
   dropsOnDestroy:
-  - itemData: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
-    dropChance: 20
-    minQuantity: 1
-    maxQuantity: 3
   - itemData: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
-    dropChance: 25
+    dropChance: 40
     minQuantity: 1
     maxQuantity: 3
+  - itemData: {fileID: 11400000, guid: 23296802becac4c4fb0cccf7fd6fdb4e, type: 2}
+    dropChance: 30
+    minQuantity: 1
+    maxQuantity: 2
+  - itemData: {fileID: 11400000, guid: a3d1f7c25e8b4c94b1f0d6e2a7c58931, type: 2}
+    dropChance: 12
+    minQuantity: 1
+    maxQuantity: 2
+  - itemData: {fileID: 11400000, guid: 8b62e4d17a394f5cae03d1b8f6c27a45, type: 2}
+    dropChance: 10
+    minQuantity: 1
+    maxQuantity: 1
 --- !u!114 &596409709297033452
 MonoBehaviour:
   m_ObjectHideFlags: 0

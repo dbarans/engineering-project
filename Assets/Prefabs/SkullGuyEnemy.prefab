@@ -523,12 +523,20 @@ MonoBehaviour:
   possibleRandomDrops:
   - itemData: {fileID: 11400000, guid: f1e2d3c4b5a6978869504132a1b2c3d4, type: 2}
     minQuantity: 1
-    maxQuantity: 5
-    dropChancePercent: 100
-  - itemData: {fileID: 11400000, guid: b24a448e44a44e27ac9d3380141b3048, type: 2}
-    minQuantity: 1
     maxQuantity: 3
-    dropChancePercent: 100
+    dropChancePercent: 70
+  - itemData: {fileID: 11400000, guid: 2f7c9a53d1e64b08bc47a92e35f18d6c, type: 2}
+    minQuantity: 1
+    maxQuantity: 2
+    dropChancePercent: 30
+  - itemData: {fileID: 11400000, guid: a3d1f7c25e8b4c94b1f0d6e2a7c58931, type: 2}
+    minQuantity: 1
+    maxQuantity: 2
+    dropChancePercent: 25
+  - itemData: {fileID: 11400000, guid: 8b62e4d17a394f5cae03d1b8f6c27a45, type: 2}
+    minQuantity: 1
+    maxQuantity: 1
+    dropChancePercent: 20
 --- !u!50 &2876300555410741934
 Rigidbody2D:
   serializedVersion: 5

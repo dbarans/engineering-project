@@ -28,6 +28,9 @@ public class SoundBank : ScriptableObject
         [Tooltip("Clips for this sound. More than one picks a random clip per play. Empty = log to console instead of playing.")]
         public AudioClip[] clips = Array.Empty<AudioClip>();
 
+        [Tooltip("Mixer group this sound plays through, so it can be turned down separately from the rest. Sfx is the default and covers everything in the world.")]
+        public AudioChannel channel = AudioChannel.Sfx;
+
         [Range(0f, 1f)]
         [Tooltip("Playback volume.")]
         public float volume = 1f;

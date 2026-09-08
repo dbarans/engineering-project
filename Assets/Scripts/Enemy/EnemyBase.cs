@@ -77,6 +77,16 @@ public abstract class EnemyBase : MonoBehaviour
     [Tooltip("Radius within which random wander points are picked: around the spot where the player was lost (WanderNearLastPosition), or around the spawn position for enemies with no waypoints configured.")]
     [SerializeField] private float wanderRadius = 4f;
 
+    [Header("Idle audio")]
+    [Tooltip("How close the player has to be for this enemy's idle sound to fire at all. Deliberately wider than the player's own view radius (FieldOfView, 15) — hearing what you cannot see is the point. Raising it past the SoundBank entry's maxDistance does nothing: the 3D falloff has already reached silence by then, so both have to move together. 0 keeps this enemy silent while idle.")]
+    [SerializeField] private float idleSoundRadius = 26f;
+    [Tooltip("Shortest gap between two idle sounds from this enemy, in seconds.")]
+    [Min(0f)]
+    [SerializeField] private float idleSoundIntervalMin = 4f;
+    [Tooltip("Longest gap between two idle sounds from this enemy, in seconds. The actual gap is drawn per sound, so two enemies never settle into the same rhythm.")]
+    [Min(0f)]
+    [SerializeField] private float idleSoundIntervalMax = 6f;
+
     [Header("Performance")]
     [Tooltip("Extra distance added to this enemy's own sensor ranges. Inside the result the AI ticks every frame; outside it, only every throttledTickInterval. A dungeon holds dozens of enemies and nearly all of them are far away at any moment.")]
     [SerializeField] private float fullUpdateMargin = 8f;
@@ -116,6 +126,13 @@ public abstract class EnemyBase : MonoBehaviour
     private float lastTickTime;
     private float lastTickDelta;
     private float tickSpeedScale = 1f;
+    private float nextIdleSoundTime;
+
+    /// <summary>
+    /// Whether this enemy has already barked for the hunt it is currently on. Latched in
+    /// <see cref="UpdateAlertAudio"/>, cleared only when the trail goes cold.
+    /// </summary>
+    private bool hasAlertedThisHunt;
 
     private EnemyState currentState = EnemyState.Idle;
     private int currentWaypointIndex;
@@ -182,6 +199,7 @@ public abstract class EnemyBase : MonoBehaviour
         // Random phase so a crowd of enemies spawned in the same frame does not land all of its
         // throttled ticks (and their path searches) on the same frame forever after.
         nextThrottledTickTime = Time.time + Random.value * Mathf.Max(0f, throttledTickInterval);
+        ScheduleNextIdleSound();
 
         rb = GetComponent<Rigidbody2D>();
         if (rb != null) rb.constraints = RigidbodyConstraints2D.FreezeRotation;
@@ -242,6 +260,7 @@ public abstract class EnemyBase : MonoBehaviour
         tickSpeedScale = Time.deltaTime > 0f ? Mathf.Clamp(lastTickDelta / Time.deltaTime, 0f, 60f) : 1f;
 
         UpdateStateMachine();
+        UpdateIdleAudio();
         ResolveUnreachablePatrolWaypoint();
         ResolveUnreachableWanderTarget();
         if (movementStrategy != null && ShouldMove())
@@ -318,11 +337,6 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     private void UpdateStateMachine()
     {
-        // Six separate branches below can enter FollowPlayer. Comparing the state across
-        // the whole machine catches the transition once, in one place, instead of needing
-        // an alert call bolted onto each of them (and re-bolted onto every future one).
-        EnemyState stateBefore = currentState;
-
         if (IsPlayerDetected())
             lastDetectionTime = Time.time;
 
@@ -435,10 +449,103 @@ public abstract class EnemyBase : MonoBehaviour
                 break;
         }
 
-        // Only the moment the chase begins. Re-detecting the player mid-chase does not
-        // re-alert, because the state never left FollowPlayer to come back to it.
-        if (currentState == EnemyState.FollowPlayer && stateBefore != EnemyState.FollowPlayer)
+        UpdateAlertAudio();
+    }
+
+    /// <summary>
+    /// The bark on spotting the player: <b>once per hunt</b>, not once per time the enemy
+    /// re-acquires them.
+    ///
+    /// The transition into <see cref="EnemyState.FollowPlayer"/> alone is not enough. Losing
+    /// the player drops the chase into an investigate state, and re-finding them from there
+    /// is a *second* transition in — so a player ducking in and out of cover, which is the
+    /// core stealth loop, got barked at every 1.5 s
+    /// (<see cref="detectionMemoryDuration"/>). The alert has to mean "it has found you",
+    /// and something that fires that often means nothing.
+    ///
+    /// The latch clears only once the enemy has genuinely given up: back to patrolling,
+    /// idling, or wandering where it lost the trail. Investigating deliberately does
+    /// <em>not</em> clear it — the enemy is still hunting, and picking the trail back up is
+    /// the same hunt continuing. The next real sighting after it gives up barks again.
+    /// </summary>
+    private void UpdateAlertAudio()
+    {
+        if (currentState == EnemyState.FollowPlayer)
+        {
+            if (hasAlertedThisHunt) return;
+
             AudioService.PlayAt(SoundId.EnemyAlert, transform.position);
+            hasAlertedThisHunt = true;
+            return;
+        }
+
+        // Every state that is not the chase and not an investigation: the trail is cold.
+        if (currentState == EnemyState.Idle
+            || currentState == EnemyState.ReturnToPatrol
+            || currentState == EnemyState.WanderNearLastPosition)
+        {
+            hasAlertedThisHunt = false;
+        }
+    }
+
+    /// <summary>
+    /// The moan an enemy makes while it has not noticed the player, on its own random
+    /// cadence and only while the player is near enough to hear it mean something.
+    ///
+    /// Everything except <see cref="EnemyState.FollowPlayer"/> counts as idle. That one state
+    /// already has a voice — <c>enemy.alert</c> on the way in, <c>enemy.attack</c> while it
+    /// lands blows — and those two are what tell the player they have been seen. Layering a
+    /// moan over them would blur the one cue that has to stay unambiguous. Investigating
+    /// still moans: the enemy is looking, not looking <em>at you</em>, and hearing it search
+    /// nearby is the point.
+    ///
+    /// The radius is a gate, not a volume curve. The clip's 3D falloff (SoundBank
+    /// minDistance/maxDistance) already decides loudness; without the gate every enemy in the
+    /// dungeon would still be *playing*, burning the 24-source pool on sounds attenuated to
+    /// nothing and stealing voices from the ones the player can actually hear.
+    ///
+    /// While the gate is shut the timer is pushed forward rather than left running down, so a
+    /// moan lands 4-6 s <em>after</em> the player arrives instead of the instant they cross
+    /// the line — and a room full of enemies that all idled through the same long silence does
+    /// not greet them in unison.
+    /// </summary>
+    private void UpdateIdleAudio()
+    {
+        if (idleSoundRadius <= 0f) return;
+
+        if (currentState == EnemyState.FollowPlayer || !IsPlayerWithinIdleSoundRange())
+        {
+            ScheduleNextIdleSound();
+            return;
+        }
+
+        if (Time.time < nextIdleSoundTime) return;
+
+        // PlayAt, not PlayOn: the moan outlives the enemy that started it (these clips run
+        // several seconds and the enemy can be killed mid-sound), and a pooled source
+        // parented to an object that is then destroyed goes down with it. The same reason
+        // every other enemy sound here is fixed to a point — see AUDIO_NOTES.md D5.
+        AudioService.PlayAt(SoundId.EnemyIdle, transform.position);
+        ScheduleNextIdleSound();
+    }
+
+    /// <summary>Whether the player is inside <c>idleSoundRadius</c> of this enemy.</summary>
+    private bool IsPlayerWithinIdleSoundRange()
+    {
+        if (player == null) return false;
+
+        Vector2 toPlayer = (Vector2)player.position - (Vector2)transform.position;
+        return toPlayer.sqrMagnitude <= idleSoundRadius * idleSoundRadius;
+    }
+
+    /// <summary>
+    /// Arms the idle-sound timer with a freshly drawn interval. Mathf.Max guards an inspector
+    /// where max was left below min, which Random.Range would otherwise silently invert.
+    /// </summary>
+    private void ScheduleNextIdleSound()
+    {
+        nextIdleSoundTime = Time.time +
+            Random.Range(idleSoundIntervalMin, Mathf.Max(idleSoundIntervalMin, idleSoundIntervalMax));
     }
 
     /// <summary>
@@ -853,6 +960,13 @@ public abstract class EnemyBase : MonoBehaviour
         {
             Gizmos.color = Color.magenta;
             Gizmos.DrawWireSphere(transform.position, wanderRadius);
+        }
+
+        if (idleSoundRadius > 0f &&
+            (gizmoDebugSettings == null || gizmoDebugSettings.IsVisible(GizmoRanges.EnemyIdleSound)))
+        {
+            Gizmos.color = new Color(0.5f, 0.8f, 1f, 0.6f);
+            Gizmos.DrawWireSphere(transform.position, idleSoundRadius);
         }
     }
 }

@@ -50,6 +50,26 @@ public class GameManager : MonoBehaviour, IGameStateManager
         Initialize();
     }
 
+    /// <summary>
+    /// Starts the dungeon ambience. In Start rather than Awake so it runs after
+    /// AudioRuntime's AfterSceneLoad bootstrap, and on this component because it lives only
+    /// in the dungeon scene — every route in (Play, a loaded save, the death screen's
+    /// restart) reloads that scene and so re-runs this.
+    /// </summary>
+    private void Start()
+    {
+        AudioService.PlayMusic(SoundId.MusicDungeon);
+    }
+
+    /// <summary>
+    /// Stops it on the way out, wherever the exit is. AudioRuntime is DontDestroyOnLoad, so
+    /// a track nobody stops would play on under the main menu.
+    /// </summary>
+    private void OnDestroy()
+    {
+        AudioService.StopMusic();
+    }
+
     private void Initialize()
     {
         if (startGameOnAwake)
@@ -143,7 +163,12 @@ public class GameManager : MonoBehaviour, IGameStateManager
         if (CurrentState == GameState.Victory) return;
 
         CurrentState = GameState.Victory;
-        Time.timeScale = 1f;
+
+        var victoryUI = FindFirstObjectByType<VictoryScreenUI>(FindObjectsInactive.Include);
+        if (victoryUI != null)
+        {
+            victoryUI.Show();
+        }
     }
 
     /// <summary>

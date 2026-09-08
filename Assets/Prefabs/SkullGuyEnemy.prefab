@@ -405,6 +405,8 @@ GameObject:
   - component: {fileID: 7423423773025333004}
   - component: {fileID: 1314641274194213762}
   - component: {fileID: -4437207530829870633}
+  - component: {fileID: 4938097524118985301}
+  - component: {fileID: 7423423773025333900}
   m_Layer: 7
   m_Name: SkullGuyEnemy
   m_TagString: Enemy
@@ -463,7 +465,7 @@ CircleCollider2D:
   m_CompositeOperation: 0
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
-  m_Radius: 0.51
+  m_Radius: 0.3
 --- !u!114 &570698690213097878
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -497,27 +499,36 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   maxHealth: 100
-  moveSpeed: 1.8
+  moveSpeed: 2.2
   chaseSpeedMultiplier: 2
   player: {fileID: 0}
   alwaysDetectRange: 1.6
   gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
   detectionMemoryDuration: 1.5
   investigateOvershootDistance: 1
-  investigateArrivalThreshold: 0.35
-  waypoints:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  investigateArrivalThreshold: 0.7
+  waypoints: []
   waypointReachedThreshold: 1.05
   waypointPauseDuration: 0.1
   unreachableWaypointRetryInterval: 0.6
   skipInvestigateWhenLostPlayer: 0
-  postInvestigateBehavior: 0
+  idleBehavior: 2
+  guardChance: 0.4
+  postInvestigateBehavior: 2
+  wanderAfterLosingChance: 0.5
+  searchDuration: 8
+  searchStepDistance: 1.5
+  searchProbeDistance: 1.6
+  maxSearchJunctions: 3
+  investigateTimeout: 8
+  wanderTargetTimeout: 6
   wanderRadius: 4
+  idleSoundRadius: 26
+  idleSoundIntervalMin: 4
+  idleSoundIntervalMax: 6
   fullUpdateMargin: 8
   throttledTickInterval: 0.35
+  cullDistance: 60
   corpsePrefab: {fileID: 7566011447024258560, guid: 2a4fe617542b3ed4ab6fd77ba156f5bb, type: 3}
   possibleDrops: []
   possibleRandomDrops:
@@ -674,3 +685,38 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyBarrelAttacker
   damagePerHit: 25
   attackInterval: 1.2
+--- !u!114 &4938097524118985301
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7423423773025333378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ff8be997c0d361448203e802d91e14c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SoundPlayerDetector
+  hearingRange: 12
+  hearingBlockerMask:
+    serializedVersion: 2
+    m_Bits: 768
+  heardNoiseRetention: 0.35
+  gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}
+--- !u!114 &7423423773025333900
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7423423773025333378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8af1652442c846489eda5a9301f5b915, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveThreshold: 0.15
+  stepInterval: 0.55
+  referenceSpeed: 2.2
+  minStepInterval: 0.22
+  maxStepInterval: 1.2

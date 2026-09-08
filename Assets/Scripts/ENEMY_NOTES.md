@@ -108,13 +108,178 @@ Fixed properly with **two materials, same shader**: `Materials/SpriteFovMasked.m
 
 Previously, every investigation (`InvestigateLastKnown`/`InvestigateNoise`) that ran out without re-detecting the player always ended the same way: `SelectClosestWaypoint()` + `ReturnToPatrol`. Now this is a per-enemy choice:
 
-- **`EnemyBase.postInvestigateBehavior`** (`PostInvestigateBehavior` enum: `ReturnToPatrol` / `WanderNearLastPosition`) — Inspector field under "After losing the player". Read by the new `EndInvestigation()` helper, which both `InvestigateLastKnown` and `InvestigateNoise` call once they reach their target without re-detecting the player.
+- **`EnemyBase.postInvestigateBehavior`** (`PostInvestigateBehavior` enum: `ReturnToPatrol` / `WanderNearLastPosition`; `Randomized` added later, see GU-0088) — Inspector field under "After losing the player". Read by the new `EndInvestigation()` helper, which both `InvestigateLastKnown` and `InvestigateNoise` call once they reach their target without re-detecting the player.
 - **`WanderNearLastPosition`** (new `EnemyState`) — instead of returning to fixed patrol waypoints (which don't make sense for an arbitrary spot where the player was lost), the enemy repeatedly picks a random point within `wanderRadius` of `wanderAnchor` (captured as the enemy's position the moment investigation ended) and walks there at normal `moveSpeed` (not chase speed). On arrival, picks a new random point — indefinitely, until it re-detects the player (→ `FollowPlayer`) or hears a fresh noise (→ `InvestigateNoise`, same as every other passive state).
 - Unreachable wander targets are handled the same way as unreachable patrol waypoints: `ResolveUnreachableWanderTarget()` checks `IPathStatusProvider.HasReachablePath` on a throttled retry (`unreachableWaypointRetryInterval`) and repicks.
 - Magenta gizmo (`wanderRadius`, drawn from the enemy's current position) shown when `postInvestigateBehavior == WanderNearLastPosition`, alongside the existing red `alwaysDetectRange` circle.
 - Save/restore: `WanderNearLastPosition` is transient like the other investigate states — not persisted; `RestoreSaveState` maps it back to `ReturnToPatrol` (same reasoning as `InvestigateLastKnown`/`InvestigateNoise`: the private target isn't saved, and heading for the nearest waypoint is indistinguishable to the player). Appended last in the enum so old saves keep decoding correctly.
 - No prefab/scene YAML edits needed — new fields just take their C# defaults (`ReturnToPatrol`, `wanderRadius = 4`) until set in the Inspector.
-- **Enemies with no waypoints configured no longer stand still.** `EnemyBase.spawnPosition` is captured in `Awake()`. In `Idle`, if `!HasValidWaypoint()` (no `waypoints` assigned), the enemy sets `wanderAnchor = spawnPosition` and enters `WanderNearLastPosition` — reusing the exact same wander mechanic, just anchored at spawn instead of the last-seen-player spot. This runs continuously (no exit back to `Idle` on its own), and is independent of `postInvestigateBehavior`: a waypoint-less enemy that loses a chase still ends up back in `Idle` first (`ReturnToPatrol` immediately falls through to `Idle` when there's no valid waypoint), then resumes wandering from its spawn point, not from wherever the chase ended.
+- **Enemies with no waypoints configured no longer stand still.** `EnemyBase.homePosition` (then named `spawnPosition`) is captured in `Awake()`. In `Idle`, if `!HasValidWaypoint()` (no `waypoints` assigned), the enemy sets `wanderAnchor = spawnPosition` and enters `WanderNearLastPosition` — reusing the exact same wander mechanic, just anchored at spawn instead of the last-seen-player spot. This runs continuously (no exit back to `Idle` on its own), and is independent of `postInvestigateBehavior`: a waypoint-less enemy that loses a chase still ends up back in `Idle` first (`ReturnToPatrol` immediately falls through to `Idle` when there's no valid waypoint), then resumes wandering from its spawn point, not from wherever the chase ended.
+
+## GU-0088: idle variety (guards vs roamers, and where they go after a chase)
+
+Every waypoint-less enemy used to behave identically: roam around its spawn forever, and always
+end a lost chase the one way its prefab was configured. A dungeon full of one prefab therefore
+read as one enemy copy-pasted. Two per-enemy choices now vary it:
+
+- **`EnemyBase.idleBehavior`** (`IdleBehavior`: `Wander` / `Guard` / `Randomized`, default `Randomized`,
+  `guardChance = 0.4`) — only applies to enemies with **no waypoints**; a configured patrol route
+  still wins. `Guard` holds `homePosition` and never roams; `Wander` is the old roam-around-the-post
+  behaviour.
+- **`postInvestigateBehavior`** gained `Randomized` (appended last, saved ints stay valid) with
+  `wanderAfterLosingChance = 0.5`. A resolved `Guard` always overrides it to `ReturnToPatrol` —
+  otherwise a single chase would permanently relocate a guard off the spot it was placed on.
+- **Rolls are hashed, not `Random`** (`PersonalityRoll(salt)`): a Murmur-style mix of the post
+  position, so the answer is identical every frame, across a scene reload, and across save/load,
+  yet different per enemy. Neighbouring posts get decorrelated values, so a corridor of enemies
+  does not come out uniform.
+- **`spawnPosition` → `homePosition`**, now also persisted (`EnemySaveState.homePos`). Runtime-spawned
+  enemies get their position from the save *after* `Awake` ran, so without it a loaded guard would
+  treat the instantiation point as home — and, since the roll is seeded from the post, would also
+  change personality. Old saves (null `homePos`) keep the post picked up on spawn.
+- **`ReturnToPatrol` without waypoints now means "walk back to the post"** instead of falling
+  straight through to `Idle`: `GetTargetPosition` returns `homePosition`, `ShouldMove` allows the
+  walk, and arrival (`IsAtPost()`, `EffectiveWaypointReachedThreshold`) hands over to `Idle`. This is
+  what makes "returns to its place" actually visible for enemies that never had a route.
+- **Losing the player with `skipInvestigateWhenLostPlayer`** now goes through `EndInvestigation()`
+  too, instead of hardcoding `SelectClosestWaypoint()` + `ReturnToPatrol` — otherwise the
+  wander-where-you-lost-him branch could only ever be reached via a noise investigation.
+- Gizmos: cyan post marker + line to it for a resolved `Guard`; magenta `wanderRadius` circle for a
+  roamer, drawn around the live `wanderAnchor` while wandering and around the post otherwise.
+### Searching where the trail went cold (and why the enemy used to freeze)
+
+`SkullGuy` would stop dead after the player escaped. Two causes, both fixed:
+
+1. **An investigation could never end.** `InvestigateLastKnown` / `InvestigateNoise` left their state
+   *only* by getting within `investigateArrivalThreshold` of the target. Nothing handled a target the
+   pathfinder cannot reach (behind a door, inside a wall) — unlike patrol waypoints and wander points,
+   which already had `Resolve...` helpers — so the enemy stood on a dead path indefinitely. Added
+   `ResolveUnreachableInvestigateTarget()` (same throttled `IPathStatusProvider.HasReachablePath`
+   pattern) plus `investigateTimeout` (8 s) as a safety net, armed on the tick the enemy enters an
+   investigate state and refreshed whenever a fresh noise moves the trail forward.
+   `GetInvestigateTargetPosition()` also drops the `investigateOvershootDistance` when the overshot
+   point is not walkable — the overshoot exists to clear doorways and corners, which is exactly where
+   it lands in a wall. `investigateArrivalThreshold` went 0.35 → 0.7 on both prefabs: the A* route ends
+   at a **cell centre** (`cellSize 0.55`, so up to ~0.39 away from the real target), and 0.35 could not
+   be satisfied at all on an off-centre target.
+2. **Nobody searched.** Reaching the last-known position ran `EndInvestigation()`, which immediately
+   sent the enemy home or froze it there. Now `EndInvestigation()` **always** starts a search:
+   `WanderNearLastPosition` anchored where the trail died, for `searchDuration` (8 s SkullGuy / 10 s
+   BlindListener). Only when that timer runs out does the per-enemy choice apply — head back to the
+   post (`searchEndTime = now + searchDuration`) or adopt the spot for good
+   (`searchEndTime = Infinity`, the roamer that rolled `WanderNearLastPosition`). The idle
+   roam-around-home branch also sets `Infinity`, since home is not something to give up on.
+
+### Sweeping onward instead of searching on the spot (`SearchAhead`)
+
+Poking around in circles where the trail died still read as an enemy that had given up. What a
+guard would actually do is carry on the way you went. `EnemyState.SearchAhead` (appended last in the
+enum) does that, and it is now what `EndInvestigation()` starts; the random wander-search survives
+only as the fallback for an enemy with no `IWalkabilityProbe` behind it.
+
+- **Heading**: `UpdateTravelDirection()` keeps a note of which way the enemy is actually moving,
+  sampled over distance (0.2 units) rather than per tick so a slow walk does not turn into noise.
+  The sweep starts on that heading, snapped to a cardinal - dungeon corridors are axis-aligned, so a
+  diagonal would only ever cut a corner into a wall.
+- **Steps**: each step aims `searchStepDistance` ahead. On arrival `AdvanceSearchStep()` re-probes
+  the four cardinals (never the way it came from - backtracking would make every corridor a
+  junction) with `IsPassageOpen`, three samples deep so a door frame or pillar partway along does
+  not read as open ground.
+  - one way on (straight, or round a bend) - not a decision, keep **running** at chase speed;
+  - two or more - a junction: pick one at random, and from there it is guessing rather than
+    chasing, so `searchIsWalking` flips and it drops to **walking** speed;
+  - none - dead end, sweep over.
+- **Ends** on `searchDuration` (hard cap), on the `maxSearchJunctions`-th fork, at a dead end, or on
+  a step the pathfinder cannot reach (`ResolveUnreachableInvestigateTarget` handles `SearchAhead`
+  too, re-deciding from where it stands). Then `FinishSearch()` applies the per-enemy choice: adopt
+  this patch and roam it, or head back to the post. `hasAlertedThisHunt` deliberately does *not*
+  clear during a sweep - it is still the same hunt.
+- Gizmo while playing: line to the next step target, red while running, green once walking.
+
+### The coarse-grid arrival bug (why enemies froze in `Dungeon.unity`)
+
+`AStarPathfinder` builds a route out of **cell centres** and never appends the exact requested
+point, so an enemy can only ever stop within about half a cell diagonal of its target.
+`Dungeon.unity` configures `PathfindingGrid.cellSize = 2`, i.e. up to **1.41 units** off - against an
+`investigateArrivalThreshold` of 0.35. The arrival test could not pass at all, and since arrival was
+the only exit from an investigate state, the enemy stood still. (`Bartek 01.unity` uses 0.55, where
+0.35 merely fails often.)
+
+`IWalkabilityProbe` gained `WalkableSampleSize` (`PathfindingMovement` returns
+`PathfindingGrid.CellSize`), and `EnemyBase` derives its distances from it instead of trusting the
+authored numbers:
+
+- `EffectiveArrivalThreshold` = max(`investigateArrivalThreshold`, 0.75 cell) - used by every
+  investigate, wander and sweep-step arrival test.
+- `EffectiveWaypointReachedThreshold()` = same floor, so a guard walking back to its post is not
+  chasing a threshold the grid cannot deliver either.
+- `EffectiveSearchStepDistance` >= one cell, `EffectiveSearchProbeDistance` >= 1.5 cells - a probe
+  landing inside the enemy's own cell reports every direction open, which would make every corridor
+  read as a crossroads.
+
+So the full arc is now: lose the player → run at chase speed to where they were last seen (overshoot
+past the corner) → poke around that area for several seconds → then either walk back to the post or
+settle in - and the middle of that arc is the corridor sweep below, not pottering on the spot.
+
+- Prefabs updated: `SkullGuyEnemy` (`idleBehavior: 2`, `guardChance 0.4`, `postInvestigateBehavior: 2`,
+  `wanderAfterLosingChance 0.5`), `BlindListenerEnemy` (`guardChance 0.3`, `wanderAfterLosingChance 0.6`
+  — the blind one is more interesting when it keeps moving), and the two scene overrides in
+  `Bartek 01.unity` switched to `Randomized`. `SkullGuyEnemy`'s `waypoints` array held 4 empty slots
+  (`HasValidWaypoint()` false, but `waypoints.Length == 4` — a trap for any length-based branch);
+  emptied to `[]`. Sweep tuning on the prefabs: `searchStepDistance 1.5`, `searchProbeDistance 1.6`,
+  `maxSearchJunctions` 3 (SkullGuy) / 4 (BlindListener) - all floored by the grid cell size at
+  runtime, so they matter only on a fine grid.
+
+## GU-0088: idle wandering stays in the room, and distant enemies are parked
+
+### The idle stroll across half the dungeon
+
+`PickRandomWanderTarget()` vetted candidates with `IWalkabilityProbe.IsWalkable` alone. A point two
+steps past a wall passes that test, and nothing downstream objects: the target is not *unreachable*
+(so `ResolveUnreachableWanderTarget` stays quiet, `HasReachablePath` is true), it just costs a walk
+around the room, down the corridor and back up the far side. The enemy dutifully takes it and tours
+the map on what was supposed to be idle pottering.
+
+- `IsWanderCandidateUsable()` now also requires `IsRouteLocallyClear()` - the straight line from the
+  enemy to the candidate must stay on walkable ground, sampled every half navigation cell so nothing
+  thinner than a wall slips between two samples. Wandering is a room-scale behaviour; if it needs a
+  route, it is the wrong point.
+- `wanderTargetTimeout` (6 s) as the recovery net: a wander point not reached in time is dropped and
+  another picked, whatever the geometry turned out to be.
+- `GetInvestigateTargetPosition()` applies the same line test to the `investigateOvershootDistance`
+  point - it used to check only that the overshot point was walkable, which happily accepts open
+  ground on the *far side* of the wall the player just ducked behind.
+
+### Culling: parked enemies (`cullDistance`, default 60)
+
+Throttling (`throttledTickInterval`) only slows distant enemies down - each one still runs the full
+state machine and a full A* search (up to `maxExploredNodes`, 4000) several times a second, on the
+far side of a 200x200 map, for a patrol nobody can see. `UpdateCulling()` runs before everything
+else in `Update` and parks an enemy past `cullDistance`: no state machine, no path search, no
+movement, one distance comparison per frame.
+
+- The distance is floored at the enemy's own full-update radius (widest sensor + `fullUpdateMargin`)
+  plus 4, so parking can never hide an enemy that could still detect the player.
+- 10% hysteresis between parking and waking, so an enemy on the boundary does not thrash.
+- Parking calls `IPathStatusProvider.ReleaseCachedPath()` (new): `PathfindingMovement` clears *and*
+  `TrimExcess`es its route list and forgets its last target. The A* scratch buffers are shared per
+  grid (`ConditionalWeakTable` in `AStarPathfinder`), so the per-enemy route list is the only
+  pathfinding memory an idle enemy holds - and now it does not hold it.
+- Waking resets `lastTickTime`, `nextThrottledTickTime` and the travel-direction sample.
+  `tickSpeedScale` compensates movement for a long tick, so without the reset the first tick after
+  a park would be scaled by however long the enemy stood parked and teleport it across the room.
+- `SkullGuyAnimationDriver` early-returns while `EnemyBase.IsCulled`, and re-bases `lastPosition` on
+  the way back, so a parked enemy is not stepping animation frames either and does not read one
+  enormous stride on its first frame back.
+
+### `EnemyFootstepAudio` - enemies you can hear walking
+
+New component on both enemy prefabs, playing `SoundId.EnemyFootstep` on a cadence derived from
+measured ground speed (`stepInterval * referenceSpeed / speed`, clamped 0.22-1.2 s), so a chase
+sounds faster than a patrol. It reuses the player's footstep clip, quieter and pitched down in the
+`SoundBank` entry, and positional with a linear rolloff out to 18 units - the falloff is how the
+player locates something they cannot see. Skipped entirely while `EnemyBase.IsCulled`. Details and
+the reasoning behind the bank values are in `AUDIO_NOTES.md` 2d.
 
 ## Sound tracking implementation status
 
@@ -197,6 +362,9 @@ The core of the system is `EnemyBase` (abstract MonoBehaviour) — a self-contai
 
 ## Detection
 
+### `Interfaces/IFacingProvider.cs`
+`float FacingAngleDeg { get; }` — degrees, 0 = +X, CCW positive. Implemented by `SkullGuyAnimationDriver` (which now tracks its facing angle in a field and applies it to the sprite only when `rotateToFaceTarget`), consumed by `VisionPlayerDetector`. Exists so the vision cone and the sprite can never disagree: previously the detector derived facing from per-frame position delta, which froze at a stale angle whenever the enemy stood still or attacked without moving.
+
 ### `Interfaces/IPlayerDetector.cs`
 ```csharp
 public interface IPlayerDetector {
@@ -206,7 +374,7 @@ public interface IPlayerDetector {
 Common interface for every way of detecting the player. `EnemyBase` combines built-in vision with any number of components implementing this interface (OR).
 
 ### `Enemy/VisionPlayerDetector.cs`
-`MonoBehaviour, IPlayerDetector`. Fields: `range`, `obstacleLayers`, `viewAngle` (default 360 = old omnidirectional behavior), `turnSpeedDeg`. The single source of sight-based detection: distance check + facing-cone check (if `viewAngle < 360`) + `Physics2D.Linecast` against `obstacleLayers`. Attached to `SkullGuyEnemy` and `TestEnemy` prefabs (range 10, mask = ObstacleStatic/ObstacleDynamic, migrated from the old built-in `EnemyBase` vision fields). Draws a yellow range gizmo (circle, or a cone arc when `viewAngle < 360`) when selected.
+`MonoBehaviour, IPlayerDetector`. Fields: `range`, `obstacleLayers`, `viewAngle` (default 360 = old omnidirectional behavior), `turnSpeedDeg`. The single source of sight-based detection: distance check + facing-cone check (if `viewAngle < 360`) + `Physics2D.Linecast` against `obstacleLayers`. The cone direction comes from `IFacingProvider` when the enemy has one (`SkullGuyAnimationDriver`), so it matches the sprite exactly — including while standing still. Without a provider it falls back to `EnemyBase.CurrentTargetPosition`, then to travelled distance, turning at `turnSpeedDeg`. Attached to `SkullGuyEnemy` and `TestEnemy` prefabs (range 10, mask = ObstacleStatic/ObstacleDynamic, migrated from the old built-in `EnemyBase` vision fields). Draws a yellow range gizmo (circle, or a cone arc when `viewAngle < 360`) when selected.
 
 **GU-0061: facing cone (FOV).** Previously the detector was a plain circle — an enemy facing away from the player still saw them at any distance. `viewAngle` narrows this to a cone centered on the enemy's own tracked facing direction (`facingAngleDeg`, updated in `Update()` from frame-to-frame position delta via `Mathf.Atan2`, eased toward the movement direction at `turnSpeedDeg`/s via `Mathf.MoveTowardsAngle` so the cone doesn't snap). Deliberately self-contained — it does **not** read `SkullGuyAnimationDriver`'s `visual` rotation, because that transform's angle has `spriteForwardOffsetDeg` baked in for art alignment and would skew the cone by that offset; tracking raw movement delta on the detector's own transform keeps the cone true to actual travel direction independent of any animation driver being present. Only runs the per-frame tracking when `viewAngle < 360` (skipped entirely for old-behavior enemies, no perf cost). `EnemyBase.alwaysDetectRange` still bypasses the cone entirely (checked before any detector) — point-blank detection stays omnidirectional by design.
 

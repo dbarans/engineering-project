@@ -296,23 +296,57 @@ public class PathfindingGrid : MonoBehaviour
     /// the scene anyone was actually looking. A stride draws sparser but reaches every part
     /// of the grid whatever the cap is, which is what "capped" should mean here.
     /// </summary>
+    /// <summary>
+    /// Draws the grid, blocked cells first and at full density whenever they fit in
+    /// <see cref="maxGizmoCells"/>.
+    ///
+    /// The budget used to be spent by striding over the flat array — <c>index += stride</c> — and
+    /// that is a trap, because the array is row-major: for a fixed x, every index in that column
+    /// differs by <c>width</c>. When <c>width</c> and the stride share a factor (200 wide at
+    /// stride 2, 132 wide at stride 3) a column is either drawn in full or skipped in full, so
+    /// entire walls came out invisible and the map looked like it had holes the pathfinder would
+    /// walk through. It did not: the sampling was the lie, not the grid.
+    ///
+    /// Blocked cells are what anyone reads this gizmo for, so they get the budget first; the
+    /// walkable ones are decoration and are the ones subsampled when space runs out.
+    /// </summary>
     private void OnDrawGizmos()
     {
         if (gizmoOpacity <= 0f || maxGizmoCells <= 0) return;
         if (_walkable == null || _walkable.Length != width * height) return;
 
         int cellCount = width * height;
-        int stride = Mathf.Max(1, Mathf.CeilToInt(cellCount / (float)maxGizmoCells));
+        int blockedCount = 0;
+        for (int index = 0; index < cellCount; index++)
+            if (!_walkable[index]) blockedCount++;
+
+        int blockedStride = Mathf.Max(1, Mathf.CeilToInt(blockedCount / (float)maxGizmoCells));
+        int walkableBudget = maxGizmoCells - blockedCount / blockedStride;
+        int walkableStride = walkableBudget > 0
+            ? Mathf.Max(1, Mathf.CeilToInt((cellCount - blockedCount) / (float)walkableBudget))
+            : 0;
+
         var size = new Vector3(cellSize * 0.9f, cellSize * 0.9f, 0.01f);
+        var blocked = new Color(blockedColor.r, blockedColor.g, blockedColor.b, blockedColor.a * gizmoOpacity);
+        var walkable = new Color(walkableColor.r, walkableColor.g, walkableColor.b, walkableColor.a * gizmoOpacity);
 
-        for (int index = 0; index < cellCount; index += stride)
+        int blockedSeen = 0;
+        int walkableSeen = 0;
+
+        for (int index = 0; index < cellCount; index++)
         {
-            int x = index % width;
-            int y = index / width;
+            if (_walkable[index])
+            {
+                if (walkableStride == 0 || walkableSeen++ % walkableStride != 0) continue;
+                Gizmos.color = walkable;
+            }
+            else
+            {
+                if (blockedSeen++ % blockedStride != 0) continue;
+                Gizmos.color = blocked;
+            }
 
-            Color baseColor = _walkable[index] ? walkableColor : blockedColor;
-            Gizmos.color = new Color(baseColor.r, baseColor.g, baseColor.b, baseColor.a * gizmoOpacity);
-            Vector2 center = CellToWorld(x, y);
+            Vector2 center = CellToWorld(index % width, index / width);
             Gizmos.DrawCube(new Vector3(center.x, center.y, 0f), size);
         }
     }

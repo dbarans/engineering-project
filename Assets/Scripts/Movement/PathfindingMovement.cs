@@ -36,6 +36,33 @@ public class PathfindingMovement : MonoBehaviour, IMovementStrategy, IPathStatus
     public bool HasReachablePath => hasReachablePath;
 
     /// <inheritdoc />
+    public void ReleaseCachedPath()
+    {
+        if (currentPath.Count == 0 && currentPath.Capacity == 0) return;
+
+        currentPath.Clear();
+        // Clear() keeps the capacity - the whole point here is to hand the memory back, and a
+        // route across a 200x200 dungeon is not a small list.
+        currentPath.TrimExcess();
+        currentPathIndex = 0;
+
+        // The next Move must re-path rather than compare against a target it no longer has a
+        // route to.
+        hasLastTarget = false;
+        hasReachablePath = true;
+    }
+
+    /// <inheritdoc />
+    public float WalkableSampleSize
+    {
+        get
+        {
+            PathfindingGrid resolved = ResolveGrid();
+            return resolved != null ? resolved.CellSize : 0f;
+        }
+    }
+
+    /// <inheritdoc />
     public bool IsWalkable(Vector2 worldPosition)
     {
         PathfindingGrid resolved = ResolveGrid();

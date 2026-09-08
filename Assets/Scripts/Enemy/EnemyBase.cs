@@ -25,7 +25,9 @@ public enum EnemyState
     /// <summary>Moves toward the position of a heard noise to check it out.</summary>
     InvestigateNoise,
     /// <summary>Wanders between random points near where the player was lost, instead of returning to patrol.</summary>
-    WanderNearLastPosition
+    WanderNearLastPosition,
+    /// <summary>Sweeps onward the way the player fled — down the corridor, picking a branch at each junction. Appended last: saved enum ints stay valid.</summary>
+    SearchAhead
 }
 
 /// <summary>
@@ -34,10 +36,26 @@ public enum EnemyState
 /// </summary>
 public enum PostInvestigateBehavior
 {
-    /// <summary>Heads back to the nearest patrol waypoint, as before.</summary>
+    /// <summary>Heads back to the nearest patrol waypoint, or to its post when it has no route.</summary>
     ReturnToPatrol,
     /// <summary>Wanders between random points near the spot where the player was lost.</summary>
-    WanderNearLastPosition
+    WanderNearLastPosition,
+    /// <summary>Rolled per enemy, so a group of identical prefabs does not all react the same way. Appended last: saved enum ints stay valid.</summary>
+    Randomized
+}
+
+/// <summary>
+/// What an enemy does when it has nothing to chase and no patrol route configured.
+/// Enemies with waypoints always patrol them; this decides the rest.
+/// </summary>
+public enum IdleBehavior
+{
+    /// <summary>Roams random points around its post.</summary>
+    Wander,
+    /// <summary>Holds its post, and walks back to it after a chase drags it away.</summary>
+    Guard,
+    /// <summary>Rolled per enemy, so a room full of the same prefab is not all roamers or all statues.</summary>
+    Randomized
 }
 
 /// <summary>
@@ -71,10 +89,38 @@ public abstract class EnemyBase : MonoBehaviour
     [Tooltip("If true, losing sight of the player sends the enemy straight to the nearest patrol waypoint. If false, it visits the last known position first.")]
     [SerializeField] private bool skipInvestigateWhenLostPlayer = true;
 
+    [Header("Idle behaviour")]
+    [Tooltip("What this enemy does with no player to chase and no waypoints: roam around its post, or stand guard on it. Randomized rolls one per enemy from guardChance, so a crowd of identical prefabs is a mix. Enemies that do have waypoints patrol them either way.")]
+    [SerializeField] private IdleBehavior idleBehavior = IdleBehavior.Randomized;
+    [Tooltip("Chance a Randomized enemy comes out a standing guard rather than a roamer.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float guardChance = 0.4f;
+
     [Header("After losing the player")]
-    [Tooltip("What to do once investigation ends without re-detecting the player: return to patrol waypoints, or wander near the spot where the player was lost.")]
-    [SerializeField] private PostInvestigateBehavior postInvestigateBehavior = PostInvestigateBehavior.ReturnToPatrol;
-    [Tooltip("Radius within which random wander points are picked: around the spot where the player was lost (WanderNearLastPosition), or around the spawn position for enemies with no waypoints configured.")]
+    [Tooltip("What to do once investigation ends without re-detecting the player: return to its patrol route (or post), or wander near the spot where the player was lost. Randomized rolls one per enemy from wanderAfterLosingChance. Guards always go back to their post regardless.")]
+    [SerializeField] private PostInvestigateBehavior postInvestigateBehavior = PostInvestigateBehavior.Randomized;
+    [Tooltip("Chance a Randomized enemy settles where the trail went cold instead of walking back to its post.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float wanderAfterLosingChance = 0.5f;
+    [Tooltip("Longest the whole sweep after a lost chase can last, in seconds. Guards included — they only head back to their post once this runs out. 0 skips searching entirely.")]
+    [Min(0f)]
+    [SerializeField] private float searchDuration = 8f;
+    [Tooltip("How far ahead the enemy aims for each step of the sweep. Roughly the length of one 'stride' down a corridor.")]
+    [Min(0.1f)]
+    [SerializeField] private float searchStepDistance = 1.5f;
+    [Tooltip("How much clear space a direction needs before it counts as a way on. Too small and every doorway reads as a junction; too large and real side passages are missed.")]
+    [Min(0.1f)]
+    [SerializeField] private float searchProbeDistance = 1.6f;
+    [Tooltip("How many junctions the enemy picks its way through before giving up the sweep. 0 = it gives up at the first fork.")]
+    [Min(0)]
+    [SerializeField] private int maxSearchJunctions = 3;
+    [Tooltip("Safety net: give up on an investigation target not reached within this many seconds — an unreachable spot (behind a locked door, inside a wall) would otherwise leave the enemy standing still forever. 0 disables the timeout.")]
+    [Min(0f)]
+    [SerializeField] private float investigateTimeout = 8f;
+    [Tooltip("Give up on a wander point not reached within this many seconds and pick another. A point a couple of steps past a wall is a walk around half the dungeon, and nothing else notices - the pathfinder does have a route, it is just an absurd one. 0 disables the timeout.")]
+    [Min(0f)]
+    [SerializeField] private float wanderTargetTimeout = 6f;
+    [Tooltip("Radius within which random wander points are picked: around the spot where the player was lost (WanderNearLastPosition), or around the post for roamers with no waypoints configured.")]
     [SerializeField] private float wanderRadius = 4f;
 
     [Header("Idle audio")]
@@ -92,6 +138,9 @@ public abstract class EnemyBase : MonoBehaviour
     [SerializeField] private float fullUpdateMargin = 8f;
     [Tooltip("Tick period for enemies the player is far away from. Movement is compensated for the longer step, so patrols still run at normal speed. Set to 0 to disable throttling.")]
     [SerializeField] private float throttledTickInterval = 0.35f;
+    [Tooltip("Past this distance from the player the enemy is parked: no state machine, no path searches, no movement, and its cached route is handed back. Throttling still runs a full A* search several times a second for an enemy on the far side of the map, which nobody can see and nothing can reach. Floored at the enemy's own sensor range plus margin, so it can never cull an enemy that could still detect the player. 0 disables parking.")]
+    [Min(0f)]
+    [SerializeField] private float cullDistance = 60f;
 
     [Header("Drop System")]
     [SerializeField] private GameObject corpsePrefab;
@@ -119,9 +168,24 @@ public abstract class EnemyBase : MonoBehaviour
     private Vector2 wanderAnchor;
     private Vector2 wanderTargetPosition;
     private float nextUnreachableWanderRetryTime;
-    private Vector2 spawnPosition;
+    private float wanderTargetDeadline = float.PositiveInfinity;
+    private float nextUnreachableInvestigateRetryTime;
+    private float investigateStartTime;
+    private Vector2 searchDirection = Vector2.right;
+    private Vector2 searchStepTarget;
+    private int searchJunctionsTaken;
+    /// <summary>True once the sweep has taken a fork: the enemy has lost the thread and slows from a run to a walk.</summary>
+    private bool searchIsWalking;
+    private Vector2 travelDirection = Vector2.right;
+    private Vector2 lastTravelSamplePosition;
+    /// <summary>When the current search around the lost trail ends. Infinity = search forever (a roamer that adopted the spot).</summary>
+    private float searchEndTime = float.PositiveInfinity;
+    private Vector2 homePosition;
     private IWalkabilityProbe walkabilityProbe;
     private float fullUpdateSqrDistance;
+    private float cullSqrDistance;
+    private float uncullSqrDistance;
+    private bool isCulled;
     private float nextThrottledTickTime;
     private float lastTickTime;
     private float lastTickDelta;
@@ -170,6 +234,12 @@ public abstract class EnemyBase : MonoBehaviour
     public bool IsDead => currentHealth <= 0f;
 
     /// <summary>
+    /// True while the enemy is parked for being too far from the player to matter: no state
+    /// machine, no path searches, no movement. Visuals read it so they can stand down too.
+    /// </summary>
+    public bool IsCulled => isCulled;
+
+    /// <summary>
     /// Player transform assigned in the inspector. Used by companion components (e.g. attacks).
     /// </summary>
     public Transform Player => player;
@@ -192,7 +262,8 @@ public abstract class EnemyBase : MonoBehaviour
         detectors = GetComponents<IPlayerDetector>();
         noiseSensor = GetComponent<INoiseSensor>();
         walkabilityProbe = movementStrategy as IWalkabilityProbe;
-        spawnPosition = transform.position;
+        homePosition = transform.position;
+        lastTravelSamplePosition = transform.position;
 
         CacheFullUpdateDistance();
         lastTickTime = Time.time;
@@ -222,6 +293,16 @@ public abstract class EnemyBase : MonoBehaviour
 
         float full = sensorRange + Mathf.Max(0f, fullUpdateMargin);
         fullUpdateSqrDistance = full * full;
+
+        // Never park an enemy that could still sense the player: the floor is its own full-update
+        // radius plus a little, whatever the inspector says.
+        float cull = Mathf.Max(cullDistance, full + 4f);
+        cullSqrDistance = cull * cull;
+
+        // Hysteresis, so an enemy sitting exactly on the boundary does not park and wake every
+        // few frames, dropping and rebuilding its route each time.
+        float uncull = cull * 0.9f;
+        uncullSqrDistance = uncull * uncull;
     }
 
     /// <summary>
@@ -250,6 +331,7 @@ public abstract class EnemyBase : MonoBehaviour
     protected virtual void Update()
     {
         if (IsDead) return;
+        if (UpdateCulling()) return;
         if (!ShouldTickThisFrame()) return;
 
         lastTickDelta = Time.time - lastTickTime;
@@ -259,12 +341,74 @@ public abstract class EnemyBase : MonoBehaviour
         // how many frames this tick stands in for — otherwise distant patrols would crawl.
         tickSpeedScale = Time.deltaTime > 0f ? Mathf.Clamp(lastTickDelta / Time.deltaTime, 0f, 60f) : 1f;
 
+        UpdateTravelDirection();
         UpdateStateMachine();
         UpdateIdleAudio();
         ResolveUnreachablePatrolWaypoint();
         ResolveUnreachableWanderTarget();
+        ResolveUnreachableInvestigateTarget();
         if (movementStrategy != null && ShouldMove())
             Move();
+    }
+
+    /// <summary>
+    /// Keeps a running note of which way the enemy is actually travelling. That is the heading a
+    /// sweep starts on: when the player breaks away, the enemy carries on the way the chase was
+    /// going rather than guessing from a position that is by then several steps stale.
+    /// </summary>
+    private void UpdateTravelDirection()
+    {
+        Vector2 position = transform.position;
+        Vector2 delta = position - lastTravelSamplePosition;
+
+        // Sampled over distance, not per tick: a slow walk covers almost nothing in one frame,
+        // and normalising that noise would swing the heading around at random.
+        if (delta.sqrMagnitude < 0.04f) return;
+
+        travelDirection = delta.normalized;
+        lastTravelSamplePosition = position;
+    }
+
+    /// <summary>
+    /// Parks enemies too far from the player to matter, and wakes them when the player comes
+    /// back. Returns true while parked, meaning "skip this enemy entirely this frame".
+    ///
+    /// This is the step beyond throttling. A throttled enemy still runs the whole state machine
+    /// and a full A* search a few times a second; multiply that by every enemy in a 200x200
+    /// dungeon and most of the AI budget goes on patrols nobody is in the same room as - or even
+    /// the same wing of the map as. Parked, an enemy costs one distance comparison per frame and
+    /// hands its cached route back to the heap.
+    /// </summary>
+    private bool UpdateCulling()
+    {
+        if (cullDistance <= 0f || player == null)
+        {
+            isCulled = false;
+            return false;
+        }
+
+        float sqrToPlayer = ((Vector2)player.position - (Vector2)transform.position).sqrMagnitude;
+
+        if (!isCulled)
+        {
+            if (sqrToPlayer <= cullSqrDistance) return false;
+
+            isCulled = true;
+            (movementStrategy as IPathStatusProvider)?.ReleaseCachedPath();
+            return true;
+        }
+
+        if (sqrToPlayer > uncullSqrDistance) return true;
+
+        isCulled = false;
+
+        // Wake up as if no time had passed. lastTickTime drives tickSpeedScale, which compensates
+        // movement for a longer step - left at the value from before the park, the first tick
+        // after waking would be scaled by minutes of standing still and teleport the enemy.
+        lastTickTime = Time.time;
+        nextThrottledTickTime = Time.time;
+        lastTravelSamplePosition = transform.position;
+        return false;
     }
 
     /// <summary>
@@ -329,6 +473,41 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     /// <summary>
+    /// Gives up on an investigation target the pathfinder cannot reach — a spot behind a closed
+    /// door, inside a wall, or across a gap. Without this the enemy keeps a target it can never
+    /// arrive at, and since arrival is the only way out of an investigate state, it stands still
+    /// until the player walks back into its senses.
+    /// </summary>
+    private void ResolveUnreachableInvestigateTarget()
+    {
+        if (currentState != EnemyState.InvestigateLastKnown
+            && currentState != EnemyState.InvestigateNoise
+            && currentState != EnemyState.SearchAhead) return;
+        if (Time.time < nextUnreachableInvestigateRetryTime) return;
+        if (movementStrategy is not IPathStatusProvider pathStatus) return;
+
+        nextUnreachableInvestigateRetryTime = Time.time + unreachableWaypointRetryInterval;
+        if (pathStatus.HasReachablePath) return;
+
+        // A sweep step the pathfinder cannot reach means the probe was optimistic about the
+        // passage: re-decide from here, and end the sweep if there is nowhere left to go.
+        if (currentState == EnemyState.SearchAhead)
+        {
+            if (!AdvanceSearchStep()) currentState = FinishSearch();
+            return;
+        }
+
+        // Search from where it stands instead: the player went somewhere around here.
+        currentState = EndInvestigation();
+    }
+
+    /// <summary>Whether the enemy has been stuck on the same investigation for longer than investigateTimeout.</summary>
+    private bool InvestigationTimedOut()
+    {
+        return investigateTimeout > 0f && Time.time - investigateStartTime > investigateTimeout;
+    }
+
+    /// <summary>
     /// Handles transitions between Idle, FollowPlayer, InvestigateLastKnown, InvestigateNoise,
     /// and ReturnToPatrol. A detection lingers for detectionMemoryDuration after all detectors
     /// lose the player, so the chase is not dropped the moment the player goes quiet or breaks
@@ -337,6 +516,8 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     private void UpdateStateMachine()
     {
+        EnemyState stateOnEntry = currentState;
+
         if (IsPlayerDetected())
             lastDetectionTime = Time.time;
 
@@ -365,11 +546,22 @@ public abstract class EnemyBase : MonoBehaviour
                 }
                 else if (!HasValidWaypoint())
                 {
-                    // No patrol route configured: wander near the spawn position instead of
-                    // standing still forever.
-                    wanderAnchor = spawnPosition;
-                    PickRandomWanderTarget();
-                    currentState = EnemyState.WanderNearLastPosition;
+                    if (ResolvedIdleBehavior == IdleBehavior.Guard)
+                    {
+                        // A guard holds its post. It only moves if something (a chase it gave
+                        // up on, a knockback) left it standing somewhere else.
+                        if (!IsAtPost())
+                            currentState = EnemyState.ReturnToPatrol;
+                    }
+                    else
+                    {
+                        // No patrol route configured: roam around the post instead of standing
+                        // still forever. This is home, so there is nothing to stop searching for.
+                        wanderAnchor = homePosition;
+                        PickRandomWanderTarget();
+                        searchEndTime = float.PositiveInfinity;
+                        currentState = EnemyState.WanderNearLastPosition;
+                    }
                 }
                 else
                     AdvanceWaypointIfReached();
@@ -385,8 +577,9 @@ public abstract class EnemyBase : MonoBehaviour
                     }
                     else
                     {
-                        SelectClosestWaypoint();
-                        currentState = EnemyState.ReturnToPatrol;
+                        // Nothing left to investigate — the same choice as the end of an
+                        // investigation: back to the post, or settle where the chase died.
+                        currentState = EndInvestigation();
                     }
                 }
                 break;
@@ -400,7 +593,8 @@ public abstract class EnemyBase : MonoBehaviour
                     noiseTargetPosition = noiseSensor.LastNoisePosition;
                     currentState = EnemyState.InvestigateNoise;
                 }
-                else if (Vector2.Distance(transform.position, investigateTargetPosition) <= investigateArrivalThreshold)
+                else if (Vector2.Distance(transform.position, investigateTargetPosition) <= EffectiveArrivalThreshold
+                    || InvestigationTimedOut())
                 {
                     hasLastKnownPlayerPosition = false;
                     currentState = EndInvestigation();
@@ -413,11 +607,16 @@ public abstract class EnemyBase : MonoBehaviour
                 }
                 else
                 {
-                    // Keep following the trail: each fresh noise moves the target.
+                    // Keep following the trail: each fresh noise moves the target, and a live
+                    // trail deserves a fresh timeout — the enemy is making progress, not stuck.
                     if (heardNoise)
+                    {
                         noiseTargetPosition = noiseSensor.LastNoisePosition;
+                        investigateStartTime = Time.time;
+                    }
 
-                    if (Vector2.Distance(transform.position, noiseTargetPosition) <= investigateArrivalThreshold)
+                    if (Vector2.Distance(transform.position, noiseTargetPosition) <= EffectiveArrivalThreshold
+                        || InvestigationTimedOut())
                         currentState = EndInvestigation();
                 }
                 break;
@@ -431,9 +630,36 @@ public abstract class EnemyBase : MonoBehaviour
                     noiseTargetPosition = noiseSensor.LastNoisePosition;
                     currentState = EnemyState.InvestigateNoise;
                 }
-                else if (Vector2.Distance(transform.position, wanderTargetPosition) <= investigateArrivalThreshold)
+                else if (Time.time >= searchEndTime)
+                {
+                    // Done poking around this patch: adopt it, or head home.
+                    currentState = FinishSearch();
+                }
+                else if (Vector2.Distance(transform.position, wanderTargetPosition) <= EffectiveArrivalThreshold
+                    || Time.time >= wanderTargetDeadline)
                 {
                     PickRandomWanderTarget();
+                }
+                break;
+            case EnemyState.SearchAhead:
+                if (playerInRange)
+                {
+                    currentState = EnemyState.FollowPlayer;
+                }
+                else if (heardNoise)
+                {
+                    noiseTargetPosition = noiseSensor.LastNoisePosition;
+                    currentState = EnemyState.InvestigateNoise;
+                }
+                else if (Time.time >= searchEndTime)
+                {
+                    currentState = FinishSearch();
+                }
+                else if (Vector2.Distance(transform.position, searchStepTarget) <= EffectiveArrivalThreshold
+                    && !AdvanceSearchStep())
+                {
+                    // Dead end, or one fork too many: stop sweeping.
+                    currentState = FinishSearch();
                 }
                 break;
             case EnemyState.ReturnToPatrol:
@@ -444,10 +670,22 @@ public abstract class EnemyBase : MonoBehaviour
                     noiseTargetPosition = noiseSensor.LastNoisePosition;
                     currentState = EnemyState.InvestigateNoise;
                 }
-                else if (!HasValidWaypoint() || Vector2.Distance(transform.position, waypoints[currentWaypointIndex].position) <= EffectiveWaypointReachedThreshold())
+                else if (HasValidWaypoint()
+                    ? Vector2.Distance(transform.position, waypoints[currentWaypointIndex].position) <= EffectiveWaypointReachedThreshold()
+                    : IsAtPost())
+                {
+                    // Routeless enemies walk back to the post they started on rather than
+                    // dropping straight into Idle wherever the chase happened to end.
                     currentState = EnemyState.Idle;
+                }
                 break;
         }
+
+        // Arms the investigation timeout on the tick the enemy commits to an investigate state,
+        // whichever of the several transitions got it there.
+        if (currentState != stateOnEntry
+            && (currentState == EnemyState.InvestigateLastKnown || currentState == EnemyState.InvestigateNoise))
+            investigateStartTime = Time.time;
 
         UpdateAlertAudio();
     }
@@ -549,6 +787,77 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     /// <summary>
+    /// The spot this enemy calls its own: where it stood when it spawned (or where it was
+    /// posted in the save). Guards hold it, roamers circle it, and everyone walks back to it
+    /// once a hunt is over.
+    /// </summary>
+    private Vector2 PostPosition => Application.isPlaying ? homePosition : (Vector2)transform.position;
+
+    /// <summary>Whether the enemy is standing close enough to its post to count as being on it.</summary>
+    private bool IsAtPost()
+    {
+        return Vector2.Distance(transform.position, homePosition) <= EffectiveWaypointReachedThreshold();
+    }
+
+    /// <summary>
+    /// Resolves <see cref="idleBehavior"/>, rolling per enemy when it is set to Randomized.
+    /// </summary>
+    private IdleBehavior ResolvedIdleBehavior
+    {
+        get
+        {
+            if (idleBehavior != IdleBehavior.Randomized) return idleBehavior;
+            return PersonalityRoll(GuardRollSalt) < guardChance ? IdleBehavior.Guard : IdleBehavior.Wander;
+        }
+    }
+
+    /// <summary>
+    /// Resolves <see cref="postInvestigateBehavior"/>. A guard is a guard: whatever the field
+    /// says, it walks back to its post rather than settling down wherever the trail died —
+    /// otherwise one chase would permanently move the guard off the spot it was placed on.
+    /// </summary>
+    private PostInvestigateBehavior ResolvedPostInvestigateBehavior
+    {
+        get
+        {
+            if (ResolvedIdleBehavior == IdleBehavior.Guard) return PostInvestigateBehavior.ReturnToPatrol;
+            if (postInvestigateBehavior != PostInvestigateBehavior.Randomized) return postInvestigateBehavior;
+            return PersonalityRoll(WanderRollSalt) < wanderAfterLosingChance
+                ? PostInvestigateBehavior.WanderNearLastPosition
+                : PostInvestigateBehavior.ReturnToPatrol;
+        }
+    }
+
+    private const int GuardRollSalt = 1;
+    private const int WanderRollSalt = 2;
+
+    /// <summary>
+    /// A stable pseudo-random value in [0,1) for this enemy, hashed from its post position.
+    ///
+    /// Deliberately not <see cref="Random"/>: the roll has to give the same answer every time
+    /// it is asked, or an enemy would change its mind between frames. Hashing the post also
+    /// survives a save/load and a scene reload — the enemy that guarded a doorway before the
+    /// save still guards it after — while every enemy in the dungeon gets its own value.
+    /// </summary>
+    private float PersonalityRoll(int salt)
+    {
+        Vector2 seed = PostPosition;
+        int x = Mathf.RoundToInt(seed.x * 16f);
+        int y = Mathf.RoundToInt(seed.y * 16f);
+        uint h = (uint)(x * 73856093 ^ y * 19349663 ^ salt * 83492791);
+
+        // Bit-mixer (Murmur-style finalizer): neighbouring posts must not land on neighbouring
+        // rolls, or a whole corridor of enemies comes out the same.
+        h ^= h >> 16;
+        h *= 0x7feb352du;
+        h ^= h >> 15;
+        h *= 0x846ca68bu;
+        h ^= h >> 16;
+
+        return (h & 0xFFFFFF) / (float)0x1000000;
+    }
+
+    /// <summary>
     /// Called when an investigation (last-known-position or noise) ends without re-detecting
     /// the player. Returns the next state per postInvestigateBehavior: either heads back to the
     /// nearest patrol waypoint, or starts wandering near the current position (where the
@@ -556,10 +865,178 @@ public abstract class EnemyBase : MonoBehaviour
     /// </summary>
     private EnemyState EndInvestigation()
     {
-        if (postInvestigateBehavior == PostInvestigateBehavior.WanderNearLastPosition)
+        // Everyone searches first. Turning back the instant the trail runs out reads as the enemy
+        // losing interest mid-stride. The sweep is the interesting version of that search, so it
+        // gets first refusal; random pottering is only for enemies with no grid to read.
+        if (BeginSearchAhead())
+            return EnemyState.SearchAhead;
+
+        wanderAnchor = transform.position;
+        PickRandomWanderTarget();
+        searchEndTime = Time.time + searchDuration;
+        return EnemyState.WanderNearLastPosition;
+    }
+
+    /// <summary>
+    /// The four directions a sweep can take. Corridors in this dungeon are axis-aligned, so
+    /// diagonals would only ever cut a corner into a wall.
+    /// </summary>
+    private static readonly Vector2[] SearchDirections =
+    {
+        Vector2.right, Vector2.left, Vector2.up, Vector2.down
+    };
+
+    /// <summary>
+    /// Starts the sweep: carry on the way the chase was going, and keep going until the passage
+    /// gives the enemy a real choice. Returns false when there is no grid to read (no
+    /// <see cref="IWalkabilityProbe"/>) or nowhere to go, so the caller can fall back.
+    /// </summary>
+    private bool BeginSearchAhead()
+    {
+        if (walkabilityProbe == null || searchDuration <= 0f) return false;
+
+        searchDirection = SnapToSearchDirection(travelDirection);
+        searchJunctionsTaken = 0;
+        searchIsWalking = false;
+        searchEndTime = Time.time + searchDuration;
+        searchStepTarget = (Vector2)transform.position + searchDirection * EffectiveSearchStepDistance;
+
+        // Chases end face-first into walls often enough to check: if straight on is blocked, let
+        // the normal step logic pick a way out instead of walking into it.
+        if (!IsPassageOpen(transform.position, searchDirection))
+            return AdvanceSearchStep();
+
+        return true;
+    }
+
+    /// <summary>
+    /// One step of the sweep, re-decided every time the enemy reaches its step target.
+    ///
+    /// Straight on, or the single way round a bend, is not a decision - the enemy keeps running.
+    /// Two or more ways on is a junction: it picks one, and from there it is searching rather
+    /// than chasing, so it drops to a walk. Returns false when the sweep is over: a dead end, or
+    /// one junction past <see cref="maxSearchJunctions"/>.
+    /// </summary>
+    private bool AdvanceSearchStep()
+    {
+        Vector2 origin = transform.position;
+        Vector2 back = -searchDirection;
+
+        Vector2 onlyOption = Vector2.zero;
+        int openCount = 0;
+        foreach (Vector2 direction in SearchDirections)
+        {
+            // Never count the way it came from: backtracking would turn every corridor into a
+            // junction and every sweep into pacing on the spot.
+            if (Vector2.Dot(direction, back) > 0.9f) continue;
+            if (!IsPassageOpen(origin, direction)) continue;
+
+            openCount++;
+            if (openCount == 1) onlyOption = direction;
+        }
+
+        if (openCount == 0) return false;
+
+        if (openCount == 1)
+        {
+            searchDirection = onlyOption;
+        }
+        else
+        {
+            if (searchJunctionsTaken >= maxSearchJunctions) return false;
+
+            searchJunctionsTaken++;
+            searchIsWalking = true;
+            searchDirection = PickSearchBranch(origin, back, openCount);
+        }
+
+        searchStepTarget = origin + searchDirection * EffectiveSearchStepDistance;
+        return true;
+    }
+
+    /// <summary>Picks one of the open ways on at a junction, uniformly at random.</summary>
+    private Vector2 PickSearchBranch(Vector2 origin, Vector2 back, int openCount)
+    {
+        int chosen = Random.Range(0, openCount);
+
+        foreach (Vector2 direction in SearchDirections)
+        {
+            if (Vector2.Dot(direction, back) > 0.9f) continue;
+            if (!IsPassageOpen(origin, direction)) continue;
+            if (chosen-- == 0) return direction;
+        }
+
+        return searchDirection;
+    }
+
+    /// <summary>
+    /// Whether the enemy could walk <see cref="searchProbeDistance"/> in this direction. Sampled
+    /// at several points rather than just the far end, so a pillar or a door frame partway along
+    /// does not read as open ground.
+    /// </summary>
+    private bool IsPassageOpen(Vector2 origin, Vector2 direction)
+    {
+        if (walkabilityProbe == null) return false;
+
+        const int samples = 3;
+        float reach = EffectiveSearchProbeDistance;
+        for (int i = 1; i <= samples; i++)
+        {
+            if (!walkabilityProbe.IsWalkable(origin + direction * (reach * i / samples)))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Grain of the navigation data behind this enemy, in world units, or 0 with no grid.
+    /// </summary>
+    private float NavigationSampleSize => walkabilityProbe != null ? walkabilityProbe.WalkableSampleSize : 0f;
+
+    /// <summary>
+    /// How close counts as "reached" for an investigation, a wander point or a sweep step.
+    /// </summary>
+    /// <remarks>
+    /// Never tighter than the navigation grid can deliver. An A* route is a list of <em>cell
+    /// centres</em>; the exact point that was asked for is never appended, so on a 2-unit grid the
+    /// enemy can legitimately stop 1.4 units from its target. The authored 0.35 was unsatisfiable
+    /// there, and since arrival is the only way out of an investigate state, the enemy stood on
+    /// the spot until the player walked back into its senses.
+    /// </remarks>
+    private float EffectiveArrivalThreshold =>
+        Mathf.Max(investigateArrivalThreshold, NavigationSampleSize * 0.75f);
+
+    /// <summary>Sweep step length, never shorter than one navigation cell.</summary>
+    private float EffectiveSearchStepDistance => Mathf.Max(searchStepDistance, NavigationSampleSize);
+
+    /// <summary>
+    /// Sweep probe reach, never shorter than 1.5 cells - a probe that lands inside the enemy's own
+    /// cell reports every direction open, and every corridor would read as a crossroads.
+    /// </summary>
+    private float EffectiveSearchProbeDistance => Mathf.Max(searchProbeDistance, NavigationSampleSize * 1.5f);
+
+    /// <summary>Snaps a heading to the nearest of the four sweep directions.</summary>
+    private static Vector2 SnapToSearchDirection(Vector2 heading)
+    {
+        if (heading.sqrMagnitude < 0.0001f) return Vector2.right;
+
+        return Mathf.Abs(heading.x) >= Mathf.Abs(heading.y)
+            ? (heading.x >= 0f ? Vector2.right : Vector2.left)
+            : (heading.y >= 0f ? Vector2.up : Vector2.down);
+    }
+
+    /// <summary>
+    /// The sweep is over. Now the per-enemy choice applies: adopt this patch of the dungeon and
+    /// roam it, or head back to the post.
+    /// </summary>
+    private EnemyState FinishSearch()
+    {
+        if (ResolvedPostInvestigateBehavior == PostInvestigateBehavior.WanderNearLastPosition)
         {
             wanderAnchor = transform.position;
             PickRandomWanderTarget();
+            searchEndTime = float.PositiveInfinity;
             return EnemyState.WanderNearLastPosition;
         }
 
@@ -567,28 +1044,84 @@ public abstract class EnemyBase : MonoBehaviour
         return EnemyState.ReturnToPatrol;
     }
 
+    private static readonly float[] RadiusShrinkStages = { 1f, 0.5f, 0.25f };
+
     /// <summary>
     /// Picks a new random point within wanderRadius of wanderAnchor, preferring one the movement
     /// strategy can actually stand on. An unvetted point lands inside a wall often enough that it
     /// used to cost a failed full-map search every time.
+    ///
+    /// Tries the full radius first, then shrinks it in stages — a tight corridor or alcove can
+    /// fail every full-radius candidate while still having walkable space closer to the anchor,
+    /// and picking a nearer point beats standing still, which is what the old single-radius
+    /// attempt collapsed to.
     /// </summary>
     private void PickRandomWanderTarget()
     {
-        const int attempts = 6;
+        const int attemptsPerRadius = 6;
 
-        for (int i = 0; i < attempts; i++)
+        foreach (float scale in RadiusShrinkStages)
         {
-            Vector2 candidate = wanderAnchor + Random.insideUnitCircle * wanderRadius;
-            if (walkabilityProbe == null || walkabilityProbe.IsWalkable(candidate))
+            float radius = wanderRadius * scale;
+            for (int i = 0; i < attemptsPerRadius; i++)
             {
+                Vector2 candidate = wanderAnchor + Random.insideUnitCircle * radius;
+                if (!IsWanderCandidateUsable(candidate)) continue;
+
                 wanderTargetPosition = candidate;
+                wanderTargetDeadline = WanderDeadline();
                 return;
             }
         }
 
-        // Every candidate was blocked (enemy boxed in): stay put rather than commit to a target
-        // that is known to be unreachable.
+        // Every candidate at every radius was blocked (enemy boxed in on all sides): stay put
+        // rather than commit to a target that is known to be unreachable.
         wanderTargetPosition = transform.position;
+        wanderTargetDeadline = WanderDeadline();
+    }
+
+    private float WanderDeadline()
+    {
+        return wanderTargetTimeout > 0f ? Time.time + wanderTargetTimeout : float.PositiveInfinity;
+    }
+
+    /// <summary>
+    /// Whether a wander point is somewhere this enemy should actually stroll to: standable, and
+    /// with open ground the whole way there in a straight line.
+    ///
+    /// Walkable alone is not enough. A point two steps past a wall is walkable, and the
+    /// pathfinder will dutifully find the route to it - around the room, down the corridor, back
+    /// up the other side. Nothing downstream flags that as wrong, because it is not unreachable,
+    /// merely absurd, and the enemy ends up touring the dungeon on an idle stroll. Wandering is
+    /// meant to stay in the room it started in, so the straight line has to be clear.
+    /// </summary>
+    private bool IsWanderCandidateUsable(Vector2 candidate)
+    {
+        if (walkabilityProbe == null) return true;
+
+        return walkabilityProbe.IsWalkable(candidate)
+            && IsRouteLocallyClear(transform.position, candidate);
+    }
+
+    /// <summary>
+    /// Whether the straight line between two points stays on walkable ground, sampled at half a
+    /// navigation cell so nothing thinner than a wall slips between two samples.
+    /// </summary>
+    private bool IsRouteLocallyClear(Vector2 from, Vector2 to)
+    {
+        if (walkabilityProbe == null) return true;
+
+        Vector2 delta = to - from;
+        float step = Mathf.Max(0.25f, NavigationSampleSize * 0.5f);
+        int steps = Mathf.CeilToInt(delta.magnitude / step);
+
+        for (int i = 1; i <= steps; i++)
+        {
+            if (!walkabilityProbe.IsWalkable(from + delta * (i / (float)steps)))
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -600,7 +1133,19 @@ public abstract class EnemyBase : MonoBehaviour
         Vector2 fromEnemyToLastSeen = (lastKnownPlayerPosition - (Vector2)transform.position).normalized;
         if (fromEnemyToLastSeen == Vector2.zero)
             return lastKnownPlayerPosition;
-        return lastKnownPlayerPosition + fromEnemyToLastSeen * Mathf.Max(0f, investigateOvershootDistance);
+
+        Vector2 overshot = lastKnownPlayerPosition + fromEnemyToLastSeen * Mathf.Max(0f, investigateOvershootDistance);
+
+        // The overshoot exists to clear doorways and corners - which is exactly where it can land
+        // inside a wall, or on open ground on the far side of one. Either way the enemy should go
+        // to the spot it actually saw the player at rather than take the long way round to a point
+        // it invented.
+        if (walkabilityProbe != null
+            && (!walkabilityProbe.IsWalkable(overshot)
+                || !IsRouteLocallyClear(lastKnownPlayerPosition, overshot)))
+            return lastKnownPlayerPosition;
+
+        return overshot;
     }
 
     /// <summary>
@@ -698,13 +1243,19 @@ public abstract class EnemyBase : MonoBehaviour
     }
 
     /// <summary>
-    /// Patrol arrival distance: at least inspector threshold and at least the movement strategy's stop distance.
+    /// Patrol (and post) arrival distance: at least the inspector threshold, at least the movement
+    /// strategy's stop distance, and at least what the navigation grid can resolve - a route ends
+    /// on a cell centre, so on a coarse grid the enemy cannot get any closer than that however
+    /// long it walks.
     /// </summary>
     private float EffectiveWaypointReachedThreshold()
     {
+        float threshold = Mathf.Max(waypointReachedThreshold, NavigationSampleSize * 0.75f);
+
         if (movementStrategy is IMovementArrivalTolerance tol)
-            return Mathf.Max(waypointReachedThreshold, tol.StopDistanceFromTarget);
-        return waypointReachedThreshold;
+            return Mathf.Max(threshold, tol.StopDistanceFromTarget);
+
+        return threshold;
     }
 
     /// <summary>
@@ -848,7 +1399,12 @@ public abstract class EnemyBase : MonoBehaviour
                 return noiseTargetPosition;
             case EnemyState.WanderNearLastPosition:
                 return wanderTargetPosition;
+            case EnemyState.SearchAhead:
+                return searchStepTarget;
             case EnemyState.ReturnToPatrol:
+                if (HasValidWaypoint())
+                    return waypoints[currentWaypointIndex].position;
+                return homePosition;
             case EnemyState.Idle:
             default:
                 if (HasValidWaypoint())
@@ -875,6 +1431,12 @@ public abstract class EnemyBase : MonoBehaviour
             || currentState == EnemyState.InvestigateNoise)
             return moveSpeed * Mathf.Max(0f, chaseSpeedMultiplier);
 
+        // A sweep down an unbranching corridor is still the chase: the enemy has one guess left
+        // about where the player went and it runs it down. Past the first fork it is guessing,
+        // and a guess is walked.
+        if (currentState == EnemyState.SearchAhead && !searchIsWalking)
+            return moveSpeed * Mathf.Max(0f, chaseSpeedMultiplier);
+
         return moveSpeed;
     }
 
@@ -886,11 +1448,14 @@ public abstract class EnemyBase : MonoBehaviour
         if (currentState == EnemyState.FollowPlayer
             || currentState == EnemyState.InvestigateLastKnown
             || currentState == EnemyState.InvestigateNoise
-            || currentState == EnemyState.WanderNearLastPosition)
+            || currentState == EnemyState.WanderNearLastPosition
+            || currentState == EnemyState.SearchAhead)
             return true;
 
+        // No route: only the walk back to the post is worth moving for — Idle means standing
+        // there (guard) or roaming, which runs in WanderNearLastPosition.
         if (!HasValidWaypoint())
-            return false;
+            return currentState == EnemyState.ReturnToPatrol && !IsAtPost();
 
         // Single waypoint acts as a guard position: move there once, then stay.
         if (waypoints.Length == 1)
@@ -912,7 +1477,8 @@ public abstract class EnemyBase : MonoBehaviour
             waypointIndex = currentWaypointIndex,
             lastKnownPlayerPos = hasLastKnownPlayerPosition
                 ? new[] { lastKnownPlayerPosition.x, lastKnownPlayerPosition.y }
-                : null
+                : null,
+            homePos = new[] { homePosition.x, homePosition.y }
         };
     }
 
@@ -929,6 +1495,9 @@ public abstract class EnemyBase : MonoBehaviour
         if (waypoints != null && waypoints.Length > 0)
             currentWaypointIndex = Mathf.Clamp(state.waypointIndex, 0, waypoints.Length - 1);
 
+        if (state.homePos != null && state.homePos.Length >= 2)
+            homePosition = new Vector2(state.homePos[0], state.homePos[1]);
+
         hasLastKnownPlayerPosition =
             state.lastKnownPlayerPos != null && state.lastKnownPlayerPos.Length >= 2;
         lastKnownPlayerPosition = hasLastKnownPlayerPosition
@@ -936,11 +1505,12 @@ public abstract class EnemyBase : MonoBehaviour
             : Vector2.zero;
 
         var restoredState = (EnemyState)state.aiState;
-        if (restoredState < EnemyState.Idle || restoredState > EnemyState.WanderNearLastPosition)
+        if (restoredState < EnemyState.Idle || restoredState > EnemyState.SearchAhead)
             restoredState = EnemyState.Idle; // unknown value from a foreign/edited save
         if (restoredState == EnemyState.InvestigateLastKnown
             || restoredState == EnemyState.InvestigateNoise
-            || restoredState == EnemyState.WanderNearLastPosition)
+            || restoredState == EnemyState.WanderNearLastPosition
+            || restoredState == EnemyState.SearchAhead)
         {
             SelectClosestWaypoint();
             restoredState = EnemyState.ReturnToPatrol;
@@ -956,10 +1526,30 @@ public abstract class EnemyBase : MonoBehaviour
             Gizmos.DrawWireSphere(transform.position, alwaysDetectRange);
         }
 
-        if (postInvestigateBehavior == PostInvestigateBehavior.WanderNearLastPosition)
+        if (ResolvedIdleBehavior == IdleBehavior.Guard)
+        {
+            // Where this enemy stands guard, and how far off it the enemy currently is.
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireCube(PostPosition, Vector3.one * 0.4f);
+            Gizmos.DrawLine(transform.position, PostPosition);
+        }
+        else if (ResolvedPostInvestigateBehavior == PostInvestigateBehavior.WanderNearLastPosition
+            || !HasValidWaypoint())
         {
             Gizmos.color = Color.magenta;
-            Gizmos.DrawWireSphere(transform.position, wanderRadius);
+            Gizmos.DrawWireSphere(
+                Application.isPlaying && currentState == EnemyState.WanderNearLastPosition
+                    ? (Vector3)wanderAnchor
+                    : (Vector3)PostPosition,
+                wanderRadius);
+        }
+
+        if (Application.isPlaying && currentState == EnemyState.SearchAhead)
+        {
+            // Where the sweep is headed next, and how far the probe reaches.
+            Gizmos.color = searchIsWalking ? Color.green : Color.red;
+            Gizmos.DrawLine(transform.position, searchStepTarget);
+            Gizmos.DrawWireSphere(searchStepTarget, 0.15f);
         }
 
         if (idleSoundRadius > 0f &&

@@ -45,9 +45,12 @@ public class GameManager : MonoBehaviour, IGameStateManager
     /// </summary>
     public event Action<GameState, GameState> OnGameStateChanged;
 
+    /// <summary>
+    /// Deliberately empty of start-up work — see <see cref="Initialize"/>, which runs in
+    /// Start instead.
+    /// </summary>
     private void Awake()
     {
-        Initialize();
     }
 
     /// <summary>
@@ -55,10 +58,19 @@ public class GameManager : MonoBehaviour, IGameStateManager
     /// AudioRuntime's AfterSceneLoad bootstrap, and on this component because it lives only
     /// in the dungeon scene — every route in (Play, a loaded save, the death screen's
     /// restart) reloads that scene and so re-runs this.
+    ///
+    /// <see cref="Initialize"/> is here for a different reason. Starting the game builds the
+    /// dungeon, and the build tells the world what to put in it through
+    /// <c>DungeonBuilder.Built</c> — an event <see cref="DungeonPopulator"/> subscribes to in
+    /// its own OnEnable. Awake runs before every OnEnable has, so building from there left
+    /// the event with no subscribers: the tiles were repainted for the new layout while the
+    /// props, doors and enemies stayed the ones baked into the scene, standing wherever the
+    /// old layout had put them.
     /// </summary>
     private void Start()
     {
         AudioService.PlayMusic(SoundId.MusicDungeon);
+        Initialize();
     }
 
     /// <summary>
@@ -89,10 +101,33 @@ public class GameManager : MonoBehaviour, IGameStateManager
     {
         if (CurrentState == GameState.Playing) return;
 
+        // Before InitializePlayer, which teleports the player to the spawn marker: the
+        // build moves that marker to the new dungeon's hub, so the order decides whether
+        // the player lands in the hub or wherever the marker was left last.
+        EnsureDungeonBuilt();
+
         CurrentState = GameState.Playing;
         Time.timeScale = 1f;
 
         InitializePlayer();
+    }
+
+    /// <summary>
+    /// Builds the dungeon a fresh run plays in, from a seed drawn at random.
+    ///
+    /// A load has already built one by the time this runs — <c>DungeonBuilder.BuildFromSave</c>
+    /// fires on the scene-loaded hook, before the save's entity state is laid over the
+    /// world — so an existing layout is left alone. Rebuilding it here would hand the
+    /// player a different dungeon than the one their save describes, and every saved
+    /// entity would then be looking for an object that no longer exists.
+    /// </summary>
+    private void EnsureDungeonBuilt()
+    {
+        DungeonBuilder builder = FindFirstObjectByType<DungeonBuilder>();
+        if (builder == null || builder.CurrentLayout != null) return;
+
+        // A null seed is the builder's own signal to draw a random one.
+        builder.Build(null);
     }
 
     /// <summary>

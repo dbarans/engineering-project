@@ -1347,14 +1347,28 @@ public abstract class EnemyBase : MonoBehaviour
         {
             List<DropItem> generatedDrops = GenerateLoot();
 
-            GameObject corpseInstance = Instantiate(corpsePrefab, transform.position, Quaternion.identity);
+            // Under the generator's content root, the same parent SaveManager respawns this
+            // corpse under. That root is scaled (2 in the Dungeon scene), so a corpse
+            // parented to nothing is half the size of the world around it — and grew to
+            // match the moment a save/load put it back where it belonged. Null in
+            // hand-built scenes, where parenting to nothing is correct.
+            Transform corpseParent = DungeonPopulator.ActiveContentRoot;
+
+            GameObject corpseInstance = Instantiate(
+                corpsePrefab, transform.position, Quaternion.identity, corpseParent);
             EnemyCorpse corpseComponent = corpseInstance.GetComponent<EnemyCorpse>();
             if (corpseComponent != null)
             {
                 corpseComponent.InitializeDrop(generatedDrops);
             }
         }
-        Destroy(gameObject);
+
+        // Deactivated, not destroyed. A destroyed enemy unregisters itself from
+        // SaveableEntity's registry, so by the time a save is captured there is nothing
+        // left to record its death — and the freshly built world hands the player back a
+        // live enemy standing next to its own corpse. Deactivating keeps it registered
+        // and lets the save carry alive=false, which Restore applies.
+        gameObject.SetActive(false);
     }
 
     private List<DropItem> GenerateLoot()

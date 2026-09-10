@@ -1718,14 +1718,18 @@ public class DungeonPopulator : MonoBehaviour
         Transform stale = _contentRoot != null ? _contentRoot : transform.Find(ContentRootName);
         if (stale != null)
         {
-            // Destroy is deferred to the end of the frame in play mode. Detaching and
-            // renaming first keeps the outgoing objects from being found by the build
-            // that is about to run.
+            // Detaching and renaming first keeps the outgoing objects from being found by
+            // the build that is about to run.
             stale.name = ContentRootName + " (discarded)";
             stale.SetParent(null, false);
 
-            if (Application.isPlaying) Destroy(stale.gameObject);
-            else DestroyImmediate(stale.gameObject);
+            // Immediate in play mode too, not only in the editor. A deferred Destroy leaves
+            // the outgoing objects in SaveableEntity's registry until the end of the frame,
+            // while the build that follows registers new ones in the same frame — under the
+            // same guids, since the populator derives them from the seed. The registry reads
+            // that as a duplicate and hands the incoming object a random guid instead, which
+            // destroys the very identity a save restore matches on.
+            DestroyImmediate(stale.gameObject);
         }
 
         var root = new GameObject(ContentRootName);

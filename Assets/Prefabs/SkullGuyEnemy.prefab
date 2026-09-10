@@ -636,7 +636,7 @@ MonoBehaviour:
   range: 10
   obstacleLayers:
     serializedVersion: 2
-    m_Bits: 768
+    m_Bits: 4864
   viewAngle: 120
   turnSpeedDeg: 360
   gizmoDebugSettings: {fileID: 11400000, guid: 3c5d7e9f1a2b3c4d5e6f70819203a4b5, type: 2}

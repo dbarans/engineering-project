@@ -44,6 +44,19 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
     private bool isDestroyed = false;
     private bool isOpen = false;
 
+    // Which way the leaf last swung, -1 or +1. Picked in ToggleDoor from the side the
+    // opener stood on, and carried into the save because restore has to put the door back
+    // on the side it actually opened towards. Restoring on a fixed side swung half the
+    // open doors into the wall they were hinged against.
+    private float openDirection = -1f;
+
+    // Where the leaf sits relative to its hinge, which never changes — opening turns the
+    // hinge, and the leaf rides along. The save records the leaf's world position, and on
+    // an open door that is the swung-out one; writing it back before the hinge has been
+    // turned, and then turning the hinge, displaced the leaf twice. Restoring this puts it
+    // back on the hinge first.
+    private Vector3 hingedLocalPosition;
+
     private Quaternion closedRotation;
     private Quaternion targetRotation;
     private Camera mainCamera;
@@ -156,6 +169,7 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
 
         closedRotation = doorSystemTransform.localRotation;
         targetRotation = closedRotation;
+        hingedLocalPosition = transform.localPosition;
 
         currentHealth = maxHealth;
         doorCollider = GetComponent<Collider2D>();
@@ -306,6 +320,7 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
                 direction = isOpenerInFront ? -1f : 1f;
             }
 
+            openDirection = direction;
             targetRotation = closedRotation * Quaternion.Euler(0, 0, openAngle * direction);
             AudioService.PlayAt(SoundId.DoorOpen, transform.position);
             Debug.Log($"[Door] Opened away from {(opener != null ? opener.name : "Unknown")}!");
@@ -535,6 +550,10 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
         public bool isLocked;
         public bool requiresKey;
         public float health;
+
+        // Defaults to the side ToggleDoor picks when it has no opener, so a save written
+        // before this field existed restores exactly as it used to.
+        public float openDirection = -1f;
     }
 
     public string CapturePayload()
@@ -545,7 +564,8 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
             isOpen = isOpen,
             isLocked = isLocked,
             requiresKey = requiresKeyToOpen,
-            health = currentHealth
+            health = currentHealth,
+            openDirection = openDirection
         };
         return JsonConvert.SerializeObject(data);
     }
@@ -562,6 +582,11 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
         isLocked = data.isLocked;
         requiresKeyToOpen = data.requiresKey;
         currentHealth = data.health;
+        openDirection = data.openDirection;
+
+        // Undo the world position the entity restore wrote over us: the leaf's place is
+        // decided by its hinge, not by where it happened to be swung to when saving.
+        transform.localPosition = hingedLocalPosition;
 
         if (isDestroyed)
         {
@@ -571,7 +596,7 @@ public class SimpleDoor : MonoBehaviour, ISaveableComponent
         {
             if (isOpen)
             {
-                targetRotation = closedRotation * Quaternion.Euler(0, 0, openAngle * -1f);
+                targetRotation = closedRotation * Quaternion.Euler(0, 0, openAngle * openDirection);
                 doorSystemTransform.localRotation = targetRotation;
             }
             else

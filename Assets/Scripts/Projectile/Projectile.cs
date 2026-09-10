@@ -10,6 +10,12 @@ public class Projectile : MonoBehaviour
     [SerializeField] private float damage = 25f;
     [SerializeField] private float knockbackForce = 1f;
 
+    [Tooltip("Layers a bullet stops on. Everything solid it can be shot into belongs here — " +
+             "walls, doors, barrels, furniture. Enemies are matched by component instead, so " +
+             "they do not need a layer of their own in this mask.")]
+    [SerializeField] private LayerMask obstacleLayers =
+        (1 << 8) | (1 << 9) | (1 << 11) | (1 << 12); // ObstacleStatic, ObstacleDynamic, ObstaclePathOnly, Door
+
     private Rigidbody2D rb;
 
     private void Start()
@@ -73,7 +79,17 @@ public class Projectile : MonoBehaviour
             return true;
         }
 
-        if (collision.CompareTag("Obstacle"))
+        // A trigger is a sensing volume, not a thing in the way: an interactable's pickup
+        // radius or a table's approach zone must not swallow a bullet the way its solid
+        // collider would.
+        if (collision.isTrigger) return false;
+
+        // Matched by layer rather than by tag. This used to test for the "Obstacle" tag,
+        // which exactly one object in the dungeon carries — the wall tilemap — so bullets
+        // stopped on walls and flew straight through closed doors, barrels, crates and
+        // furniture alike. A tag also fails silently: every new kind of obstacle has to
+        // remember to carry it, and nothing complains when one does not.
+        if (((1 << collision.gameObject.layer) & obstacleLayers) != 0)
         {
             Destroy(gameObject);
             return true;

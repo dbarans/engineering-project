@@ -29,6 +29,14 @@ public class DraggableBarrel : MonoBehaviour
 
     private bool _isDragging = false;
     private float _initialHoldDistance;
+
+    /// <summary>
+    /// Where the barrel stood when this drag began. The navigation grid has to hear about both
+    /// ends of the move — the cells being freed and the ones being blocked — and by the time
+    /// the drag ends the starting footprint is no longer readable from the collider.
+    /// </summary>
+    private Bounds _dragStartFootprint;
+
     private readonly RaycastHit2D[] _castHits = new RaycastHit2D[8];
     private ContactFilter2D _castFilter;
 
@@ -136,15 +144,36 @@ public class DraggableBarrel : MonoBehaviour
             _castFilter.layerMask = obstacleLayerMask;
             int hitCount = _barrelRb.Cast(pullDir, _castFilter, _castHits, excessDistance + 0.02f);
 
-            if (hitCount > 0)
+            float allowedDistance = excessDistance;
+            for (int i = 0; i < hitCount; i++)
             {
-                float allowedDistance = Mathf.Max(0f, _castHits[0].distance - 0.02f);
-                _barrelRb.MovePosition(currentBarrelPos + pullDir * allowedDistance);
+                RaycastHit2D hit = _castHits[i];
+
+                // A surface the barrel already rests against reports distance 0 whichever way
+                // the cast points, and its normal is not meaningful either — so the raw hit
+                // cannot tell "a wall lies ahead" from "we are leaning on one". Taking it at
+                // face value pinned the barrel the moment it met a wall, including while the
+                // player pulled it away, which is the one direction that frees it. Dragging a
+                // barrel into a corridor did it every time: the walls are a barrel-width apart.
+                //
+                // Physics2D.Distance answers that question even while two colliders overlap:
+                // its normal runs from the barrel toward the other collider, so a pull that
+                // points against it is a pull away from the contact and nothing to clamp.
+                ColliderDistance2D separation = Physics2D.Distance(_barrelCol, hit.collider);
+                if (separation.distance <= 0.01f && Vector2.Dot(separation.normal, pullDir) < 0f)
+                    continue;
+
+                allowedDistance = Mathf.Min(allowedDistance, Mathf.Max(0f, hit.distance - 0.02f));
             }
-            else
+
+            if (allowedDistance >= excessDistance)
             {
                 Vector2 targetPos = playerPos - (pullDir * _initialHoldDistance);
                 _barrelRb.MovePosition(targetPos);
+            }
+            else
+            {
+                _barrelRb.MovePosition(currentBarrelPos + pullDir * allowedDistance);
             }
         }
     }
@@ -155,6 +184,9 @@ public class DraggableBarrel : MonoBehaviour
         _isDragging = true;
         _currentlyDraggedBarrel = this;
         _initialHoldDistance = Mathf.Max(initialDistance, 0.8f);
+        _dragStartFootprint = _barrelCol != null
+            ? _barrelCol.bounds
+            : new Bounds(transform.position, Vector3.one);
 
         if (_playerMovement != null)
         {
@@ -176,6 +208,18 @@ public class DraggableBarrel : MonoBehaviour
         }
 
         _barrelRb.linearVelocity = Vector2.zero;
+
+        // A barrel is an obstacle the navigation grid sampled once, when it was built, so a
+        // dragged one leaves its old cells blocked and its new ones open until it is told
+        // otherwise — which made blocking a corridor with a barrel do nothing to enemies, and
+        // clearing one out of the way do nothing either. Both footprints go in one refresh,
+        // since the grid relabels its regions per call and the drag is a single move.
+        if (PathfindingGrid.Active != null)
+        {
+            Bounds moved = _dragStartFootprint;
+            moved.Encapsulate(_barrelCol != null ? _barrelCol.bounds : new Bounds(transform.position, Vector3.one));
+            PathfindingGrid.Active.RefreshArea(moved);
+        }
     }
 
     private void OnDisable()

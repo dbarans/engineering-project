@@ -74,6 +74,12 @@ public static class ItemDropSetup
     {
         var root = new GameObject("DroppedItem");
 
+        // Drops are parented to the generator's content root, which the Dungeon scene
+        // scales 2×. At the prefab's own scale of 1 they came out twice the size of the
+        // icons they represent; half here lands them where they used to sit before the
+        // dungeon was built at run time.
+        root.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
+
         var sprite = root.AddComponent<SpriteRenderer>();
         sprite.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(UnknownIconPath);
         sprite.sortingOrder = 5;
@@ -146,13 +152,28 @@ public static class ItemDropSetup
         rootRt.gameObject.SetActive(false);
     }
 
+    /// <summary>
+    /// Finds or creates the drop manager, and makes sure it carries the component that
+    /// saves items lying on the ground.
+    ///
+    /// That component is added here rather than only living on the WorldItemPickup prefab,
+    /// because the manager in the Dungeon scene was built by hand and never got it: drops
+    /// were then never written to a save at all, since the save system scans the scene for
+    /// <see cref="ISaveable"/> and finds nothing to ask. Ensuring it on every run of this
+    /// tool keeps a scene rebuilt from scratch from losing it again.
+    /// </summary>
     private static WorldItemPickup EnsureManager()
     {
         var existing = Object.FindFirstObjectByType<WorldItemPickup>();
-        if (existing != null) return existing;
+        if (existing != null)
+        {
+            EditorSetupUtility.EnsureComponent<WorldItemsSaveable>(existing.gameObject);
+            return existing;
+        }
 
         var go = new GameObject("WorldItemPickup");
         var manager = go.AddComponent<WorldItemPickup>();
+        EditorSetupUtility.EnsureComponent<WorldItemsSaveable>(go);
         Undo.RegisterCreatedObjectUndo(go, "Create WorldItemPickup");
         return manager;
     }

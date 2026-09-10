@@ -132,6 +132,12 @@ public class Barrel : MonoBehaviour, ISaveableComponent
     /// </summary>
     private void ApplyBrokenVisualState()
     {
+        // Read while the collider is still enabled: a disabled one reports empty bounds, and
+        // this is the footprint the navigation grid has to be told about.
+        Bounds footprint = _col != null
+            ? _col.bounds
+            : new Bounds(transform.position, Vector3.one);
+
         if (_col != null) _col.enabled = false;
         if (_sr != null) _sr.enabled = false;
         if (_rb != null)
@@ -144,6 +150,14 @@ public class Barrel : MonoBehaviour, ISaveableComponent
         {
             child.gameObject.SetActive(false);
         }
+
+        // Last, once nothing of this barrel is solid any more: the grid re-runs the same
+        // overlap query the build used, and would still find whatever is left enabled.
+        //
+        // Without it the cell stays blocked for the rest of the run — enemies keep walking
+        // around a gap that is no longer there, and a barrel that had been the only way
+        // through leaves everything beyond it permanently unreachable to them.
+        PathfindingGrid.Active?.RefreshArea(footprint);
     }
 
     /// <summary>

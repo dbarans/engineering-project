@@ -132,6 +132,73 @@ public class PathfindingGrid : MonoBehaviour
     }
 
     /// <summary>
+    /// Resamples walkability for the cells covering <paramref name="worldBounds"/> and relabels
+    /// the connected regions, for an obstacle that appeared, moved or stopped being one.
+    ///
+    /// Exists because <see cref="BuildGrid"/> samples the world once and never looks again: a
+    /// barrel smashed in a doorway left its cell blocked for the rest of the run, so enemies
+    /// walked around a gap that was no longer there — and where that barrel had been the only
+    /// way through, everything beyond it stayed unreachable to them for good.
+    ///
+    /// Only the sampling is local. The region labels are rebuilt in full, deliberately: they
+    /// are a property of the whole grid rather than of a rectangle in it, and one cell opening
+    /// up can join two regions that meet nowhere near it. Refreshing the cells alone would
+    /// leave <see cref="GetRegionId"/> insisting a route is impossible just as it became
+    /// possible — and that answer is what <see cref="AStarPathfinder"/> rejects targets on
+    /// without searching. The relabel is a flood fill over an int array with no physics in it,
+    /// which is the cheap half of a build; the per-cell overlap queries are the expensive half,
+    /// and those stay confined to the rectangle.
+    /// </summary>
+    /// <param name="worldBounds">World-space area to resample. Clamped to the grid.</param>
+    public void RefreshArea(Bounds worldBounds)
+    {
+        if (_walkable == null || _walkable.Length != width * height)
+        {
+            BuildGrid();
+            return;
+        }
+
+        // A cell the bounds merely clip still has to be resampled, and a cell of margin costs
+        // one overlap query — cheap against the risk of leaving a stale blocked cell behind.
+        int minX = Mathf.Clamp(Mathf.FloorToInt((worldBounds.min.x - origin.x) / cellSize) - 1, 0, width - 1);
+        int maxX = Mathf.Clamp(Mathf.CeilToInt((worldBounds.max.x - origin.x) / cellSize) + 1, 0, width - 1);
+        int minY = Mathf.Clamp(Mathf.FloorToInt((worldBounds.min.y - origin.y) / cellSize) - 1, 0, height - 1);
+        int maxY = Mathf.Clamp(Mathf.CeilToInt((worldBounds.max.y - origin.y) / cellSize) + 1, 0, height - 1);
+
+        float radius = GetObstacleCheckRadius();
+        var filter = new ContactFilter2D { useTriggers = false };
+        filter.SetLayerMask(obstacleMask);
+
+        for (int y = minY; y <= maxY; y++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                Vector2 center = CellToWorld(x, y);
+                _walkable[y * width + x] = Physics2D.OverlapCircle(center, radius, filter, _overlapBuffer) == 0;
+            }
+        }
+
+        BuildRegions();
+        TopologyVersion++;
+    }
+
+    /// <summary>
+    /// The grid this scene navigates by. Cached, and resolved on demand: the objects that need
+    /// to tell it about a change — a barrel breaking, one being dragged aside — are spawned by
+    /// the generator and cannot carry a reference wired in the inspector.
+    /// </summary>
+    public static PathfindingGrid Active
+    {
+        get
+        {
+            if (_active == null) _active = FindFirstObjectByType<PathfindingGrid>();
+            return _active;
+        }
+    }
+
+    private static PathfindingGrid _active;
+
+    /// <summary>
     /// Labels every walkable cell with the id of its connected region via flood fill.
     /// Blocked cells get -1, so they never compare equal to anything (including each other).
     ///

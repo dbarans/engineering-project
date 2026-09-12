@@ -61,6 +61,7 @@ public class KeyBindings : ScriptableObject
                         "built-in defaults. Run Tools ▸ Input ▸ Build Key Bindings to create one.");
                     _instance = CreateInstance<KeyBindings>();
                 }
+                KeyBindingsPersistence.ApplyOverrides(_instance); // <-- add this line only
             }
             return _instance;
         }

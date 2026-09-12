@@ -5,6 +5,13 @@ public class MainMenuController : MonoBehaviour
 {
     [Tooltip("Exact name of your gameplay scene, must be in Build Settings")]
     [SerializeField] private string gameSceneName = "Game";
+    [SerializeField] private ControlSettingsUI controlSettingsUI; // new
+
+    private void Awake() // new
+    {
+        if (controlSettingsUI == null)
+            controlSettingsUI = FindFirstObjectByType<ControlSettingsUI>();
+    }
 
     /// <summary>
     /// Starts the menu track. Runs on every load of this scene, including a return from
@@ -29,6 +36,12 @@ public class MainMenuController : MonoBehaviour
     public void OnPlayPressed()
     {
         SceneManager.LoadScene(gameSceneName);
+    }
+
+    // Wired to the Settings button's OnClick() — new
+    public void OnSettingsPressed()
+    {
+        controlSettingsUI?.Open();
     }
 
     public void OnQuitPressed()

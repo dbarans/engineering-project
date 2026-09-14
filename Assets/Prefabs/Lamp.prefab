@@ -275,7 +275,7 @@ MonoBehaviour:
   rebuildInterval: 0.1
   edgeDistanceThreshold: 0.5
   edgeResolveIterations: 4
-  visionMaskMaterial: {fileID: 0}
+  visionMaskMaterial: {fileID: 2100000, guid: 4303ba8baab14767951b6e464c0ab0f6, type: 2}
   sortingLayerName: Default
   sortingOrder: 5
   gizmoDebugSettings: {fileID: 0}

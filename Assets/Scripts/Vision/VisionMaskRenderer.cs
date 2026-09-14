@@ -72,8 +72,10 @@ public class VisionMaskRenderer : MonoBehaviour
 
     /// <summary>
     /// Builds a mask material from the shader alone, for light sources with no material assigned.
-    /// Keeps a lamp working straight after dropping the component on a GameObject; assign a
-    /// material only to tune the edge softness.
+    /// Keeps a lamp working straight after dropping the component on a GameObject — but only in
+    /// the Editor. A player build contains just the shaders some built asset references, so there
+    /// Shader.Find returns null unless a material using this shader ships with the build. Always
+    /// assign Materials/VisionMaskWriter.mat on anything that ends up in a build.
     /// </summary>
     private static Material CreateDefaultMaskMaterial(Transform owner)
     {

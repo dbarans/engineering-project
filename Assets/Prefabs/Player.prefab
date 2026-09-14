@@ -1595,7 +1595,7 @@ MonoBehaviour:
   edgeDistanceThreshold: 0.5
   edgeResolveIterations: 4
   directionSource: {fileID: 2038790236695264251}
-  visionMaskMaterial: {fileID: 0}
+  visionMaskMaterial: {fileID: 2100000, guid: 4303ba8baab14767951b6e464c0ab0f6, type: 2}
   viewTint: {r: 0, g: 0, b: 0, a: 1}
   sortingLayerName: Default
   sortingOrder: 5

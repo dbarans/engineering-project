@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Item 17 - Golden Key
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   id: 9f3d5c81a04e47b2b8e607fa2d59c134
-  icon: {fileID: 21300000, guid: 4a71e8c3506d4f92b1c07ea3d8256f10, type: 3}
+  icon: {fileID: 21300000, guid: 84fd21ccd74e8ef4d8592d1c60eba8fd, type: 3}
   itemName: Golden Key
   description: An ornate, pristine key forged from solid gold. Unlocks special chests
     and sealed chambers.

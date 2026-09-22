@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Item 11 - Shotgun
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   id: c3f7a1d84b6e42a9bd05e17c9f42db63
-  icon: {fileID: 21300000, guid: b5e83a17c94d4f60a2d71e6c85f30924, type: 3}
+  icon: {fileID: 21300000, guid: 840c3f280f47b5040930eee854cd63cb, type: 3}
   itemName: Shotgun
   description: A devastating break-action firearm. Unleashes high spread damage at
     point-blank range.

@@ -1,28 +1,10 @@
 fileFormatVersion: 2
-guid: d3cdd613165005348819758bf77e0f4d
+guid: 84fd21ccd74e8ef4d8592d1c60eba8fd
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -6665356834582444394
-    second: New Piskel (9)_0
-  - first:
-      213: -1496058259235209497
-    second: New Piskel (9)_1
-  - first:
-      213: -960967852183714187
-    second: New Piskel (9)_2
-  - first:
-      213: 4244660540284774351
-    second: New Piskel (9)_3
-  - first:
-      213: -3565788305858849353
-    second: New Piskel (9)_4
-  - first:
-      213: -1504271985061996514
-    second: New Piskel (9)_5
-  - first:
-      213: -688398791001666515
-    second: New Piskel (9)_6
+      213: -1241992723806703231
+    second: IconGoldenKey_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -55,7 +37,7 @@ TextureImporter:
   maxTextureSize: 2048
   textureSettings:
     serializedVersion: 2
-    filterMode: 0
+    filterMode: 1
     aniso: 1
     mipBias: 0
     wrapU: 1
@@ -64,7 +46,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 2
+  spriteMode: 1
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -119,7 +101,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -131,23 +113,23 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Key
+      name: IconGoldenKey_0
       rect:
         serializedVersion: 2
-        x: 5
-        y: 41
-        width: 9
-        height: 18
+        x: 18
+        y: 22
+        width: 84
+        height: 96
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: bfdf62eb320f63f4c9865051c242c6ec
-      internalID: -726930148
+      spriteID: 181b1e3b23e83cee0800000000000000
+      internalID: -1241992723806703231
       vertices: []
       indices: 
       edges: []
@@ -156,7 +138,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: f34dc511a99b5584db5b752ce1143b68
+    spriteID: 5e97eb03825dee720800000000000000
     internalID: 0
     vertices: []
     indices: 
@@ -164,19 +146,9 @@ TextureImporter:
     weights: []
     secondaryTextures: []
     spriteCustomMetadata:
-      entries:
-      - key: SpriteEditor.SliceOnImport
-        value: False
-      - key: SpriteEditor.SliceSettings
-        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":64.0,"y":64.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":0,"keepEmptyRects":false,"isAlternate":false}'
+      entries: []
     nameFileIdTable:
-      Key: -726930148
-      Keys_1: -1170198961
-      Keys_2: 948727956
-      Keys_3: 374814404
-      Keys_4: -1604395486
-      Keys_5: -718296717
-      Keys_6: -1949248441
+      IconGoldenKey_0: -1241992723806703231
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

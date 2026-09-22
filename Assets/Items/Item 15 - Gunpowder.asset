@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Item 15 - Gunpowder
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   id: 4c9f1a86d3e74b52a81c60f95d2b7e38
-  icon: {fileID: 21300000, guid: 1d84c39ef25b47a0b8e51c76d0a3f95b, type: 3}
+  icon: {fileID: 21300000, guid: 43b1f0b93feece54e98fc7c775d41c54, type: 3}
   itemName: Gunpowder
   description: Volatile explosive powder. Combine with metal scrap to craft bullets
     and shotgun shells.

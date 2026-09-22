@@ -730,7 +730,7 @@ SpriteRenderer:
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 6.333333, y: 6.333333}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -1471,6 +1471,7 @@ MonoBehaviour:
   currentHealth: 0
   maxHealth: 100
   healthBar: {fileID: 0}
+  deathScreenDelay: 0.5
 --- !u!114 &4763037826514429209
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1703,6 +1704,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNoiseEmitter
   emitInterval: 0.2
   noiseSettings: {fileID: 11400000, guid: c4d5e6f7a8b9010203040506070809ab, type: 2}
+  walkStepInterval: 0.5
+  sprintStepInterval: 0.27
+  sneakStepInterval: 0.7
 --- !u!114 &5570424979841258393
 MonoBehaviour:
   m_ObjectHideFlags: 0

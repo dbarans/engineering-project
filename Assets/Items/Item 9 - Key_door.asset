@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Item 9 - Key_door
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   id: 0b5baa00fb954bf783a7a1d08d0187ee
-  icon: {fileID: -726930148, guid: d3cdd613165005348819758bf77e0f4d, type: 3}
+  icon: {fileID: 21300000, guid: 039d89f25041b4044b7a8bc97cf32990, type: 3}
   itemName: Door Key
   description: A makeshift key fashioned from scrap metal. Fits common locks and
     standard doors.

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Item 13 - Rags
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   id: 7a41c9e3b2d84f16a05c8e37d1b6942f
-  icon: {fileID: 21300000, guid: 5e93b1a7c48d4f26b70a1d3c8e5f2049, type: 3}
+  icon: {fileID: 21300000, guid: a0c4c3242d302dc46913c4ae544ce67a, type: 3}
   itemName: Rags
   description: Torn pieces of dirty cloth. Can be sterilized with alcohol to create
     clean medical bandages.

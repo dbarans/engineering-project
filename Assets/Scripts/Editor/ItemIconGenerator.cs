@@ -82,6 +82,20 @@ public static class ItemIconGenerator
     private static readonly Color WoodColor = new Color32(0x7E, 0x6A, 0x51, 0xFF);
     private static readonly Color WoodDark = new Color32(0x5A, 0x4A, 0x38, 0xFF);
 
+    // Chalky and neutral on purpose: this is a "we don't know what this is" mark, not an
+    // object with a material of its own. Kept light so it reads against a dark inventory
+    // slot instead of sinking into it.
+    private static readonly Color UnknownColor = new Color32(0xF2, 0xEA, 0xD8, 0xFF);
+
+    private static readonly Color AlcoholColor = new Color32(0x8A, 0x5A, 0x28, 0xFF);
+    private static readonly Color PowderColor = new Color32(0x2A, 0x28, 0x26, 0xFF);
+    private static readonly Color GoldColor = new Color32(0xC9, 0xA2, 0x27, 0xFF);
+
+    // The one other strong colour in the set besides the shell's red — a double barrel's
+    // stock is the warm orange-brown wood everyone pictures, not the desaturated tones
+    // everything else here is drawn in.
+    private static readonly Color StockColor = new Color32(0xAD, 0x71, 0x36, 0xFF);
+
     /// <summary>One generated icon: what to draw and which item asset receives it.</summary>
     private readonly struct IconSpec
     {
@@ -105,8 +119,19 @@ public static class ItemIconGenerator
         new IconSpec("IconBullet", "Assets/Items/Item 7 - Bullet.asset", DrawBullet),
         new IconSpec("IconShell", "Assets/Items/Item 12 - Shell.asset", DrawShell),
         new IconSpec("IconWood", "Assets/Items/Item 3 - Wood.asset", DrawWood),
-        new IconSpec("IconAxe", "Assets/Items/Item 4 - Axe.asset", DrawAxe)
+        new IconSpec("IconAxe", "Assets/Items/Item 4 - Axe.asset", DrawAxe),
+        new IconSpec("IconPistol", "Assets/Items/Item 5 - Pistol.asset", DrawPistol),
+        new IconSpec("IconShotgun", "Assets/Items/Item 11 - Shotgun.asset", DrawShotgun),
+        new IconSpec("IconRags", "Assets/Items/Item 13 - Rags.asset", DrawRags),
+        new IconSpec("IconAlcohol", "Assets/Items/Item 14 - Alcohol.asset", DrawAlcohol),
+        new IconSpec("IconGunpowder", "Assets/Items/Item 15 - Gunpowder.asset", DrawGunpowder),
+        new IconSpec("IconGoldenKey", "Assets/Items/Item 17 - Golden Key.asset", DrawGoldenKey),
+        new IconSpec("IconDoorKey", "Assets/Items/Item 9 - Key_door.asset", DrawDoorKey),
+        new IconSpec("IconPlank", "Assets/Items/Item 10 - Plank.asset", DrawPlank)
     };
+
+    /// <summary>Prefab whose default (no-item-assigned) sprite is the GDS question mark.</summary>
+    private const string DroppedItemPrefabPath = "Assets/Prefabs/World/DroppedItem.prefab";
 
     /// <summary>
     /// Draws every icon, imports it and assigns it to its item. Idempotent and safe to
@@ -127,9 +152,43 @@ public static class ItemIconGenerator
             if (AssignToItem(spec.ItemPath, sprite)) assigned++;
         }
 
+        var unknownCanvas = new ArtCanvas(IconPixels, IconPixels);
+        DrawUnknown(unknownCanvas);
+        Sprite unknownSprite = WriteSprite(unknownCanvas, $"{IconFolder}/IconUnknown.png", IconPixelsPerUnit);
+        if (unknownSprite != null && AssignToDroppedItemPlaceholder(unknownSprite)) assigned++;
+
         AssetDatabase.SaveAssets();
-        Debug.Log($"[ItemIcons] Redrew {Icons.Length} icons in '{IconFolder}' " +
-                  $"({assigned} items re-pointed). The GDS icons they replace are untouched.");
+        Debug.Log($"[ItemIcons] Redrew {Icons.Length + 1} icons in '{IconFolder}' " +
+                  $"({assigned} targets re-pointed). The GDS icons they replace are untouched.");
+    }
+
+    /// <summary>
+    /// Points DroppedItem's SpriteRenderer — the placeholder shown before <c>WorldItem.item</c>
+    /// assigns a real icon — at the sprite. A prefab asset, not an <see cref="ItemData"/>, so it
+    /// needs its own load/save path rather than <see cref="AssignToItem"/>.
+    /// </summary>
+    private static bool AssignToDroppedItemPlaceholder(Sprite sprite)
+    {
+        GameObject prefab = PrefabUtility.LoadPrefabContents(DroppedItemPrefabPath);
+        try
+        {
+            var renderer = prefab.GetComponent<SpriteRenderer>();
+            if (renderer == null)
+            {
+                Debug.LogWarning($"[ItemIcons] '{DroppedItemPrefabPath}' has no SpriteRenderer — nothing assigned.");
+                return false;
+            }
+
+            if (renderer.sprite == sprite) return false;
+
+            renderer.sprite = sprite;
+            PrefabUtility.SaveAsPrefabAsset(prefab, DroppedItemPrefabPath);
+            return true;
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(prefab);
+        }
     }
 
     /// <summary>Points an item's serialized icon field at the sprite. Returns whether it changed.</summary>
@@ -511,5 +570,293 @@ public static class ItemIconGenerator
         // The line where the honed edge starts, drawn rather than shaded.
         Stroke(canvas, Head, Rotate(head + new Vector2(17f, -22f), head, 40f),
             Rotate(head + new Vector2(17f, 22f), head, 40f), 2.2f, 0x94u, 0.6f);
+    }
+
+    private static void DrawPistol(ArtCanvas canvas)
+    {
+        // A Luger P08, and three things carry that at this size: a barrel noticeably slimmer
+        // than what it steps into, a grip raked far further back than any modern pistol's,
+        // and the receiver tail falling away above it instead of squaring off. Built like the
+        // shotgun otherwise, so the two firearms read as a pair.
+        const float Tilt = 27f;
+        const float GripTilt = -38f;
+
+        // Same reason as the shotgun: drawn out to within a few pixels of the frame, because
+        // the slot it is shown in insets it again. The ink line is left unscaled so the
+        // weight still matches the rest of the set.
+        const float Scale = 1.05f;
+        var origin = new Vector2(10.5f, 48.5f);
+        Vector2 along = new Vector2(Mathf.Cos(Tilt * Mathf.Deg2Rad), Mathf.Sin(Tilt * Mathf.Deg2Rad));
+        Vector2 off = new Vector2(-along.y, along.x);
+
+        Vector2 At(float t, float s) => origin + (along * t + off * s) * Scale;
+        Vector2 Size(float length, float depth) => new Vector2(length, depth) * Scale;
+        float R(float radius) => radius * Scale;
+        Vector2 Bore(Vector2 p, Vector2 centre) => Rotate(p, centre, -Tilt);
+
+        // Barrel and receiver as one steel form, with the tail cut away where it would
+        // otherwise sit square above the grip. The barrel is drawn thin enough that the ink
+        // takes most of it — right for a Luger, whose barrel is the slimmest thing on it, and
+        // the step where it meets the receiver is most of what identifies the gun.
+        var barrelCentre = At(24f, 0f);
+        var receiverCentre = At(62f, -5f);
+        var tailCentre = At(78f, 28f);
+        float Metal(Vector2 p) => Subtract(
+            SmoothUnion(
+                RoundedBox(Bore(p, barrelCentre), barrelCentre, Size(24f, 11f), R(3f)),
+                RoundedBox(Bore(p, receiverCentre), receiverCentre, Size(17f, 18f), R(5f)),
+                R(4f)),
+            Circle(p, tailCentre, R(20f)));
+
+        Fill(canvas, Metal, Wash(IronColor, 0xB1u, 0.06f), 0xB1u);
+        Stroke(canvas, Metal, At(5f, 0f), At(36f, 0f), 2f, 0xB2u, 0.4f);
+
+        // The toggle joint, drawn as the line across the receiver rather than modelled as a
+        // hump on top of it — a hump that reads at all would be thinner than its own ink.
+        Stroke(canvas, Metal, At(66f, 9f), At(66f, -12f), 2.2f, 0xB5u, 0.5f);
+
+        // Nothing is subtracted from the guard: cutting the neighbour out of a ring removes
+        // the overlap holding the two together and leaves the loop floating.
+        var guardCentre = At(52f, -28f);
+        float Guard(Vector2 p) => Subtract(Circle(p, guardCentre, R(12.5f)), Circle(p, guardCentre, R(7.5f)));
+        Fill(canvas, Guard, Wash(IronDark, 0xB3u, 0.05f), 0xB3u);
+
+        // Raked back at the angle the Luger is known for, and buried well up into the
+        // receiver so the wood-to-steel seam is one ink line rather than a gap.
+        Vector2 gripAlong = new Vector2(Mathf.Cos(GripTilt * Mathf.Deg2Rad), Mathf.Sin(GripTilt * Mathf.Deg2Rad));
+        Vector2 gripCentre = At(70f, -12f) + gripAlong * 20f * Scale;
+        float Grip(Vector2 p) => RoundedBox(Rotate(p, gripCentre, -GripTilt), gripCentre, Size(20f, 15f), R(6f));
+        Fill(canvas, Grip, Wash(StockColor, 0xB4u, 0.06f), 0xB4u);
+    }
+
+    private static void DrawShotgun(ArtCanvas canvas)
+    {
+        // Two constraints decide this drawing, and every earlier attempt failed one of them.
+        //
+        // First, the ink is 4.5-8.5px wide on *each* side of a contour, so anything under
+        // about thirty pixels across is eaten from both edges and comes out a black sliver.
+        // Barrels drawn as two separate tubes, a stock pinched in at the wrist: all sliver.
+        //
+        // Second, each Fill is its own silhouette with its own outline, so two parts that
+        // merely touch end up as two islands with a gap between them — the wobble alone moves
+        // a contour by two pixels. Parts have to overlap by ten pixels or more, and a part
+        // must never be subtracted from the neighbour it is supposed to hang off.
+        //
+        // What is left after both is a small number of fat shapes that overlap heavily, so
+        // the gun reads by its gesture: a long lean barrel against a short deep stock, broken
+        // at the wrist. Steep enough that the barrel gets the length a long gun needs — a
+        // square canvas is much longer on the diagonal, and shallower layouts left the barrel
+        // as stubby as the stock, which is what made the whole thing read as a hand tool.
+        const float Tilt = 45f;
+        const float StockTilt = 30f;
+
+        // Drawn to within about six pixels of the frame. The icons are shown inside a slot
+        // that already insets them, so the margin left here is margin lost twice over; the
+        // ink line is not scaled with it, which keeps the line weight matching the rest.
+        const float Scale = 1.05f;
+        var origin = new Vector2(14.5f, 31.5f);
+        Vector2 along = new Vector2(Mathf.Cos(Tilt * Mathf.Deg2Rad), Mathf.Sin(Tilt * Mathf.Deg2Rad));
+        Vector2 off = new Vector2(-along.y, along.x);
+
+        // Parts are placed by how far down the gun they sit and how far off the bore line.
+        Vector2 At(float t, float s) => origin + (along * t + off * s) * Scale;
+        Vector2 Size(float length, float depth) => new Vector2(length, depth) * Scale;
+        float R(float radius) => radius * Scale;
+
+        // Rotate turns the sample point, which lands the shape at the negative of the angle
+        // passed — the axe passes -40 to stand its head up at +40.
+        Vector2 Bore(Vector2 p, Vector2 centre) => Rotate(p, centre, -Tilt);
+
+        // Barrels and receiver as one form. Both are the same steel, so merging them costs
+        // nothing and buys a continuous outline with the receiver reading as a bulge in it,
+        // instead of two boxes that drift apart. The seam down the middle is what says there
+        // are two barrels — drawing them as two shapes only ever produced a black tangle.
+        var barrelCentre = At(32f, 0f);
+        var receiverCentre = At(70f, -5f);
+        float Metal(Vector2 p) => SmoothUnion(
+            RoundedBox(Bore(p, barrelCentre), barrelCentre, Size(32f, 14f), R(4f)),
+            RoundedBox(Bore(p, receiverCentre), receiverCentre, Size(15f, 18f), R(5f)),
+            R(9f));
+
+        Fill(canvas, Metal, Wash(IronColor, 0xC1u, 0.05f), 0xC1u);
+        Stroke(canvas, Metal, At(6f, 0f), At(60f, 0f), 2.2f, 0xC2u, 0.5f);
+
+        // The fore-end, well up into the barrel so wood meets steel along one ink line.
+        var foreCentre = At(28f, -17f);
+        float Fore(Vector2 p) => RoundedBox(Bore(p, foreCentre), foreCentre, Size(21f, 12f), R(5f));
+        Fill(canvas, Fore, Wash(StockColor, 0xC3u, 0.06f), 0xC3u);
+
+        // An open dark loop under the receiver: the clearest "this is a gun" mark in the set,
+        // and what makes the pistol read at a glance. Nothing is subtracted from it — the
+        // previous version cut the receiver out of the ring, which removed the very overlap
+        // holding the two together and left the guard floating.
+        var guardCentre = At(68f, -27f);
+        float Guard(Vector2 p) => Subtract(Circle(p, guardCentre, R(12f)), Circle(p, guardCentre, R(7f)));
+        Fill(canvas, Guard, Wash(IronDark, 0xC4u, 0.05f), 0xC4u);
+        Fill(canvas, p => Segment(p, At(68f, -15f), At(68f, -26f), R(2.6f)), Wash(IronDark, 0xC5u, 0.05f), 0xC5u);
+
+        // The stock runs at its own shallower angle, so the gun breaks at the wrist instead
+        // of continuing as one straight sausage. One fat block with a bite taken out of its
+        // underside, which sweeps the belly up towards the trigger guard — carving the
+        // silhouette is how the axe gets its shape, and it costs no thickness.
+        Vector2 stockAlong = new Vector2(Mathf.Cos(StockTilt * Mathf.Deg2Rad), Mathf.Sin(StockTilt * Mathf.Deg2Rad));
+        Vector2 stockOff = new Vector2(-stockAlong.y, stockAlong.x);
+        Vector2 stockCentre = At(74f, -5f) + (stockAlong * 21f - stockOff * 7f) * Scale;
+        Vector2 bellyCentre = stockCentre - (stockAlong * 21f + stockOff * 30f) * Scale;
+
+        float Stock(Vector2 p) => Subtract(
+            RoundedBox(Rotate(p, stockCentre, -StockTilt), stockCentre, Size(21f, 18f), R(7f)),
+            Circle(p, bellyCentre, R(20f)));
+
+        Fill(canvas, Stock, Wash(StockColor, 0xC6u, 0.06f), 0xC6u);
+    }
+
+    private static void DrawRags(ArtCanvas canvas)
+    {
+        // Two overlapping strips bitten into at one corner — the same torn-corner idiom the
+        // scrap metal uses. Thick strips, same reason as everything else on this page.
+        float Strip(Vector2 p)
+        {
+            float a = RoundedBox(Rotate(p, new Vector2(52f, 66f), 20f), new Vector2(52f, 66f), new Vector2(36f, 16f), 6f);
+            float b = RoundedBox(Rotate(p, new Vector2(70f, 40f), -16f), new Vector2(70f, 40f), new Vector2(32f, 15f), 6f);
+            return Union(a, b);
+        }
+
+        float Torn(Vector2 p) => Subtract(Strip(p), Circle(p, new Vector2(98f, 76f), 20f));
+        Fill(canvas, Torn, Wash(LinenShadow, 0xD1u, 0.09f), 0xD1u);
+
+        // Frayed threads along one edge.
+        Stroke(canvas, Torn, new Vector2(22f, 58f), new Vector2(40f, 82f), 1.8f, 0xD2u, 0.5f);
+        Stroke(canvas, Torn, new Vector2(38f, 26f), new Vector2(56f, 48f), 1.8f, 0xD3u, 0.45f);
+    }
+
+    private static void DrawAlcohol(ArtCanvas canvas)
+    {
+        // The ink bottle's own shape (body + neck, smooth-unioned) reused with a different
+        // proportion and colour — the same construction, a different bottle.
+        var body = new Vector2(62f, 46f);
+        var neck = new Vector2(62f, 82f);
+        float Bottle(Vector2 p) => SmoothUnion(
+            RoundedBox(p, body, new Vector2(26f, 26f), 12f),
+            RoundedBox(p, neck, new Vector2(11f, 16f), 5f),
+            9f);
+
+        Fill(canvas, Bottle, Wash(AlcoholColor, 0xD4u, 0.05f), 0xD4u);
+
+        // The liquid line, well below the shoulder — a flask kept half-full reads clearer
+        // than one drawn brim-full.
+        Stroke(canvas, Bottle, new Vector2(38f, 56f), new Vector2(86f, 56f), 2f, 0xD5u, 0.55f);
+
+        var cork = new Vector2(62f, 98f);
+        Fill(canvas, p => RoundedBox(p, cork, new Vector2(9f, 8f), 3f), Wash(CorkColor, 0xD6u, 0.07f), 0xD6u);
+    }
+
+    private static void DrawGunpowder(ArtCanvas canvas)
+    {
+        var pouch = new Vector2(62f, 48f);
+        float Pouch(Vector2 p) => SmoothUnion(
+            RoundedBox(p, pouch, new Vector2(30f, 28f), 15f),
+            RoundedBox(p, pouch + new Vector2(0f, 32f), new Vector2(12f, 14f), 6f),
+            9f);
+
+        Fill(canvas, Pouch, (point, distance) =>
+        {
+            Color color = Wash(PowderColor, 0xD7u, 0.05f)(point, distance);
+
+            // Grains catching the light, scattered rather than smooth — the one place in
+            // the set a texture reads as granular instead of as dust.
+            float grain = Mathf.SmoothStep(0.05f, 0.22f, Noise(point, 0.22f, 0xD7u, 2));
+            return Color.Lerp(color, EdgeColor, grain * 0.4f);
+        }, 0xD7u);
+
+        // The drawstring cinching the neck shut.
+        Fill(canvas, p => RoundedBox(p, pouch + new Vector2(0f, 24f), new Vector2(17f, 6f), 3f),
+            Wash(CordColor, 0xD8u, 0.05f), 0xD8u);
+    }
+
+    /// <summary>
+    /// Shared key silhouette — a ring bow, a shaft and two teeth cut into its tip — used by
+    /// both keys in the set. Only the metal and the highlight differ between them, so the
+    /// shape lives once rather than being copy-pasted with a different colour.
+    /// </summary>
+    private static void DrawKey(ArtCanvas canvas, Color metal, uint saltBase, bool ornate)
+    {
+        var bow = new Vector2(46f, 90f);
+        float Bow(Vector2 p) => Subtract(Circle(p, bow, 26f), Circle(p, bow, 6f));
+
+        var shaftTo = new Vector2(92f, 34f);
+        float Shaft(Vector2 p) => Segment(p, bow, shaftTo, 9f);
+
+        // Teeth in the shaft's own local frame (rotated to its angle, same trick the axe's
+        // head uses), so they read as cut into the blade rather than as blocks glued on.
+        float shaftAngle = Mathf.Atan2(shaftTo.y - bow.y, shaftTo.x - bow.x) * Mathf.Rad2Deg;
+        float Teeth(Vector2 p)
+        {
+            Vector2 local = Rotate(p, shaftTo, -shaftAngle);
+            float a = RoundedBox(local, shaftTo + new Vector2(-14f, -10f), new Vector2(8f, 4f), 1.5f);
+            float b = RoundedBox(local, shaftTo + new Vector2(-4f, -10f), new Vector2(6f, 4f), 1.5f);
+            return Union(a, b);
+        }
+
+        float Key(Vector2 p) => Union(Union(Bow(p), Shaft(p)), Teeth(p));
+        Fill(canvas, Key, Wash(metal, saltBase, 0.05f), saltBase);
+
+        if (ornate)
+        {
+            // The one bright accent in the set: a flat highlight band, the same device the
+            // shell's brass head uses to say "this catches light" without a gradient.
+            Stroke(canvas, Key, bow + new Vector2(-12f, 14f), bow + new Vector2(12f, 14f), 2.5f, saltBase ^ 0x1u, 0.4f);
+        }
+    }
+
+    private static void DrawGoldenKey(ArtCanvas canvas) => DrawKey(canvas, GoldColor, 0xE1u, true);
+
+    private static void DrawDoorKey(ArtCanvas canvas) => DrawKey(canvas, IronColor, 0xE3u, false);
+
+    private static void DrawPlank(ArtCanvas canvas)
+    {
+        // A single board, cut on the diagonal like the split logs' sawn faces so it doesn't
+        // read as a tile lying flat on the page. Replaces DoorBarricadeSetup's white-square
+        // placeholder — that tool still creates the item on first run, this only redraws
+        // its icon to match the rest of the set.
+        var from = new Vector2(18f, 40f);
+        var to = new Vector2(112f, 88f);
+        float Board(Vector2 p) => Segment(p, from, to, 20f);
+        Fill(canvas, Board, Wash(WoodColor, 0xF1u, 0.06f), 0xF1u);
+
+        Vector2 axis = (to - from).normalized;
+        Vector2 across = new Vector2(-axis.y, axis.x);
+
+        // Grain running the length of the board, off-centre on both sides so it doesn't
+        // read as a seam down the middle — the log's bark splits use the same trick.
+        Stroke(canvas, Board, from + across * 6f + axis * 8f, to + across * 4f - axis * 10f, 2f, 0xF2u, 0.5f);
+        Stroke(canvas, Board, from - across * 7f + axis * 14f, to - across * 5f - axis * 16f, 1.8f, 0xF3u, 0.4f);
+
+        // A knot, the one thing that says "wood" faster than the grain lines do.
+        var knot = from + axis * 42f + across * 2f;
+        Fill(canvas, p => Circle(p, knot, 6f), Wash(WoodDark, 0xF4u, 0.05f), 0xF4u);
+    }
+
+    private static void DrawUnknown(ArtCanvas canvas)
+    {
+        // The loop: a ring bitten open on its lower-left so it reads as a hook rather than a
+        // closed "o" — the same bite-a-circle-out idiom the axe's eye is carved with. Thick
+        // on purpose: at ring-thickness-11 the ink line from both edges met in the middle and
+        // ate the fill entirely, whatever colour it was set to.
+        var hookCentre = new Vector2(64f, 90f);
+        float Hook(Vector2 p) => Subtract(
+            Subtract(Circle(p, hookCentre, 28f), Circle(p, hookCentre, 8f)),
+            Circle(p, hookCentre + new Vector2(-17f, -23f), 25f));
+
+        var stemTop = new Vector2(82f, 62f);
+        var stemBottom = new Vector2(64f, 44f);
+        float HookAndStem(Vector2 p) => SmoothUnion(Hook(p), Segment(p, stemTop, stemBottom, 8f), 6f);
+
+        Fill(canvas, HookAndStem, Wash(UnknownColor, 0xA1u, 0.08f), 0xA1u);
+
+        // The dot, drawn as its own separate fill rather than unioned with the stem — the gap
+        // between them is the one thing that says "question mark" instead of "fishhook".
+        var dot = new Vector2(60f, 24f);
+        Fill(canvas, p => Circle(p, dot, 11f), Wash(UnknownColor, 0xA2u, 0.08f), 0xA2u);
     }
 }

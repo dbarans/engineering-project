@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Item 14 - Alcohol
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
   id: e05b3d7a91c44e28b6f7302da85c1934
-  icon: {fileID: 21300000, guid: 9c27fa60d8b34e15ae6c30bf19d47e82, type: 3}
+  icon: {fileID: 21300000, guid: c4334aad3f1e12247bbb90b12121ab92, type: 3}
   itemName: Alcohol
   description: Strong, flammable spirit. Essential for sterilizing bandages, brewing
     ink, and fueling torches.

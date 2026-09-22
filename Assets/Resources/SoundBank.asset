@@ -17,7 +17,7 @@ MonoBehaviour:
     clips:
     - {fileID: 8300000, guid: 3b103567b2254d1ba55fd40a04f9c6a0, type: 3}
     channel: 0
-    volume: 1
+    volume: 0.3
     pitchMin: 0.95
     pitchMax: 1.05
     spatialBlend: 1
@@ -28,7 +28,7 @@ MonoBehaviour:
     clips:
     - {fileID: 8300000, guid: 3b103567b2254d1ba55fd40a04f9c6a0, type: 3}
     channel: 0
-    volume: 1
+    volume: 0.4
     pitchMin: 0.95
     pitchMax: 1.05
     spatialBlend: 1
@@ -38,7 +38,7 @@ MonoBehaviour:
   - id: player.footstep.sneak
     clips: []
     channel: 0
-    volume: 1
+    volume: 0.2
     pitchMin: 0.95
     pitchMax: 1.05
     spatialBlend: 1
@@ -82,7 +82,7 @@ MonoBehaviour:
     clips:
     - {fileID: 8300000, guid: 905f32637a9a483ca66bc6e1f45e9e36, type: 3}
     channel: 0
-    volume: 1
+    volume: 1.4
     pitchMin: 0.95
     pitchMax: 1.05
     spatialBlend: 1

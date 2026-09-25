@@ -1,0 +1,176 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3916183e492eb5342a3798a5921eec61, type: 3}
+  m_Name: RoomContentSettings
+  m_EditorClassIdentifier: Assembly-CSharp::RoomContentSettings
+  doorPrefabId: world.door
+  enemies:
+  - prefabId: enemy.skullguy
+    weight: 1
+    minDepth: 0
+    solitary: 0
+  - prefabId: enemy.blindlistener
+    weight: 0.7
+    minDepth: 2
+    solitary: 0
+  enemiesAtFirstDepth: 0.9
+  enemiesPerDepth: 0.64
+  maxEnemiesPerRoom: 2
+  loot:
+  - itemId: 5050d2d519e64e13be6c3dacaac66b8a
+    weight: 1.2
+    minCount: 2
+    maxCount: 6
+  - itemId: ace0a8d83e674e12921766d1c1f6252f
+    weight: 1
+    minCount: 1
+    maxCount: 3
+  - itemId: 7a41c9e3b2d84f16a05c8e37d1b6942f
+    weight: 1
+    minCount: 1
+    maxCount: 4
+  - itemId: 4c9f1a86d3e74b52a81c60f95d2b7e38
+    weight: 0.9
+    minCount: 1
+    maxCount: 3
+  - itemId: e05b3d7a91c44e28b6f7302da85c1934
+    weight: 0.7
+    minCount: 1
+    maxCount: 2
+  - itemId: 5c8a7f2e1b9d4c3a8e6f0d1c2b3a4e5f
+    weight: 1
+    minCount: 1
+    maxCount: 4
+  - itemId: 1e94b7c25a084d3fae6bd0921c73f8ea
+    weight: 0.9
+    minCount: 1
+    maxCount: 3
+  minLootPerRoom: 0
+  maxLootPerRoom: 0
+  guaranteedItemId: d4010ec17b594394a2a36831f75082aa
+  guaranteedItemDrops: 0
+  treasureKeyItemId: 0b5baa00fb954bf783a7a1d08d0187ee
+  treasureLoot:
+  - itemId: d4010ec17b594394a2a36831f75082aa
+    weight: 1.5
+    minCount: 1
+    maxCount: 1
+  - itemId: 5050d2d519e64e13be6c3dacaac66b8a
+    weight: 1
+    minCount: 6
+    maxCount: 12
+  - itemId: 1e94b7c25a084d3fae6bd0921c73f8ea
+    weight: 0.8
+    minCount: 4
+    maxCount: 8
+  treasureLootCount: 0
+  chestPrefabId: world.chest
+  chestChancePerRoom: 0.25
+  chestChancePerDepth: 0.05
+  maxChestsPerRoom: 1
+  chestLoot:
+  - itemId: 4c9f1a86d3e74b52a81c60f95d2b7e38
+    weight: 1.4
+    minCount: 2
+    maxCount: 5
+  - itemId: 5c8a7f2e1b9d4c3a8e6f0d1c2b3a4e5f
+    weight: 1.2
+    minCount: 2
+    maxCount: 5
+  - itemId: ace0a8d83e674e12921766d1c1f6252f
+    weight: 0.9
+    minCount: 2
+    maxCount: 4
+  - itemId: 5050d2d519e64e13be6c3dacaac66b8a
+    weight: 0.9
+    minCount: 2
+    maxCount: 5
+  - itemId: e05b3d7a91c44e28b6f7302da85c1934
+    weight: 0.8
+    minCount: 1
+    maxCount: 3
+  - itemId: 7a41c9e3b2d84f16a05c8e37d1b6942f
+    weight: 0.6
+    minCount: 2
+    maxCount: 3
+  - itemId: 1e94b7c25a084d3fae6bd0921c73f8ea
+    weight: 0.4
+    minCount: 1
+    maxCount: 3
+  minChestStacks: 1
+  maxChestStacks: 3
+  treasureChests: 1
+  treasureChestLoot:
+  - itemId: b1782e4c0d9a4f63ae52c8710f6d3b95
+    weight: 1
+    minCount: 1
+    maxCount: 2
+  - itemId: d4010ec17b594394a2a36831f75082aa
+    weight: 1
+    minCount: 1
+    maxCount: 1
+  - itemId: 5050d2d519e64e13be6c3dacaac66b8a
+    weight: 1
+    minCount: 6
+    maxCount: 10
+  - itemId: 4c9f1a86d3e74b52a81c60f95d2b7e38
+    weight: 1
+    minCount: 4
+    maxCount: 8
+  - itemId: c4b17f2a90d64e8ab5137e6c92f4a3d1
+    weight: 0.8
+    minCount: 1
+    maxCount: 1
+  - itemId: 32507b240e6840fdbadf0fc93fe42f29
+    weight: 0.8
+    minCount: 2
+    maxCount: 4
+  - itemId: 1e94b7c25a084d3fae6bd0921c73f8ea
+    weight: 0.8
+    minCount: 3
+    maxCount: 6
+  - itemId: e05b3d7a91c44e28b6f7302da85c1934
+    weight: 0.8
+    minCount: 2
+    maxCount: 3
+  minTreasureChestStacks: 2
+  maxTreasureChestStacks: 4
+  props:
+  - prefabId: prop.barrel
+    weight: 0.49
+    minDepth: 0
+    solitary: 0
+  - prefabId: prop.table
+    weight: 0.26
+    minDepth: 0
+    solitary: 1
+  - prefabId: prop.brokenglass
+    weight: 0.25
+    minDepth: 0
+    solitary: 0
+  propsPerHundredFloorCells: 4
+  propsPerClusterMin: 2
+  propsPerClusterMax: 5
+  propWallBias: 0.8
+  alcoveAmbushChance: 0.35
+  chokepointGuardChance: 0.2
+  maxCorridorEnemies: 2
+  saveStationPrefabId: world.savestation
+  craftingTablePrefabId: world.craftingtable
+  lightPrefabId: world.lamp
+  hubLamps: 1
+  lampChancePerRoom: 0.55
+  maxLampsPerRoom: 2
+  hubChests: 2
+  exitKeyItemId: 9f3d5c81a04e47b2b8e607fa2d59c134
+  templates: []
+  templateChance: 0.4

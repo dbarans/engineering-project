@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
+  m_Name: Item 14 - Alcohol
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  id: e05b3d7a91c44e28b6f7302da85c1934
+  icon: {fileID: 21300000, guid: c4334aad3f1e12247bbb90b12121ab92, type: 3}
+  itemName: Alcohol
+  description: Strong, flammable spirit. Essential for sterilizing bandages, brewing
+    ink, and fueling torches.
+  value: 8
+  maxStack: 3
+  weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
+  maxDurability: 0

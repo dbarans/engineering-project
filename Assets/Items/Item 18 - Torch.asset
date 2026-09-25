@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
+  m_Name: Item 18 - Torch
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  id: c4b17f2a90d64e8ab5137e6c92f4a3d1
+  icon: {fileID: 21300000, guid: c60b71e8ec923a54f8742d5bf8dfc886, type: 3}
+  itemName: Torch
+  description: A wooden branch soaked in alcohol. Ignites dark areas and wards off
+    lurking shadows.
+  value: 6
+  maxStack: 1
+  weaponType: 0
+  healAmount: 0
+  lightRadius: 4.5
+  lightColor: {r: 0.3509434, g: 0.27026305, b: 0.18474188, a: 1}
+  maxDurability: 0

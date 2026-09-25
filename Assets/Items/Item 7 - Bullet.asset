@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c6a520456a9b2f42ba0388bfeb63dc3, type: 3}
+  m_Name: Item 7 - Bullet
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  id: 5050d2d519e64e13be6c3dacaac66b8a
+  icon: {fileID: 21300000, guid: af89710996f7c7549bef9d7d5a4bf331, type: 3}
+  itemName: Bullet
+  description: Standard pistol ammunition hand-crafted from scrap metal and gunpowder.
+  value: 3
+  maxStack: 8
+  weaponType: 0
+  healAmount: 0
+  lightRadius: 0
+  lightColor: {r: 1, g: 0.72, b: 0.36, a: 1}
+  maxDurability: 0
